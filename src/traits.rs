@@ -1,4 +1,5 @@
-use Result;
+use {Error, Result};
+use combinators::{AndThen, Map, MapErr};
 
 pub trait Decode {
     type Item;
@@ -26,7 +27,38 @@ pub trait Encode {
     }
 }
 
-// EncodeExt
+pub trait DecodeExt: Decode + Sized {
+    fn map<T, F>(self, f: F) -> Map<Self, T, F>
+    where
+        F: Fn(Self::Item) -> T,
+    {
+        Map::new(self, f)
+    }
+
+    fn and_then<T, F>(self, f: F) -> AndThen<Self, T, F>
+    where
+        F: Fn(Self::Item) -> T,
+        T: Decode,
+    {
+        AndThen::new(self, f)
+    }
+
+    fn map_err<F>(self, f: F) -> MapErr<Self, F>
+    where
+        F: Fn(Error) -> Error,
+    {
+        MapErr::new(self, f)
+    }
+}
+
+pub trait EncodeExt: Encode + Sized {
+    fn map_err<F>(self, f: F) -> MapErr<Self, F>
+    where
+        F: Fn(Error) -> Error,
+    {
+        MapErr::new(self, f)
+    }
+}
 
 pub trait MakeEncoder {
     type Encoder: Encode;
