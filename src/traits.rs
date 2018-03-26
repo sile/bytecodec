@@ -1,11 +1,62 @@
-use {Error, Result};
+use std::cmp;
+use std::io::{self, Read};
+use std::ops::Deref;
+
+use {Error, ErrorKind, Result};
 use combinators::{AndThen, Map, MapErr};
+
+// TODO: move
+#[derive(Debug)]
+pub struct DecodeBuf<'a> {
+    buf: &'a [u8],
+    offset: usize,
+    eos: bool,
+}
+impl<'a> DecodeBuf<'a> {
+    pub fn new(buf: &'a [u8], eos: bool) -> Self {
+        DecodeBuf {
+            buf,
+            eos,
+            offset: 0,
+        }
+    }
+
+    pub fn is_eos(&self) -> bool {
+        self.eos
+    }
+
+    pub fn consume(&mut self, size: usize) -> Result<()> {
+        track_assert!(self.offset + size <= self.len(), ErrorKind::InvalidInput;
+                      self.offset, size, self.len());
+        self.offset += size;
+        Ok(())
+    }
+}
+impl<'a> AsRef<[u8]> for DecodeBuf<'a> {
+    fn as_ref(&self) -> &[u8] {
+        &self.buf[self.offset..]
+    }
+}
+impl<'a> Deref for DecodeBuf<'a> {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+impl<'a> Read for DecodeBuf<'a> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let size = cmp::min(self.len(), buf.len());
+        (&mut buf[..size]).copy_from_slice(&self[..size]);
+        self.offset += size;
+        Ok(size)
+    }
+}
 
 pub trait Decode {
     type Item;
 
-    fn decode(&mut self, buf: &[u8], eos: bool) -> Result<usize>;
-    fn pop_item(&mut self) -> Result<Option<Self::Item>>;
+    // NOTE: 一バイトも消費されない場合には、もうデコード可能なitemが存在しないことを意味する
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>>;
     fn decode_size_hint(&self) -> Option<usize> {
         None
     }

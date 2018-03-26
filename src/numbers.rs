@@ -1,6 +1,6 @@
-use byteorder::{BigEndian, ByteOrder, LittleEndian};
+use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
 
-use {Decode, Encode, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, Error, ErrorKind, Result};
 use sequences::Bytes;
 
 macro_rules! impl_codec {
@@ -8,12 +8,8 @@ macro_rules! impl_codec {
         impl Decode for $ty {
             type Item = $item;
 
-            fn decode(&mut self, buf: &[u8], eos: bool) -> Result<usize> {
-                track!(self.0.decode(buf, eos))
-            }
-
-            fn pop_item(&mut self) -> Result<Option<Self::Item>> {
-                let item = track!(self.0.pop_item())?;
+            fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+                let item = track!(self.0.decode(buf))?;
                 Ok(item.map(|b| $read(&b)))
             }
 
@@ -56,22 +52,13 @@ impl U8 {
 impl Decode for U8 {
     type Item = u8;
 
-    fn decode(&mut self, buf: &[u8], _eos: bool) -> Result<usize> {
-        if self.0.is_none() {
-            track_assert_ne!(buf.len(), 0, ErrorKind::InvalidInput);
-            self.0 = Some(buf[0]);
-            Ok(1)
-        } else {
-            Ok(0)
-        }
-    }
-
-    fn pop_item(&mut self) -> Result<Option<Self::Item>> {
-        Ok(self.0.take())
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        // TODO: if self.0.is_none()
+        track!(buf.read_u8().map_err(Error::from)).map(Some)
     }
 
     fn decode_size_hint(&self) -> Option<usize> {
-        Some(self.0.map(|_| 0).unwrap_or(1))
+        Some(1)
     }
 }
 impl Encode for U8 {
@@ -115,22 +102,13 @@ impl I8 {
 impl Decode for I8 {
     type Item = i8;
 
-    fn decode(&mut self, buf: &[u8], _eos: bool) -> Result<usize> {
-        if self.0.is_none() {
-            track_assert_ne!(buf.len(), 0, ErrorKind::InvalidInput);
-            self.0 = Some(buf[0] as i8);
-            Ok(1)
-        } else {
-            Ok(0)
-        }
-    }
-
-    fn pop_item(&mut self) -> Result<Option<Self::Item>> {
-        Ok(self.0.take())
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        // TODO: if self.0.is_none()
+        track!(buf.read_i8().map_err(Error::from)).map(Some)
     }
 
     fn decode_size_hint(&self) -> Option<usize> {
-        Some(self.0.map(|_| 0).unwrap_or(1))
+        Some(1)
     }
 }
 impl Encode for I8 {

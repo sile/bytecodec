@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use {Decode, Encode, Error, Result};
+use {Decode, DecodeBuf, Encode, Error, Result};
 
 #[derive(Debug)]
 pub struct Map<T, U, F> {
@@ -27,12 +27,8 @@ where
 {
     type Item = U;
 
-    fn decode(&mut self, buf: &[u8], eos: bool) -> Result<usize> {
-        self.inner.decode(buf, eos)
-    }
-
-    fn pop_item(&mut self) -> Result<Option<Self::Item>> {
-        self.inner.pop_item().map(|r| r.map(&self.map))
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        self.inner.decode(buf).map(|r| r.map(&self.map))
     }
 
     fn decode_size_hint(&self) -> Option<usize> {
@@ -60,12 +56,8 @@ where
 {
     type Item = T::Item;
 
-    fn decode(&mut self, buf: &[u8], eos: bool) -> Result<usize> {
-        self.inner.decode(buf, eos).map_err(&self.map_err)
-    }
-
-    fn pop_item(&mut self) -> Result<Option<Self::Item>> {
-        self.inner.pop_item().map_err(&self.map_err)
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        self.inner.decode(buf).map_err(&self.map_err)
     }
 
     fn decode_size_hint(&self) -> Option<usize> {
@@ -118,30 +110,22 @@ where
 {
     type Item = U::Item;
 
-    fn decode(&mut self, buf: &[u8], eos: bool) -> Result<usize> {
-        if let Some(ref mut d) = self.decoder1 {
-            d.decode(buf, eos)
-        } else {
-            self.decoder0.decode(buf, eos)
-        }
-    }
-
-    fn pop_item(&mut self) -> Result<Option<Self::Item>> {
-        loop {
-            if self.decoder1.is_some() {
-                let item = self.decoder1.as_mut().expect("Never fails").pop_item()?;
-                if item.is_some() {
-                    self.decoder1 = None;
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        let mut item = None;
+        while !buf.is_empty() {
+            if let Some(ref mut d) = self.decoder1 {
+                if let Some(x) = d.decode(buf)? {
+                    item = Some(x);
+                    break;
                 }
-                return Ok(item);
-            } else {
-                if let Some(d) = self.decoder0.pop_item()?.map(&self.and_then) {
-                    self.decoder1 = Some(d);
-                } else {
-                    return Ok(None);
-                }
+            } else if let Some(d) = self.decoder0.decode(buf)?.map(&self.and_then) {
+                self.decoder1 = Some(d);
             }
         }
+        if item.is_some() {
+            self.decoder1 = None;
+        }
+        Ok(item)
     }
 
     fn decode_size_hint(&self) -> Option<usize> {

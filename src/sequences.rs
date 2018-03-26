@@ -1,8 +1,8 @@
 use std::cmp;
-use std::iter;
+use std::io::Read;
 use trackable::error::ErrorKindExt;
 
-use {Decode, Encode, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, Error, ErrorKind, Result};
 
 #[derive(Debug)]
 pub struct Bytes<B> {
@@ -35,25 +35,21 @@ impl<B: AsRef<[u8]>> Bytes<B> {
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for Bytes<B> {
     type Item = B;
 
-    fn decode(&mut self, buf: &[u8], eos: bool) -> Result<usize> {
-        if let Some(ref mut b) = self.bytes {
-            let size = cmp::min(buf.len(), b.as_ref().len() - self.offset);
-            (&mut b.as_mut()[self.offset..][..size]).copy_from_slice(&buf[..size]);
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        let decoded = if let Some(ref mut b) = self.bytes {
+            let size = track!(
+                buf.read(&mut b.as_mut()[self.offset..])
+                    .map_err(Error::from)
+            )?;
             self.offset += size;
-            if eos {
+            if buf.is_eos() {
                 track_assert_eq!(self.offset, b.as_ref().len(), ErrorKind::InvalidInput);
             }
-            Ok(size)
+            self.offset == b.as_ref().len()
         } else {
-            Ok(0)
-        }
-    }
-
-    fn pop_item(&mut self) -> Result<Option<Self::Item>> {
-        if self.bytes
-            .as_ref()
-            .map_or(false, |b| b.as_ref().len() == self.offset)
-        {
+            false
+        };
+        if decoded {
             Ok(self.bytes.take())
         } else {
             Ok(None)
@@ -108,12 +104,8 @@ impl Utf8 {
 impl Decode for Utf8 {
     type Item = String;
 
-    fn decode(&mut self, buf: &[u8], eos: bool) -> Result<usize> {
-        track!(self.0.decode(buf, eos))
-    }
-
-    fn pop_item(&mut self) -> Result<Option<Self::Item>> {
-        let item = track!(self.0.pop_item())?;
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        let item = track!(self.0.decode(buf))?;
         if let Some(bytes) = item {
             let s = track!(String::from_utf8(bytes).map_err(|e| ErrorKind::InvalidInput.cause(e)))?;
             Ok(Some(s))
@@ -143,50 +135,47 @@ impl Encode for Utf8 {
     }
 }
 
-#[derive(Debug)]
-pub struct FromIter<T, D> {
-    decoder: D,
-    items: Option<T>,
-    eos: bool,
-}
-impl<T: Default, D> FromIter<T, D> {
-    pub fn new(decoder: D) -> Self {
-        FromIter {
-            decoder,
-            items: Some(T::default()),
-            eos: false,
-        }
-    }
-}
-impl<T, D> Decode for FromIter<T, D>
-where
-    T: Extend<D::Item>,
-    D: Decode,
-{
-    type Item = T;
+// #[derive(Debug)]
+// pub struct FromIter<T, D> {
+//     decoder: D,
+//     items: Option<T>,
+//     eos: bool,
+// }
+// impl<T: Default, D> FromIter<T, D> {
+//     pub fn new(decoder: D) -> Self {
+//         FromIter {
+//             decoder,
+//             items: Some(T::default()),
+//             eos: false,
+//         }
+//     }
+// }
+// impl<T, D> Decode for FromIter<T, D>
+// where
+//     T: Extend<D::Item>,
+//     D: Decode,
+// {
+//     type Item = T;
 
-    fn decode(&mut self, buf: &[u8], eos: bool) -> Result<usize> {
-        self.eos = eos;
-        track!(self.decoder.decode(buf, eos))
-    }
+//     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+//         if let Some(items) = self.items.as_mut() {
+//             while !buf.is_empty() {
+//                 if let Some(item) = track!(self.decoder.decode(buf))? {
+//                     items.extend(iter::once(item));
+//                 }
+//             }
+//         }
+//         if buf.is_eos() {
+//             Ok(self.items.take())
+//         } else {
+//             Ok(None)
+//         }
+//     }
 
-    fn pop_item(&mut self) -> Result<Option<Self::Item>> {
-        if let Some(items) = self.items.as_mut() {
-            while let Some(item) = track!(self.decoder.pop_item())? {
-                items.extend(iter::once(item));
-            }
-        }
-        if self.eos {
-            Ok(self.items.take())
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn decode_size_hint(&self) -> Option<usize> {
-        self.decoder.decode_size_hint()
-    }
-}
+//     fn decode_size_hint(&self) -> Option<usize> {
+//         self.decoder.decode_size_hint()
+//     }
+// }
 
 #[derive(Debug)]
 pub struct Iter<T: Iterator> {
@@ -199,6 +188,7 @@ impl<T: Iterator> Iter<T> {
         Iter { iter, current }
     }
 }
+// TODO: impl Decode
 impl<T> Encode for Iter<T>
 where
     T: Iterator,
