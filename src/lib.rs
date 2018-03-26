@@ -7,6 +7,7 @@ pub use traits::{Decode, DecodeExt, Encode, EncodeExt, MakeDecoder, MakeEncoder}
 
 pub mod items;
 pub mod combinators;
+pub mod sequences;
 
 mod error;
 mod traits;
