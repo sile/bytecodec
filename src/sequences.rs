@@ -1,4 +1,6 @@
 use std::cmp;
+use std::iter;
+use trackable::error::ErrorKindExt;
 
 use {Decode, Encode, ErrorKind, Result};
 
@@ -88,5 +90,150 @@ impl<B: AsRef<[u8]>> Encode for Bytes<B> {
 
     fn encode_size_hint(&self) -> Option<usize> {
         Some(self.remaining_size())
+    }
+}
+
+#[derive(Debug)]
+pub struct Utf8(Bytes<Vec<u8>>);
+impl Utf8 {
+    pub fn new(s: String) -> Self {
+        Utf8(Bytes::new(s.into_bytes()))
+    }
+
+    pub fn zeroes(size: usize) -> Self {
+        let s = unsafe { String::from_utf8_unchecked(vec![0; size]) };
+        Self::new(s)
+    }
+}
+impl Decode for Utf8 {
+    type Item = String;
+
+    fn decode(&mut self, buf: &[u8], eos: bool) -> Result<usize> {
+        track!(self.0.decode(buf, eos))
+    }
+
+    fn pop_item(&mut self) -> Result<Option<Self::Item>> {
+        let item = track!(self.0.pop_item())?;
+        if let Some(bytes) = item {
+            let s = track!(String::from_utf8(bytes).map_err(|e| ErrorKind::InvalidInput.cause(e)))?;
+            Ok(Some(s))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn decode_size_hint(&self) -> Option<usize> {
+        Some(self.0.remaining_size())
+    }
+}
+impl Encode for Utf8 {
+    type Item = String;
+
+    fn encode(&mut self, buf: &mut [u8]) -> Result<usize> {
+        track!(self.0.encode(buf))
+    }
+
+    fn push_item(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
+        track!(self.0.push_item(item.into_bytes()))
+            .map(|t| t.map(|bytes| unsafe { String::from_utf8_unchecked(bytes) }))
+    }
+
+    fn encode_size_hint(&self) -> Option<usize> {
+        Some(self.0.remaining_size())
+    }
+}
+
+#[derive(Debug)]
+pub struct FromIter<T, D> {
+    decoder: D,
+    items: Option<T>,
+    eos: bool,
+}
+impl<T: Default, D> FromIter<T, D> {
+    pub fn new(decoder: D) -> Self {
+        FromIter {
+            decoder,
+            items: Some(T::default()),
+            eos: false,
+        }
+    }
+}
+impl<T, D> Decode for FromIter<T, D>
+where
+    T: Extend<D::Item>,
+    D: Decode,
+{
+    type Item = T;
+
+    fn decode(&mut self, buf: &[u8], eos: bool) -> Result<usize> {
+        self.eos = eos;
+        track!(self.decoder.decode(buf, eos))
+    }
+
+    fn pop_item(&mut self) -> Result<Option<Self::Item>> {
+        if let Some(items) = self.items.as_mut() {
+            while let Some(item) = track!(self.decoder.pop_item())? {
+                items.extend(iter::once(item));
+            }
+        }
+        if self.eos {
+            Ok(self.items.take())
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn decode_size_hint(&self) -> Option<usize> {
+        self.decoder.decode_size_hint()
+    }
+}
+
+#[derive(Debug)]
+pub struct Iter<T: Iterator> {
+    iter: T,
+    current: Option<T::Item>,
+}
+impl<T: Iterator> Iter<T> {
+    pub fn new(mut iter: T) -> Self {
+        let current = iter.next();
+        Iter { iter, current }
+    }
+}
+impl<T> Encode for Iter<T>
+where
+    T: Iterator,
+    T::Item: Encode,
+{
+    type Item = T;
+
+    fn encode(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let mut offset = 0;
+        while offset < buf.len() && self.current.is_some() {
+            let buf = &mut buf[offset..];
+
+            let mut x = self.current.take().expect("Never fails");
+            let size = track!(x.encode(buf))?;
+            offset += size;
+            if size == buf.len() {
+                self.current = Some(x);
+            } else {
+                self.current = self.iter.next();
+            }
+        }
+        Ok(offset)
+    }
+
+    fn push_item(&mut self, mut item: Self::Item) -> Result<Option<Self::Item>> {
+        if self.current.is_none() {
+            self.current = item.next();
+            self.iter = item;
+            Ok(None)
+        } else {
+            Ok(Some(item))
+        }
+    }
+
+    fn encode_size_hint(&self) -> Option<usize> {
+        self.current.as_ref().and_then(|x| x.encode_size_hint())
     }
 }

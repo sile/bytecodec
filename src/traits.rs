@@ -20,8 +20,13 @@ pub trait MakeDecoder {
 pub trait Encode {
     type Item;
 
+    // NOTE: `結果サイズ < buf.len()`は、エンコード完了を意味する
     fn encode(&mut self, buf: &mut [u8]) -> Result<usize>;
+
+    // Resultは不要?
     fn push_item(&mut self, item: Self::Item) -> Result<Option<Self::Item>>;
+
+    // TODO: Iteratorに合わせる?
     fn encode_size_hint(&self) -> Option<usize> {
         None
     }
