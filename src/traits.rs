@@ -3,7 +3,7 @@ use std::io::{self, Read, Write};
 use std::ops::{Deref, DerefMut};
 
 use {Error, ErrorKind, Result};
-use combinators::{AndThen, Buffered, Chain, Flatten, Map, MapErr};
+use combinators::{AndThen, Buffered, Chain, Chain2, Flatten, Map, MapErr, MapFrom};
 
 #[derive(Debug)]
 pub struct EncodeBuf<'a> {
@@ -139,7 +139,7 @@ pub trait Encode {
     // NOTE: 一バイトも書き込まれない場合には、エンコード終了を意味する
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()>;
 
-    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>>;
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
     // 下限を返す
     // TODO: encoding_size_hint(?)
@@ -178,6 +178,13 @@ pub trait DecodeExt: Decode + Sized {
     fn flatten(self) -> Flatten<Self, Self::Item> {
         Flatten::new(self)
     }
+
+    fn boxed(self) -> BoxDecoder<Self::Item>
+    where
+        Self: Send + 'static,
+    {
+        BoxDecoder(Box::new(self))
+    }
 }
 
 pub trait EncodeExt: Encode + Sized {
@@ -188,8 +195,65 @@ pub trait EncodeExt: Encode + Sized {
         MapErr::new(self, f)
     }
 
-    fn chain<T: Encode>(self, other: T) -> Chain<Self, T> {
-        Chain::new(self, other)
+    fn chain<T: Encode>(self, other: T) -> Chain2<Self, T, Self::Item> {
+        Chain2::new(self, other)
+    }
+
+    fn map_from<T, F>(self, f: F) -> MapFrom<Self, T, F>
+    where
+        F: Fn(T) -> Self::Item,
+    {
+        MapFrom::new(self, f)
+    }
+
+    fn boxed(self) -> BoxEncoder<Self::Item>
+    where
+        Self: Send + 'static,
+    {
+        BoxEncoder(Box::new(self))
+    }
+}
+impl<T: Encode> EncodeExt for T {}
+
+impl<T: Decode> DecodeExt for T {}
+
+pub struct BoxEncoder<T>(Box<Encode<Item = T> + Send + 'static>);
+impl<T> ::std::fmt::Debug for BoxEncoder<T> {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "BoxEncoder(_)")
+    }
+}
+impl<T> Encode for BoxEncoder<T> {
+    type Item = T;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        self.0.encode(buf)
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        self.0.start_encoding(item)
+    }
+
+    fn encode_size_hint(&self) -> usize {
+        self.0.encode_size_hint()
+    }
+}
+
+pub struct BoxDecoder<T>(Box<Decode<Item = T> + Send + 'static>);
+impl<T> ::std::fmt::Debug for BoxDecoder<T> {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "BoxDecoder(_)")
+    }
+}
+impl<T> Decode for BoxDecoder<T> {
+    type Item = T;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        self.0.decode(buf)
+    }
+
+    fn decode_size_hint(&self) -> usize {
+        self.0.decode_size_hint()
     }
 }
 
@@ -206,8 +270,8 @@ impl Encode for () {
         Ok(())
     }
 
-    fn start_encoding(&mut self, _item: Self::Item) -> Result<Option<Self::Item>> {
-        Ok(None)
+    fn start_encoding(&mut self, _item: Self::Item) -> Result<()> {
+        Ok(())
     }
 }
 impl Decode for () {

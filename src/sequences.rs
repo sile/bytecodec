@@ -70,14 +70,11 @@ impl<B: AsRef<[u8]>> Encode for Bytes<B> {
         Ok(())
     }
 
-    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
-        if self.remaining_size() == 0 {
-            self.bytes = Some(item);
-            self.offset = 0;
-            Ok(None)
-        } else {
-            Ok(Some(item))
-        }
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track_assert_eq!(self.remaining_size(), 0, ErrorKind::Full);
+        self.bytes = Some(item);
+        self.offset = 0;
+        Ok(())
     }
 
     fn encode_size_hint(&self) -> usize {
@@ -88,13 +85,21 @@ impl<B: AsRef<[u8]>> Encode for Bytes<B> {
 #[derive(Debug)]
 pub struct Utf8(Bytes<Vec<u8>>);
 impl Utf8 {
-    pub fn new(s: String) -> Self {
-        Utf8(Bytes::new(s.into_bytes()))
+    pub fn new() -> Self {
+        Self::default()
     }
+    // pub fn new(s: String) -> Self {
+    //     Utf8(Bytes::new(s.into_bytes()))
+    // }
 
     pub fn zeroes(size: usize) -> Self {
-        let s = unsafe { String::from_utf8_unchecked(vec![0; size]) };
-        Self::new(s)
+        Utf8(Bytes::new(vec![0; size]))
+    }
+}
+impl Default for Utf8 {
+    // TODO: derive
+    fn default() -> Self {
+        Utf8(Bytes::new(Vec::new()))
     }
 }
 impl Decode for Utf8 {
@@ -121,9 +126,8 @@ impl Encode for Utf8 {
         track!(self.0.encode(buf))
     }
 
-    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
         track!(self.0.start_encoding(item.into_bytes()))
-            .map(|t| t.map(|bytes| unsafe { String::from_utf8_unchecked(bytes) }))
     }
 
     fn encode_size_hint(&self) -> usize {
@@ -153,7 +157,7 @@ impl Encode for Utf8 {
 // {
 //     type Item = T;
 
-//     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+//     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Self::Item> {
 //         if let Some(items) = self.items.as_mut() {
 //             while !buf.is_empty() {
 //                 if let Some(item) = track!(self.decoder.decode(buf))? {
@@ -205,14 +209,11 @@ where
         Ok(())
     }
 
-    fn start_encoding(&mut self, mut item: Self::Item) -> Result<Option<Self::Item>> {
-        if self.current.is_none() {
-            self.current = item.next();
-            self.iter = item;
-            Ok(None)
-        } else {
-            Ok(Some(item))
-        }
+    fn start_encoding(&mut self, mut item: Self::Item) -> Result<()> {
+        track_assert!(self.current.is_none(), ErrorKind::Full);
+        self.current = item.next();
+        self.iter = item;
+        Ok(())
     }
 
     fn encode_size_hint(&self) -> usize {

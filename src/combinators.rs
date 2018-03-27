@@ -75,7 +75,7 @@ where
         self.inner.encode(buf).map_err(&self.map_err)
     }
 
-    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
         self.inner.start_encoding(item).map_err(&self.map_err)
     }
 
@@ -139,6 +139,115 @@ where
 }
 
 #[derive(Debug)]
+pub struct Chain2<A, B, I> {
+    inner: Chain<A, B>,
+    _item: PhantomData<I>,
+}
+impl<A, B, I> Chain2<A, B, I> {
+    pub(crate) fn new(a: A, b: B) -> Self {
+        Chain2 {
+            inner: Chain::new(a, b),
+            _item: PhantomData,
+        }
+    }
+}
+impl<A, B> Encode for Chain2<A, B, ()>
+where
+    A: Encode<Item = ()>,
+    B: Encode,
+{
+    type Item = (B::Item,);
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        self.inner.encode(buf)
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        self.inner.start_encoding(((), item.0))
+    }
+
+    fn encode_size_hint(&self) -> usize {
+        self.inner.encode_size_hint()
+    }
+}
+impl<T0, T1, A> Encode for Chain2<T0, T1, (A,)>
+where
+    T0: Encode<Item = (A,)>,
+    T1: Encode,
+{
+    type Item = (A, T1::Item);
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        self.inner.encode(buf)
+    }
+
+    fn start_encoding(&mut self, (a, b): Self::Item) -> Result<()> {
+        self.inner.start_encoding(((a,), b))
+    }
+
+    fn encode_size_hint(&self) -> usize {
+        self.inner.encode_size_hint()
+    }
+}
+impl<T0, T1, A, B> Encode for Chain2<T0, T1, (A, B)>
+where
+    T0: Encode<Item = (A, B)>,
+    T1: Encode,
+{
+    type Item = (A, B, T1::Item);
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        self.inner.encode(buf)
+    }
+
+    fn start_encoding(&mut self, (a, b, c): Self::Item) -> Result<()> {
+        self.inner.start_encoding(((a, b), c))
+    }
+
+    fn encode_size_hint(&self) -> usize {
+        self.inner.encode_size_hint()
+    }
+}
+impl<T0, T1, A, B, C> Encode for Chain2<T0, T1, (A, B, C)>
+where
+    T0: Encode<Item = (A, B, C)>,
+    T1: Encode,
+{
+    type Item = (A, B, C, T1::Item);
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        self.inner.encode(buf)
+    }
+
+    fn start_encoding(&mut self, (a, b, c, d): Self::Item) -> Result<()> {
+        self.inner.start_encoding(((a, b, c), d))
+    }
+
+    fn encode_size_hint(&self) -> usize {
+        self.inner.encode_size_hint()
+    }
+}
+impl<T0, T1, A, B, C, D> Encode for Chain2<T0, T1, (A, B, C, D)>
+where
+    T0: Encode<Item = (A, B, C, D)>,
+    T1: Encode,
+{
+    type Item = (A, B, C, D, T1::Item);
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        self.inner.encode(buf)
+    }
+
+    fn start_encoding(&mut self, (a, b, c, d, e): Self::Item) -> Result<()> {
+        self.inner.start_encoding(((a, b, c, d), e))
+    }
+
+    fn encode_size_hint(&self) -> usize {
+        self.inner.encode_size_hint()
+    }
+}
+
+#[derive(Debug)]
 pub struct Chain<A, B> {
     a: A,
     b: B,
@@ -170,21 +279,12 @@ where
         Ok(())
     }
 
-    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
-        if self.i == 2 {
-            self.i = 0;
-            track_assert!(
-                track!(self.a.start_encoding(item.0))?.is_none(),
-                ErrorKind::Other
-            );
-            track_assert!(
-                track!(self.b.start_encoding(item.1))?.is_none(),
-                ErrorKind::Other
-            );
-            Ok(None)
-        } else {
-            Ok(Some(item))
-        }
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track_assert_eq!(self.i, 2, ErrorKind::Full);
+        self.i = 0;
+        track!(self.a.start_encoding(item.0))?;
+        track!(self.b.start_encoding(item.1))?;
+        Ok(())
     }
 
     fn encode_size_hint(&self) -> usize {
@@ -278,14 +378,49 @@ impl<T: Decode> Decode for Buffered<T> {
 }
 
 #[derive(Debug)]
+pub struct MapFrom<T, U, F> {
+    encoder: T,
+    _item: PhantomData<U>,
+    map_from: F,
+}
+impl<T, U, F> MapFrom<T, U, F> {
+    pub(crate) fn new(encoder: T, map_from: F) -> Self {
+        MapFrom {
+            encoder,
+            _item: PhantomData,
+            map_from,
+        }
+    }
+}
+impl<T, U, F> Encode for MapFrom<T, U, F>
+where
+    T: Encode,
+    F: Fn(U) -> T::Item,
+{
+    type Item = U;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        track!(self.encoder.encode(buf))
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track!(self.encoder.start_encoding((self.map_from)(item)))
+    }
+
+    fn encode_size_hint(&self) -> usize {
+        self.encoder.encode_size_hint()
+    }
+}
+
+#[derive(Debug)]
 pub struct Flatten<T, I> {
-    decoder: T,
+    codec: T,
     _item: PhantomData<I>,
 }
 impl<T, I> Flatten<T, I> {
-    pub(crate) fn new(decoder: T) -> Self {
+    pub(crate) fn new(codec: T) -> Self {
         Flatten {
-            decoder,
+            codec,
             _item: PhantomData,
         }
     }
@@ -297,12 +432,12 @@ where
     type Item = (A, B, C);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let item = track!(self.decoder.decode(buf))?;
-        Ok(item.map(|((a, b), c)| (a, b, c)))
+        let item = track!(self.codec.decode(buf))?;
+        Ok(item.map(into_flat3))
     }
 
     fn decode_size_hint(&self) -> usize {
-        self.decoder.decode_size_hint()
+        self.codec.decode_size_hint()
     }
 }
 impl<T, A, B, C, D> Decode for Flatten<T, (A, B, C, D)>
@@ -312,12 +447,12 @@ where
     type Item = (A, B, C, D);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let item = track!(self.decoder.decode(buf))?;
-        Ok(item.map(|(((a, b), c), d)| (a, b, c, d)))
+        let item = track!(self.codec.decode(buf))?;
+        Ok(item.map(into_flat4))
     }
 
     fn decode_size_hint(&self) -> usize {
-        self.decoder.decode_size_hint()
+        self.codec.decode_size_hint()
     }
 }
 impl<T, A, B, C, D, E> Decode for Flatten<T, (A, B, C, D, E)>
@@ -327,12 +462,12 @@ where
     type Item = (A, B, C, D, E);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let item = track!(self.decoder.decode(buf))?;
-        Ok(item.map(|((((a, b), c), d), e)| (a, b, c, d, e)))
+        let item = track!(self.codec.decode(buf))?;
+        Ok(item.map(into_flat5))
     }
 
     fn decode_size_hint(&self) -> usize {
-        self.decoder.decode_size_hint()
+        self.codec.decode_size_hint()
     }
 }
 impl<T, A, B, C, D, E, F> Decode for Flatten<T, (A, B, C, D, E, F)>
@@ -342,12 +477,12 @@ where
     type Item = (A, B, C, D, E, F);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let item = track!(self.decoder.decode(buf))?;
-        Ok(item.map(|(((((a, b), c), d), e), f)| (a, b, c, d, e, f)))
+        let item = track!(self.codec.decode(buf))?;
+        Ok(item.map(into_flat6))
     }
 
     fn decode_size_hint(&self) -> usize {
-        self.decoder.decode_size_hint()
+        self.codec.decode_size_hint()
     }
 }
 impl<T, A, B, C, D, E, F, G> Decode for Flatten<T, (A, B, C, D, E, F, G)>
@@ -357,12 +492,12 @@ where
     type Item = (A, B, C, D, E, F, G);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let item = track!(self.decoder.decode(buf))?;
-        Ok(item.map(|((((((a, b), c), d), e), f), g)| (a, b, c, d, e, f, g)))
+        let item = track!(self.codec.decode(buf))?;
+        Ok(item.map(into_flat7))
     }
 
     fn decode_size_hint(&self) -> usize {
-        self.decoder.decode_size_hint()
+        self.codec.decode_size_hint()
     }
 }
 impl<T, A, B, C, D, E, F, G, H> Decode for Flatten<T, (A, B, C, D, E, F, G, H)>
@@ -372,11 +507,146 @@ where
     type Item = (A, B, C, D, E, F, G, H);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let item = track!(self.decoder.decode(buf))?;
-        Ok(item.map(|(((((((a, b), c), d), e), f), g), h)| (a, b, c, d, e, f, g, h)))
+        let item = track!(self.codec.decode(buf))?;
+        Ok(item.map(into_flat8))
     }
 
     fn decode_size_hint(&self) -> usize {
-        self.decoder.decode_size_hint()
+        self.codec.decode_size_hint()
+    }
+}
+
+// impl<T, A, B, C, D> Encode for Flatten<T, (((A, B), C), D)>
+// where
+//     T: Encode<Item = (A, B, C, D)>,
+// {
+//     type Item = (((A, B), C), D);
+
+//     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+//         track!(self.codec.encode(buf))
+//     }
+
+//     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+//         track!(self.codec.start_encoding(into_flat4(item)))
+//     }
+
+//     fn encode_size_hint(&self) -> usize {
+//         self.codec.encode_size_hint()
+//     }
+// }
+// impl<T, A, B, C, D, E> Encode for Flatten<T, ((((A, B), C), D), E)>
+// where
+//     T: Encode<Item = (A, B, C, D, E)>,
+// {
+//     type Item = ((((A, B), C), D), E);
+
+//     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+//         track!(self.codec.encode(buf))
+//     }
+
+//     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+//         track!(self.codec.start_encoding(into_flat5(item)))
+//     }
+
+//     fn encode_size_hint(&self) -> usize {
+//         self.codec.encode_size_hint()
+//     }
+// }
+// impl<T, A, B, C, D, E, F> Encode for Flatten<T, (((((A, B), C), D), E), F)>
+// where
+//     T: Encode<Item = (A, B, C, D, E, F)>,
+// {
+//     type Item = (((((A, B), C), D), E), F);
+
+//     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+//         track!(self.codec.encode(buf))
+//     }
+
+//     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+//         track!(self.codec.start_encoding(into_flat6(item)))
+//     }
+
+//     fn encode_size_hint(&self) -> usize {
+//         self.codec.encode_size_hint()
+//     }
+// }
+// impl<T, A, B, C, D, E, F, G> Encode for Flatten<T, ((((((A, B), C), D), E), F), G)>
+// where
+//     T: Encode<Item = (A, B, C, D, E, F, G)>,
+// {
+//     type Item = ((((((A, B), C), D), E), F), G);
+
+//     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+//         track!(self.codec.encode(buf))
+//     }
+
+//     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+//         track!(self.codec.start_encoding(into_flat7(item)))
+//     }
+
+//     fn encode_size_hint(&self) -> usize {
+//         self.codec.encode_size_hint()
+//     }
+// }
+// impl<T, A, B, C, D, E, F, G, H> Encode for Flatten<T, (((((((A, B), C), D), E), F), G), H)>
+// where
+//     T: Encode<Item = (A, B, C, D, E, F, G, H)>,
+// {
+//     type Item = (((((((A, B), C), D), E), F), G), H);
+
+//     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+//         track!(self.codec.encode(buf))
+//     }
+
+//     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+//         track!(self.codec.start_encoding(into_flat8(item)))
+//     }
+
+//     fn encode_size_hint(&self) -> usize {
+//         self.codec.encode_size_hint()
+//     }
+// }
+
+fn into_flat3<A, B, C>(((a, b), c): ((A, B), C)) -> (A, B, C) {
+    (a, b, c)
+}
+
+fn into_flat4<A, B, C, D>((((a, b), c), d): (((A, B), C), D)) -> (A, B, C, D) {
+    (a, b, c, d)
+}
+
+fn into_flat5<A, B, C, D, E>(((((a, b), c), d), e): ((((A, B), C), D), E)) -> (A, B, C, D, E) {
+    (a, b, c, d, e)
+}
+
+fn into_flat6<A, B, C, D, E, F>(
+    (((((a, b), c), d), e), f): (((((A, B), C), D), E), F),
+) -> (A, B, C, D, E, F) {
+    (a, b, c, d, e, f)
+}
+
+fn into_flat7<A, B, C, D, E, F, G>(
+    ((((((a, b), c), d), e), f), g): ((((((A, B), C), D), E), F), G),
+) -> (A, B, C, D, E, F, G) {
+    (a, b, c, d, e, f, g)
+}
+
+fn into_flat8<A, B, C, D, E, F, G, H>(
+    (((((((a, b), c), d), e), f), g), h): (((((((A, B), C), D), E), F), G), H),
+) -> (A, B, C, D, E, F, G, H) {
+    (a, b, c, d, e, f, g, h)
+}
+
+#[derive(Debug)]
+pub struct StartChain;
+impl Encode for StartChain {
+    type Item = ();
+
+    fn encode(&mut self, _buf: &mut EncodeBuf) -> Result<()> {
+        Ok(())
+    }
+
+    fn start_encoding(&mut self, _item: Self::Item) -> Result<()> {
+        Ok(())
     }
 }

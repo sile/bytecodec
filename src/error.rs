@@ -19,6 +19,7 @@ impl From<std::io::Error> for Error {
 #[derive(Debug, Clone)]
 pub enum ErrorKind {
     InvalidInput,
+    Full,
     Other,
 }
 impl TrackableErrorKind for ErrorKind {}

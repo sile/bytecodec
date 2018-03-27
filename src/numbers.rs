@@ -25,11 +25,11 @@ macro_rules! impl_codec {
                 track!(self.0.encode(buf))
             }
 
-            fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
+            fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
                 // TODO: validate
                 let mut b = [0; $size];
                 $write(&mut b, item);
-                track!(self.0.start_encoding(b).map(|r| r.map(|_| item)))
+                track!(self.0.start_encoding(b))
             }
 
             fn encode_size_hint(&self) -> usize {
@@ -42,9 +42,12 @@ macro_rules! impl_codec {
 #[derive(Debug, Default)]
 pub struct U8(Option<u8>);
 impl U8 {
-    pub fn new(v: u8) -> Self {
-        U8(Some(v))
+    pub fn new() -> Self {
+        Self::default()
     }
+    // pub fn new(v: u8) -> Self {
+    //     U8(Some(v))
+    // }
 
     pub fn empty() -> Self {
         Self::default()
@@ -72,13 +75,10 @@ impl Encode for U8 {
         Ok(())
     }
 
-    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
-        if self.0.is_none() {
-            self.0 = Some(item);
-            Ok(None)
-        } else {
-            Ok(Some(item))
-        }
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track_assert!(self.0.is_none(), ErrorKind::Full);
+        self.0 = Some(item);
+        Ok(())
     }
 
     fn encode_size_hint(&self) -> usize {
@@ -119,13 +119,10 @@ impl Encode for I8 {
         Ok(())
     }
 
-    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
-        if self.0.is_none() {
-            self.0 = Some(item);
-            Ok(None)
-        } else {
-            Ok(Some(item))
-        }
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track_assert!(self.0.is_none(), ErrorKind::Full);
+        self.0 = Some(item);
+        Ok(())
     }
 
     fn encode_size_hint(&self) -> usize {
@@ -136,10 +133,13 @@ impl Encode for I8 {
 #[derive(Debug, Default)]
 pub struct U16be(Bytes<[u8; 2]>);
 impl U16be {
-    pub fn new(n: u16) -> Self {
-        let mut b = [0; 2];
-        BigEndian::write_u16(&mut b, n);
-        U16be(Bytes::new(b))
+    // pub fn new(n: u16) -> Self {
+    //     let mut b = [0; 2];
+    //     BigEndian::write_u16(&mut b, n);
+    //     U16be(Bytes::new(b))
+    // }
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 impl_codec!(U16be, u16, 2, BigEndian::read_u16, BigEndian::write_u16);
