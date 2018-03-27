@@ -1,8 +1,7 @@
-use std::cmp;
-use std::io::Read;
+use std::io::{Read, Write};
 use trackable::error::ErrorKindExt;
 
-use {Decode, DecodeBuf, Encode, Error, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
 
 #[derive(Debug)]
 pub struct Bytes<B> {
@@ -56,25 +55,22 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for Bytes<B> {
         }
     }
 
-    fn decode_size_hint(&self) -> Option<usize> {
-        Some(self.remaining_size())
+    fn decode_size_hint(&self) -> usize {
+        self.remaining_size()
     }
 }
 impl<B: AsRef<[u8]>> Encode for Bytes<B> {
     type Item = B;
 
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         if let Some(ref mut b) = self.bytes {
-            let size = cmp::min(buf.len(), b.as_ref().len() - self.offset);
-            (&mut buf[..size]).copy_from_slice(&b.as_ref()[self.offset..][..size]);
+            let size = track!(buf.write(&b.as_ref()[self.offset..]).map_err(Error::from))?;
             self.offset += size;
-            Ok(size)
-        } else {
-            Ok(0)
         }
+        Ok(())
     }
 
-    fn push_item(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
+    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
         if self.remaining_size() == 0 {
             self.bytes = Some(item);
             self.offset = 0;
@@ -84,8 +80,8 @@ impl<B: AsRef<[u8]>> Encode for Bytes<B> {
         }
     }
 
-    fn encode_size_hint(&self) -> Option<usize> {
-        Some(self.remaining_size())
+    fn encode_size_hint(&self) -> usize {
+        self.remaining_size()
     }
 }
 
@@ -114,24 +110,24 @@ impl Decode for Utf8 {
         }
     }
 
-    fn decode_size_hint(&self) -> Option<usize> {
-        Some(self.0.remaining_size())
+    fn decode_size_hint(&self) -> usize {
+        self.0.remaining_size()
     }
 }
 impl Encode for Utf8 {
     type Item = String;
 
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         track!(self.0.encode(buf))
     }
 
-    fn push_item(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
-        track!(self.0.push_item(item.into_bytes()))
+    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
+        track!(self.0.start_encoding(item.into_bytes()))
             .map(|t| t.map(|bytes| unsafe { String::from_utf8_unchecked(bytes) }))
     }
 
-    fn encode_size_hint(&self) -> Option<usize> {
-        Some(self.0.remaining_size())
+    fn encode_size_hint(&self) -> usize {
+        self.0.remaining_size()
     }
 }
 
@@ -196,24 +192,20 @@ where
 {
     type Item = T;
 
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let mut offset = 0;
-        while offset < buf.len() && self.current.is_some() {
-            let buf = &mut buf[offset..];
-
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        while !buf.is_empty() && self.current.is_some() {
             let mut x = self.current.take().expect("Never fails");
-            let size = track!(x.encode(buf))?;
-            offset += size;
-            if size == buf.len() {
-                self.current = Some(x);
-            } else {
+            track!(x.encode(buf))?;
+            if buf.is_completed() {
                 self.current = self.iter.next();
+            } else {
+                self.current = Some(x);
             }
         }
-        Ok(offset)
+        Ok(())
     }
 
-    fn push_item(&mut self, mut item: Self::Item) -> Result<Option<Self::Item>> {
+    fn start_encoding(&mut self, mut item: Self::Item) -> Result<Option<Self::Item>> {
         if self.current.is_none() {
             self.current = item.next();
             self.iter = item;
@@ -223,7 +215,7 @@ where
         }
     }
 
-    fn encode_size_hint(&self) -> Option<usize> {
-        self.current.as_ref().and_then(|x| x.encode_size_hint())
+    fn encode_size_hint(&self) -> usize {
+        self.current.as_ref().map_or(0, |x| x.encode_size_hint())
     }
 }

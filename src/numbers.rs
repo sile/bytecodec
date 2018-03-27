@@ -1,6 +1,6 @@
-use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
+use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use {Decode, DecodeBuf, Encode, Error, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
 use sequences::Bytes;
 
 macro_rules! impl_codec {
@@ -13,7 +13,7 @@ macro_rules! impl_codec {
                 Ok(item.map(|b| $read(&b)))
             }
 
-            fn decode_size_hint(&self) -> Option<usize> {
+            fn decode_size_hint(&self) -> usize {
                 self.0.decode_size_hint()
             }
         }
@@ -21,17 +21,18 @@ macro_rules! impl_codec {
         impl Encode for $ty {
             type Item = $item;
 
-            fn encode(&mut self, buf: &mut [u8]) -> Result<usize> {
+            fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
                 track!(self.0.encode(buf))
             }
 
-            fn push_item(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
+            fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
+                // TODO: validate
                 let mut b = [0; $size];
                 $write(&mut b, item);
-                track!(self.0.push_item(b).map(|r| r.map(|_| item)))
+                track!(self.0.start_encoding(b).map(|r| r.map(|_| item)))
             }
 
-            fn encode_size_hint(&self) -> Option<usize> {
+            fn encode_size_hint(&self) -> usize {
                 self.0.encode_size_hint()
             }
         }
@@ -57,24 +58,21 @@ impl Decode for U8 {
         track!(buf.read_u8().map_err(Error::from)).map(Some)
     }
 
-    fn decode_size_hint(&self) -> Option<usize> {
-        Some(1)
+    fn decode_size_hint(&self) -> usize {
+        1
     }
 }
 impl Encode for U8 {
     type Item = u8;
 
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         if let Some(v) = self.0.take() {
-            track_assert_ne!(buf.len(), 0, ErrorKind::InvalidInput);
-            buf[0] = v;
-            Ok(1)
-        } else {
-            Ok(0)
+            track!(buf.write_u8(v).map_err(Error::from))?;
         }
+        Ok(())
     }
 
-    fn push_item(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
+    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
         if self.0.is_none() {
             self.0 = Some(item);
             Ok(None)
@@ -83,8 +81,8 @@ impl Encode for U8 {
         }
     }
 
-    fn encode_size_hint(&self) -> Option<usize> {
-        Some(self.0.map(|_| 1).unwrap_or(0))
+    fn encode_size_hint(&self) -> usize {
+        self.0.map(|_| 1).unwrap_or(0)
     }
 }
 
@@ -107,24 +105,21 @@ impl Decode for I8 {
         track!(buf.read_i8().map_err(Error::from)).map(Some)
     }
 
-    fn decode_size_hint(&self) -> Option<usize> {
-        Some(1)
+    fn decode_size_hint(&self) -> usize {
+        1
     }
 }
 impl Encode for I8 {
     type Item = i8;
 
-    fn encode(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         if let Some(v) = self.0.take() {
-            track_assert_ne!(buf.len(), 0, ErrorKind::InvalidInput);
-            buf[0] = v as u8;
-            Ok(1)
-        } else {
-            Ok(0)
+            track!(buf.write_i8(v).map_err(Error::from))?;
         }
+        Ok(())
     }
 
-    fn push_item(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
+    fn start_encoding(&mut self, item: Self::Item) -> Result<Option<Self::Item>> {
         if self.0.is_none() {
             self.0 = Some(item);
             Ok(None)
@@ -133,8 +128,8 @@ impl Encode for I8 {
         }
     }
 
-    fn encode_size_hint(&self) -> Option<usize> {
-        Some(self.0.map(|_| 1).unwrap_or(0))
+    fn encode_size_hint(&self) -> usize {
+        self.0.map(|_| 1).unwrap_or(0)
     }
 }
 
