@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 pub use chain::EncoderChain;
 
-use {Decode, DecodeBuf, Encode, EncodeBuf, Error, Result};
+use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
 
 #[derive(Debug)]
 pub struct Map<T, U, F> {
@@ -158,13 +158,48 @@ where
     }
 }
 
-// #[derive(Debug, Default)]
-// pub struct LengthPrefixed<L, T> {
-//     length: L,
-//     bytes: T,
-// }
-// impl <L,T> LengthPrefixed<L,T> {
-//     pub fn new(length:L, bytes:T) -> Self
-// }
+#[derive(Debug)]
+pub struct Repeat<E, I> {
+    encoder: E,
+    items: Option<I>,
+}
+impl<E, I> Repeat<E, I> {
+    pub(crate) fn new(encoder: E) -> Self {
+        Repeat {
+            encoder,
+            items: None,
+        }
+    }
+}
+impl<E, I> Encode for Repeat<E, I>
+where
+    E: Encode,
+    I: Iterator<Item = E::Item>,
+{
+    type Item = I;
 
-// TODO: iter, extend, length-limited
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        while !buf.is_empty() && self.items.is_some() {
+            let old_buf_len = buf.len();
+            track!(self.encoder.encode(buf))?;
+            if old_buf_len == buf.len() {
+                if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
+                    track!(self.encoder.start_encoding(item))?;
+                } else {
+                    self.items = None;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track_assert!(self.items.is_none(), ErrorKind::Full);
+        self.items = Some(item);
+        Ok(())
+    }
+
+    fn remaining_bytes(&self) -> Option<u64> {
+        None
+    }
+}

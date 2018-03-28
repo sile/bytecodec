@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
 
 use {Error, ErrorKind, Result};
-use combinator::{EncoderChain, MapErr, StartEncodingFrom};
+use combinator::{EncoderChain, MapErr, Repeat, StartEncodingFrom};
 
 pub trait Encode {
     type Item;
@@ -14,9 +14,7 @@ pub trait Encode {
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        None
-    }
+    fn remaining_bytes(&self) -> Option<u64>;
 }
 
 pub trait EncodeExt: Encode + Sized {
@@ -36,6 +34,13 @@ pub trait EncodeExt: Encode + Sized {
 
     fn chain<E: Encode>(self, other: E) -> EncoderChain<Self, E, Self::Item> {
         EncoderChain::new(self, other)
+    }
+
+    fn repeat<I>(self) -> Repeat<Self, I>
+    where
+        I: Iterator<Item = Self::Item>,
+    {
+        Repeat::new(self)
     }
 
     fn boxed(self) -> BoxEncoder<Self::Item>
