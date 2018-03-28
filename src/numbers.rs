@@ -12,10 +12,6 @@ macro_rules! impl_codec {
                 let item = track!(self.0.decode(buf))?;
                 Ok(item.map(|b| $read(&b)))
             }
-
-            fn decode_size_hint(&self) -> usize {
-                self.0.decode_size_hint()
-            }
         }
 
         impl Encode for $ty {
@@ -32,8 +28,8 @@ macro_rules! impl_codec {
                 track!(self.0.start_encoding(b))
             }
 
-            fn encode_size_hint(&self) -> usize {
-                self.0.encode_size_hint()
+            fn remaining_bytes(&self) -> Option<u64> {
+                self.0.remaining_bytes()
             }
         }
     }
@@ -60,10 +56,6 @@ impl Decode for U8 {
         // TODO: if self.0.is_none()
         track!(buf.read_u8().map_err(Error::from)).map(Some)
     }
-
-    fn decode_size_hint(&self) -> usize {
-        1
-    }
 }
 impl Encode for U8 {
     type Item = u8;
@@ -81,8 +73,8 @@ impl Encode for U8 {
         Ok(())
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.0.map(|_| 1).unwrap_or(0)
+    fn remaining_bytes(&self) -> Option<u64> {
+        Some(self.0.map(|_| 1).unwrap_or(0))
     }
 }
 
@@ -104,10 +96,6 @@ impl Decode for I8 {
         // TODO: if self.0.is_none()
         track!(buf.read_i8().map_err(Error::from)).map(Some)
     }
-
-    fn decode_size_hint(&self) -> usize {
-        1
-    }
 }
 impl Encode for I8 {
     type Item = i8;
@@ -125,8 +113,8 @@ impl Encode for I8 {
         Ok(())
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.0.map(|_| 1).unwrap_or(0)
+    fn remaining_bytes(&self) -> Option<u64> {
+        Some(self.0.map(|_| 1).unwrap_or(0))
     }
 }
 

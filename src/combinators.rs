@@ -30,10 +30,6 @@ where
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         self.inner.decode(buf).map(|r| r.map(&self.map))
     }
-
-    fn decode_size_hint(&self) -> usize {
-        self.inner.decode_size_hint()
-    }
 }
 
 #[derive(Debug)]
@@ -59,10 +55,6 @@ where
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         self.inner.decode(buf).map_err(&self.map_err)
     }
-
-    fn decode_size_hint(&self) -> usize {
-        self.inner.decode_size_hint()
-    }
 }
 impl<T, F> Encode for MapErr<T, F>
 where
@@ -79,8 +71,8 @@ where
         self.inner.start_encoding(item).map_err(&self.map_err)
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.inner.encode_size_hint()
+    fn remaining_bytes(&self) -> Option<u64> {
+        self.inner.remaining_bytes()
     }
 }
 
@@ -127,15 +119,6 @@ where
         }
         Ok(item)
     }
-
-    fn decode_size_hint(&self) -> usize {
-        // TODO:
-        if let Some(ref d) = self.decoder1 {
-            d.decode_size_hint()
-        } else {
-            self.decoder0.decode_size_hint()
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -166,8 +149,8 @@ where
         self.inner.start_encoding(((), item.0))
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.inner.encode_size_hint()
+    fn remaining_bytes(&self) -> Option<u64> {
+        self.inner.remaining_bytes()
     }
 }
 impl<T0, T1, A> Encode for Chain2<T0, T1, (A,)>
@@ -185,8 +168,8 @@ where
         self.inner.start_encoding(((a,), b))
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.inner.encode_size_hint()
+    fn remaining_bytes(&self) -> Option<u64> {
+        self.inner.remaining_bytes()
     }
 }
 impl<T0, T1, A, B> Encode for Chain2<T0, T1, (A, B)>
@@ -204,8 +187,8 @@ where
         self.inner.start_encoding(((a, b), c))
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.inner.encode_size_hint()
+    fn remaining_bytes(&self) -> Option<u64> {
+        self.inner.remaining_bytes()
     }
 }
 impl<T0, T1, A, B, C> Encode for Chain2<T0, T1, (A, B, C)>
@@ -223,8 +206,8 @@ where
         self.inner.start_encoding(((a, b, c), d))
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.inner.encode_size_hint()
+    fn remaining_bytes(&self) -> Option<u64> {
+        self.inner.remaining_bytes()
     }
 }
 impl<T0, T1, A, B, C, D> Encode for Chain2<T0, T1, (A, B, C, D)>
@@ -242,8 +225,8 @@ where
         self.inner.start_encoding(((a, b, c, d), e))
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.inner.encode_size_hint()
+    fn remaining_bytes(&self) -> Option<u64> {
+        self.inner.remaining_bytes()
     }
 }
 
@@ -267,12 +250,13 @@ where
 
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         while !buf.is_empty() && self.i < 2 {
+            let old_buf_len = buf.len();
             match self.i {
                 0 => track!(self.a.encode(buf))?,
                 1 => track!(self.b.encode(buf))?,
                 _ => unreachable!(),
             }
-            if buf.is_completed() {
+            if old_buf_len == buf.len() {
                 self.i += 1;
             }
         }
@@ -287,13 +271,13 @@ where
         Ok(())
     }
 
-    fn encode_size_hint(&self) -> usize {
-        let mut size = 0;
+    fn remaining_bytes(&self) -> Option<u64> {
+        let mut size = Some(0);
         if self.i <= 0 {
-            size += self.a.encode_size_hint();
+            size = size.and_then(|x| self.a.remaining_bytes().map(|y| x + y));
         }
         if self.i <= 1 {
-            size += self.b.encode_size_hint();
+            size = size.and_then(|x| self.b.remaining_bytes().map(|y| x + y));
         }
         size
     }
@@ -326,17 +310,6 @@ where
             Ok(None)
         }
     }
-
-    fn decode_size_hint(&self) -> usize {
-        let mut size = 0;
-        if self.i <= 0 {
-            size += self.a.decode_size_hint();
-        }
-        if self.i <= 1 {
-            size += self.b.decode_size_hint();
-        }
-        size
-    }
 }
 
 #[derive(Debug)]
@@ -366,14 +339,6 @@ impl<T: Decode> Decode for Buffered<T> {
             }
         }
         Ok(None)
-    }
-
-    fn decode_size_hint(&self) -> usize {
-        if self.buffer.is_some() {
-            0
-        } else {
-            self.decoder.decode_size_hint()
-        }
     }
 }
 
@@ -407,8 +372,8 @@ where
         track!(self.encoder.start_encoding((self.map_from)(item)))
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.encoder.encode_size_hint()
+    fn remaining_bytes(&self) -> Option<u64> {
+        self.encoder.remaining_bytes()
     }
 }
 
@@ -435,10 +400,6 @@ where
         let item = track!(self.codec.decode(buf))?;
         Ok(item.map(into_flat3))
     }
-
-    fn decode_size_hint(&self) -> usize {
-        self.codec.decode_size_hint()
-    }
 }
 impl<T, A, B, C, D> Decode for Flatten<T, (A, B, C, D)>
 where
@@ -449,10 +410,6 @@ where
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         let item = track!(self.codec.decode(buf))?;
         Ok(item.map(into_flat4))
-    }
-
-    fn decode_size_hint(&self) -> usize {
-        self.codec.decode_size_hint()
     }
 }
 impl<T, A, B, C, D, E> Decode for Flatten<T, (A, B, C, D, E)>
@@ -465,10 +422,6 @@ where
         let item = track!(self.codec.decode(buf))?;
         Ok(item.map(into_flat5))
     }
-
-    fn decode_size_hint(&self) -> usize {
-        self.codec.decode_size_hint()
-    }
 }
 impl<T, A, B, C, D, E, F> Decode for Flatten<T, (A, B, C, D, E, F)>
 where
@@ -479,10 +432,6 @@ where
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         let item = track!(self.codec.decode(buf))?;
         Ok(item.map(into_flat6))
-    }
-
-    fn decode_size_hint(&self) -> usize {
-        self.codec.decode_size_hint()
     }
 }
 impl<T, A, B, C, D, E, F, G> Decode for Flatten<T, (A, B, C, D, E, F, G)>
@@ -495,10 +444,6 @@ where
         let item = track!(self.codec.decode(buf))?;
         Ok(item.map(into_flat7))
     }
-
-    fn decode_size_hint(&self) -> usize {
-        self.codec.decode_size_hint()
-    }
 }
 impl<T, A, B, C, D, E, F, G, H> Decode for Flatten<T, (A, B, C, D, E, F, G, H)>
 where
@@ -509,10 +454,6 @@ where
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         let item = track!(self.codec.decode(buf))?;
         Ok(item.map(into_flat8))
-    }
-
-    fn decode_size_hint(&self) -> usize {
-        self.codec.decode_size_hint()
     }
 }
 
@@ -530,8 +471,8 @@ where
 //         track!(self.codec.start_encoding(into_flat4(item)))
 //     }
 
-//     fn encode_size_hint(&self) -> usize {
-//         self.codec.encode_size_hint()
+//     fn remaining_bytes(&self) -> usize {
+//         self.codec.remaining_bytes()
 //     }
 // }
 // impl<T, A, B, C, D, E> Encode for Flatten<T, ((((A, B), C), D), E)>
@@ -548,8 +489,8 @@ where
 //         track!(self.codec.start_encoding(into_flat5(item)))
 //     }
 
-//     fn encode_size_hint(&self) -> usize {
-//         self.codec.encode_size_hint()
+//     fn remaining_bytes(&self) -> usize {
+//         self.codec.remaining_bytes()
 //     }
 // }
 // impl<T, A, B, C, D, E, F> Encode for Flatten<T, (((((A, B), C), D), E), F)>
@@ -566,8 +507,8 @@ where
 //         track!(self.codec.start_encoding(into_flat6(item)))
 //     }
 
-//     fn encode_size_hint(&self) -> usize {
-//         self.codec.encode_size_hint()
+//     fn remaining_bytes(&self) -> usize {
+//         self.codec.remaining_bytes()
 //     }
 // }
 // impl<T, A, B, C, D, E, F, G> Encode for Flatten<T, ((((((A, B), C), D), E), F), G)>
@@ -584,8 +525,8 @@ where
 //         track!(self.codec.start_encoding(into_flat7(item)))
 //     }
 
-//     fn encode_size_hint(&self) -> usize {
-//         self.codec.encode_size_hint()
+//     fn remaining_bytes(&self) -> usize {
+//         self.codec.remaining_bytes()
 //     }
 // }
 // impl<T, A, B, C, D, E, F, G, H> Encode for Flatten<T, (((((((A, B), C), D), E), F), G), H)>
@@ -602,8 +543,8 @@ where
 //         track!(self.codec.start_encoding(into_flat8(item)))
 //     }
 
-//     fn encode_size_hint(&self) -> usize {
-//         self.codec.encode_size_hint()
+//     fn remaining_bytes(&self) -> usize {
+//         self.codec.remaining_bytes()
 //     }
 // }
 

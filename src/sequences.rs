@@ -54,10 +54,6 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for Bytes<B> {
             Ok(None)
         }
     }
-
-    fn decode_size_hint(&self) -> usize {
-        self.remaining_size()
-    }
 }
 impl<B: AsRef<[u8]>> Encode for Bytes<B> {
     type Item = B;
@@ -77,8 +73,8 @@ impl<B: AsRef<[u8]>> Encode for Bytes<B> {
         Ok(())
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.remaining_size()
+    fn remaining_bytes(&self) -> Option<u64> {
+        Some(self.remaining_size() as u64)
     }
 }
 
@@ -114,10 +110,6 @@ impl Decode for Utf8 {
             Ok(None)
         }
     }
-
-    fn decode_size_hint(&self) -> usize {
-        self.0.remaining_size()
-    }
 }
 impl Encode for Utf8 {
     type Item = String;
@@ -130,8 +122,8 @@ impl Encode for Utf8 {
         track!(self.0.start_encoding(item.into_bytes()))
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.0.remaining_size()
+    fn remaining_bytes(&self) -> Option<u64> {
+        Some(self.0.remaining_size() as u64)
     }
 }
 
@@ -171,10 +163,6 @@ impl Encode for Utf8 {
 //             Ok(None)
 //         }
 //     }
-
-//     fn decode_size_hint(&self) -> Option<usize> {
-//         self.decoder.decode_size_hint()
-//     }
 // }
 
 #[derive(Debug)]
@@ -199,8 +187,10 @@ where
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         while !buf.is_empty() && self.current.is_some() {
             let mut x = self.current.take().expect("Never fails");
+
+            let old_buf_len = buf.len();
             track!(x.encode(buf))?;
-            if buf.is_completed() {
+            if old_buf_len == buf.len() {
                 self.current = self.iter.next();
             } else {
                 self.current = Some(x);
@@ -216,7 +206,9 @@ where
         Ok(())
     }
 
-    fn encode_size_hint(&self) -> usize {
-        self.current.as_ref().map_or(0, |x| x.encode_size_hint())
+    fn remaining_bytes(&self) -> Option<u64> {
+        self.current
+            .as_ref()
+            .map_or(Some(0), |x| x.remaining_bytes())
     }
 }
