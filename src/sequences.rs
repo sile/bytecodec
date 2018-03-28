@@ -3,6 +3,9 @@ use trackable::error::ErrorKindExt;
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
 
+pub type BytesEncoder<B> = Bytes<B>;
+pub type BytesDecoder<B> = Bytes<B>;
+
 #[derive(Debug)]
 pub struct Bytes<B> {
     bytes: Option<B>,

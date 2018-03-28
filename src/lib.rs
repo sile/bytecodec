@@ -7,8 +7,8 @@ pub use encode::{BoxEncoder, Encode, EncodeBuf, EncodeExt};
 pub use error::{Error, ErrorKind};
 
 pub mod combinators;
+pub mod fixnum_codec;
 pub mod maker;
-pub mod numbers;
 pub mod sequences;
 
 mod decode;
