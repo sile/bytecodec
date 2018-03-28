@@ -92,6 +92,10 @@ impl Decode for VecDecoder {
     type Item = Vec<u8>;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        if let Some(additional) = buf.remaining_bytes() {
+            self.0.reserve_exact(buf.len() + additional as usize);
+        }
+
         track!(buf.read_to_end(&mut self.0).map_err(Error::from))?;
         if buf.is_eos() {
             Ok(Some(mem::replace(&mut self.0, Vec::new())))

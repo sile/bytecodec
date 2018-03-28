@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
 
 use {Error, ErrorKind, Result};
-use combinators::{Chain2, MapErr, MapFrom};
+use combinator::{EncoderChain, MapErr, StartEncodingFrom};
 
 pub trait Encode {
     type Item;
@@ -27,15 +27,15 @@ pub trait EncodeExt: Encode + Sized {
         MapErr::new(self, f)
     }
 
-    fn map_from<T, F>(self, f: F) -> MapFrom<Self, T, F>
+    fn start_encoding_from<T, F>(self, f: F) -> StartEncodingFrom<Self, T, F>
     where
         F: Fn(T) -> Self::Item,
     {
-        MapFrom::new(self, f)
+        StartEncodingFrom::new(self, f)
     }
 
-    fn chain<T: Encode>(self, other: T) -> Chain2<Self, T, Self::Item> {
-        Chain2::new(self, other)
+    fn chain<E: Encode>(self, other: E) -> EncoderChain<Self, E, Self::Item> {
+        EncoderChain::new(self, other)
     }
 
     fn boxed(self) -> BoxEncoder<Self::Item>
@@ -119,3 +119,5 @@ impl<'a> Write for EncodeBuf<'a> {
         Ok(())
     }
 }
+
+// TODO: impl for Result, Option

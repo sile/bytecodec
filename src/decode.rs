@@ -4,7 +4,7 @@ use std::io::{self, Read};
 use std::ops::Deref;
 
 use {Error, ErrorKind, Result};
-use combinators::{AndThen, Buffered, Chain, Map, MapErr};
+use combinator::{AndThen, Map, MapErr};
 
 pub trait Decode {
     type Item;
@@ -36,9 +36,11 @@ pub trait DecodeExt: Decode + Sized {
         AndThen::new(self, f)
     }
 
-    fn chain<T: Decode>(self, other: T) -> Chain<Buffered<Self>, Buffered<T>> {
-        Chain::new(Buffered::new(self), Buffered::new(other))
-    }
+    // fn chain<T: Decode>(self, other: T) -> Chain<Buffered<Self>, Buffered<T>> {
+    //     Chain::new(Buffered::new(self), Buffered::new(other))
+    // }
+
+    // buffered()
 
     fn boxed(self) -> BoxDecoder<Self::Item>
     where
