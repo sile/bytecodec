@@ -15,9 +15,22 @@ pub trait Encode {
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
     fn remaining_bytes(&self) -> Option<u64>;
+
+    fn is_empty(&self) -> bool {
+        self.remaining_bytes() == Some(0)
+    }
 }
 
 pub trait EncodeExt: Encode + Sized {
+    fn with_item(item: Self::Item) -> Result<Self>
+    where
+        Self: Default,
+    {
+        let mut this = Self::default();
+        track!(this.start_encoding(item))?;
+        Ok(this)
+    }
+
     fn map_err<F>(self, f: F) -> MapErr<Self, F>
     where
         F: Fn(Error) -> Error,

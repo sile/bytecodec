@@ -334,3 +334,35 @@ where
         }
     }
 }
+
+#[derive(Debug)]
+pub struct IgnoreRest<D: Decode> {
+    decoder: D,
+    item: Option<D::Item>,
+}
+impl<D: Decode> IgnoreRest<D> {
+    pub(crate) fn new(decoder: D) -> Self {
+        IgnoreRest {
+            decoder,
+            item: None,
+        }
+    }
+}
+impl<D: Decode> Decode for IgnoreRest<D> {
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        track_assert!(buf.remaining_bytes().is_some(), ErrorKind::InvalidInput);
+        while !buf.is_empty() && self.item.is_none() {
+            self.item = track!(self.decoder.decode(buf))?;
+        }
+        if self.item.is_some() {
+            let len = buf.len();
+            track!(buf.consume(len))?;
+            if buf.is_eos() {
+                return Ok(self.item.take());
+            }
+        }
+        Ok(None)
+    }
+}

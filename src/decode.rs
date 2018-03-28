@@ -5,7 +5,7 @@ use std::io::{self, Read};
 use std::ops::Deref;
 
 use {Error, ErrorKind, Result};
-use combinator::{AndThen, Collect, DecoderChain, Map, MapErr, Take, Validate};
+use combinator::{AndThen, Collect, DecoderChain, IgnoreRest, Map, MapErr, Take, Validate};
 
 pub trait Decode {
     type Item;
@@ -68,6 +68,18 @@ pub trait DecodeExt: Decode + Sized {
 
     fn take(self, size: u64) -> Take<Self> {
         Take::new(self, size)
+    }
+
+    fn present(self, b: bool) -> Option<Self> {
+        if b {
+            Some(self)
+        } else {
+            None
+        }
+    }
+
+    fn ignore_rest(self) -> IgnoreRest<Self> {
+        IgnoreRest::new(self)
     }
 
     fn validate<F, E>(self, f: F) -> Validate<Self, F, E>
