@@ -1,10 +1,11 @@
+use std;
 use std::cmp;
 use std::fmt;
 use std::io::{self, Read};
 use std::ops::Deref;
 
 use {Error, ErrorKind, Result};
-use combinator::{AndThen, Collect, DecoderChain, Map, MapErr, Take};
+use combinator::{AndThen, Collect, DecoderChain, Map, MapErr, Take, Validate};
 
 pub trait Decode {
     type Item;
@@ -17,6 +18,17 @@ impl Decode for () {
 
     fn decode(&mut self, _buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         Ok(Some(()))
+    }
+}
+impl<D: Decode> Decode for Option<D> {
+    type Item = Option<D::Item>;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        if let Some(ref mut d) = *self {
+            Ok(track!(d.decode(buf))?.map(Some))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -56,6 +68,14 @@ pub trait DecodeExt: Decode + Sized {
 
     fn take(self, size: u64) -> Take<Self> {
         Take::new(self, size)
+    }
+
+    fn validate<F, E>(self, f: F) -> Validate<Self, F, E>
+    where
+        F: for<'a> Fn(&'a Self::Item) -> std::result::Result<(), E>,
+        Error: From<E>,
+    {
+        Validate::new(self, f)
     }
 
     fn boxed(self) -> BoxDecoder<Self::Item>

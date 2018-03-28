@@ -1,3 +1,4 @@
+use std;
 use std::cmp;
 use std::iter;
 use std::marker::PhantomData;
@@ -298,5 +299,38 @@ impl<D: Decode> Decode for Take<D> {
         self.limit -= consumed_len as u64;
         track!(buf.consume(consumed_len))?;
         Ok(item)
+    }
+}
+
+#[derive(Debug)]
+pub struct Validate<D, F, E> {
+    decoder: D,
+    validate: F,
+    _error: PhantomData<E>,
+}
+impl<D, F, E> Validate<D, F, E> {
+    pub(crate) fn new(decoder: D, validate: F) -> Self {
+        Validate {
+            decoder,
+            validate,
+            _error: PhantomData,
+        }
+    }
+}
+impl<D, F, E> Decode for Validate<D, F, E>
+where
+    D: Decode,
+    F: for<'a> Fn(&'a D::Item) -> std::result::Result<(), E>,
+    Error: From<E>,
+{
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        if let Some(item) = track!(self.decoder.decode(buf))? {
+            (self.validate)(&item)?;
+            Ok(Some(item))
+        } else {
+            Ok(None)
+        }
     }
 }

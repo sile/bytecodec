@@ -59,6 +59,7 @@ impl<B> BytesDecoder<B> {
         BytesDecoder { bytes, offset: 0 }
     }
 }
+// TODO: remove clone
 impl<B: AsMut<[u8]> + Clone> Decode for BytesDecoder<B> {
     type Item = B;
 
@@ -136,6 +137,11 @@ where
 {
     pub fn new(bytes_decoder: D) -> Self {
         Utf8Decoder(bytes_decoder)
+    }
+}
+impl Utf8Decoder<BytesDecoder<Vec<u8>>> {
+    pub fn with_len(len: usize) -> Self {
+        Utf8Decoder(BytesDecoder::new(vec![0; len]))
     }
 }
 impl<D> Decode for Utf8Decoder<D>
