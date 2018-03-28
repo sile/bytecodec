@@ -6,10 +6,10 @@ pub use decode::{BoxDecoder, Decode, DecodeBuf, DecodeExt};
 pub use encode::{BoxEncoder, Encode, EncodeBuf, EncodeExt};
 pub use error::{Error, ErrorKind};
 
+pub mod bytes_codec;
 pub mod combinators;
 pub mod fixnum_codec;
 pub mod maker;
-pub mod sequences;
 
 mod decode;
 mod encode;
