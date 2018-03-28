@@ -4,6 +4,11 @@ use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, Result};
 
 #[derive(Debug)]
 pub struct StartDecoderChain;
+impl StartDecoderChain {
+    pub fn chain<D: Decode>(&self, decoder: D) -> DecoderChain<(), D, ()> {
+        DecoderChain::new((), decoder)
+    }
+}
 
 #[derive(Debug)]
 pub struct StartEncoderChain;
@@ -13,12 +18,122 @@ impl StartEncoderChain {
     }
 }
 
+// #[derive(Debug)]
+pub struct DecoderChain<D0: Decode, D1: Decode, T = <D0 as Decode>::Item> {
+    inner: Chain<Buffered<D0>, Buffered<D1>>,
+    _item: PhantomData<T>,
+}
+impl<D0: Decode, D1: Decode, T> DecoderChain<D0, D1, T> {
+    pub(crate) fn new(d0: D0, d1: D1) -> Self {
+        DecoderChain {
+            inner: Chain::new(Buffered::new(d0), Buffered::new(d1)),
+            _item: PhantomData,
+        }
+    }
+}
+impl<D> Decode for DecoderChain<(), D, ()>
+where
+    D: Decode,
+{
+    type Item = (D::Item,);
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        Ok(self.inner.b.decode(buf)?.map(|i| (i,)))
+    }
+}
+impl<D0, D1, T0> Decode for DecoderChain<D0, D1, (T0,)>
+where
+    D0: Decode<Item = (T0,)>,
+    D1: Decode,
+{
+    type Item = (T0, D1::Item);
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        Ok(self.inner.decode(buf)?.map(|(t, i)| (t.0, i)))
+    }
+}
+impl<D0, D1, T0, T1> Decode for DecoderChain<D0, D1, (T0, T1)>
+where
+    D0: Decode<Item = (T0, T1)>,
+    D1: Decode,
+{
+    type Item = (T0, T1, D1::Item);
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        Ok(self.inner.decode(buf)?.map(|(t, i)| (t.0, t.1, i)))
+    }
+}
+impl<D0, D1, T0, T1, T2> Decode for DecoderChain<D0, D1, (T0, T1, T2)>
+where
+    D0: Decode<Item = (T0, T1, T2)>,
+    D1: Decode,
+{
+    type Item = (T0, T1, T2, D1::Item);
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        Ok(self.inner.decode(buf)?.map(|(t, i)| (t.0, t.1, t.2, i)))
+    }
+}
+impl<D0, D1, T0, T1, T2, T3> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3)>
+where
+    D0: Decode<Item = (T0, T1, T2, T3)>,
+    D1: Decode,
+{
+    type Item = (T0, T1, T2, T3, D1::Item);
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        Ok(self.inner
+            .decode(buf)?
+            .map(|(t, i)| (t.0, t.1, t.2, t.3, i)))
+    }
+}
+impl<D0, D1, T0, T1, T2, T3, T4> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3, T4)>
+where
+    D0: Decode<Item = (T0, T1, T2, T3, T4)>,
+    D1: Decode,
+{
+    type Item = (T0, T1, T2, T3, T4, D1::Item);
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        Ok(self.inner
+            .decode(buf)?
+            .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, i)))
+    }
+}
+impl<D0, D1, T0, T1, T2, T3, T4, T5> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3, T4, T5)>
+where
+    D0: Decode<Item = (T0, T1, T2, T3, T4, T5)>,
+    D1: Decode,
+{
+    type Item = (T0, T1, T2, T3, T4, T5, D1::Item);
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        Ok(self.inner
+            .decode(buf)?
+            .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, i)))
+    }
+}
+impl<D0, D1, T0, T1, T2, T3, T4, T5, T6> Decode
+    for DecoderChain<D0, D1, (T0, T1, T2, T3, T4, T5, T6)>
+where
+    D0: Decode<Item = (T0, T1, T2, T3, T4, T5, T6)>,
+    D1: Decode,
+{
+    type Item = (T0, T1, T2, T3, T4, T5, T6, D1::Item);
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        Ok(self.inner
+            .decode(buf)?
+            .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, t.6, i)))
+    }
+}
+
 #[derive(Debug)]
 pub struct EncoderChain<E0, E1, T> {
     inner: Chain<E0, E1>,
     _item: PhantomData<T>,
 }
-impl<E0, E1, I> EncoderChain<E0, E1, I> {
+impl<E0, E1, T> EncoderChain<E0, E1, T> {
     pub(crate) fn new(e0: E0, e1: E1) -> Self {
         EncoderChain {
             inner: Chain::new(e0, e1),
@@ -269,12 +384,12 @@ pub struct Buffered<T: Decode> {
     buffer: Option<T::Item>,
 }
 impl<T: Decode> Buffered<T> {
-    // pub(crate) fn new(decoder: T) -> Self {
-    //     Buffered {
-    //         decoder,
-    //         buffer: None,
-    //     }
-    // }
+    fn new(decoder: T) -> Self {
+        Buffered {
+            decoder,
+            buffer: None,
+        }
+    }
 
     fn take_item(&mut self) -> Option<T::Item> {
         self.buffer.take()

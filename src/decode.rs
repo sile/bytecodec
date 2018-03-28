@@ -4,13 +4,20 @@ use std::io::{self, Read};
 use std::ops::Deref;
 
 use {Error, ErrorKind, Result};
-use combinator::{AndThen, Map, MapErr};
+use combinator::{AndThen, Collect, DecoderChain, Map, MapErr, Take};
 
 pub trait Decode {
     type Item;
 
     // NOTE: 一バイトも消費されない場合には、もうデコード可能なitemが存在しないことを意味する
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>>;
+}
+impl Decode for () {
+    type Item = ();
+
+    fn decode(&mut self, _buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        Ok(Some(()))
+    }
 }
 
 pub trait DecodeExt: Decode + Sized {
@@ -28,19 +35,28 @@ pub trait DecodeExt: Decode + Sized {
         MapErr::new(self, f)
     }
 
-    fn and_then<T, F>(self, f: F) -> AndThen<Self, T, F>
+    fn and_then<D, F>(self, f: F) -> AndThen<Self, D, F>
     where
-        F: Fn(Self::Item) -> T,
-        T: Decode,
+        F: Fn(Self::Item) -> D,
+        D: Decode,
     {
         AndThen::new(self, f)
     }
 
-    // fn chain<T: Decode>(self, other: T) -> Chain<Buffered<Self>, Buffered<T>> {
-    //     Chain::new(Buffered::new(self), Buffered::new(other))
-    // }
+    fn chain<D: Decode>(self, other: D) -> DecoderChain<Self, D> {
+        DecoderChain::new(self, other)
+    }
 
-    // buffered()
+    fn collect<T>(self) -> Collect<Self, T>
+    where
+        T: Extend<Self::Item> + Default,
+    {
+        Collect::new(self)
+    }
+
+    fn take(self, size: u64) -> Take<Self> {
+        Take::new(self, size)
+    }
 
     fn boxed(self) -> BoxDecoder<Self::Item>
     where

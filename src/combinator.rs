@@ -1,69 +1,72 @@
+use std::cmp;
+use std::iter;
 use std::marker::PhantomData;
+use std::mem;
 
-pub use chain::EncoderChain;
+pub use chain::{DecoderChain, EncoderChain};
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
 
 #[derive(Debug)]
-pub struct Map<T, U, F> {
-    inner: T,
+pub struct Map<D, T, F> {
+    decoder: D,
     map: F,
-    _phantom: PhantomData<U>,
+    _item: PhantomData<T>,
 }
-impl<T, U, F> Map<T, U, F> {
-    pub(crate) fn new<V>(inner: T, map: F) -> Self
+impl<D: Decode, T, F> Map<D, T, F> {
+    pub(crate) fn new(decoder: D, map: F) -> Self
     where
-        F: Fn(V) -> U,
+        F: Fn(D::Item) -> T,
     {
         Map {
-            inner,
+            decoder,
             map,
-            _phantom: PhantomData,
+            _item: PhantomData,
         }
     }
 }
-impl<T, U, F> Decode for Map<T, U, F>
+impl<D, T, F> Decode for Map<D, T, F>
 where
-    T: Decode,
-    F: Fn(T::Item) -> U,
+    D: Decode,
+    F: Fn(D::Item) -> T,
 {
-    type Item = U;
+    type Item = T;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        self.inner.decode(buf).map(|r| r.map(&self.map))
+        self.decoder.decode(buf).map(|r| r.map(&self.map))
     }
 }
 
 #[derive(Debug)]
-pub struct MapErr<T, F> {
-    codec: T,
+pub struct MapErr<C, F> {
+    codec: C,
     map_err: F,
 }
-impl<T, F> MapErr<T, F> {
-    pub(crate) fn new(codec: T, map_err: F) -> Self
+impl<C, F> MapErr<C, F> {
+    pub(crate) fn new(codec: C, map_err: F) -> Self
     where
         F: Fn(Error) -> Error,
     {
         MapErr { codec, map_err }
     }
 }
-impl<T, F> Decode for MapErr<T, F>
+impl<D, F> Decode for MapErr<D, F>
 where
-    T: Decode,
+    D: Decode,
     F: Fn(Error) -> Error,
 {
-    type Item = T::Item;
+    type Item = D::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         self.codec.decode(buf).map_err(&self.map_err)
     }
 }
-impl<T, F> Encode for MapErr<T, F>
+impl<E, F> Encode for MapErr<E, F>
 where
-    T: Encode,
+    E: Encode,
     F: Fn(Error) -> Error,
 {
-    type Item = T::Item;
+    type Item = E::Item;
 
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         self.codec.encode(buf).map_err(&self.map_err)
@@ -79,38 +82,37 @@ where
 }
 
 #[derive(Debug)]
-pub struct AndThen<T, U, F> {
-    decoder0: T,
-    decoder1: Option<U>,
+pub struct AndThen<D0, D1, F> {
+    decoder0: D0,
+    decoder1: Option<D1>,
     and_then: F,
 }
-impl<T, U, F> AndThen<T, U, F> {
-    pub(crate) fn new<V>(inner: T, and_then: F) -> Self
+impl<D0: Decode, D1, F> AndThen<D0, D1, F> {
+    pub(crate) fn new(decoder0: D0, and_then: F) -> Self
     where
-        F: Fn(V) -> U,
+        F: Fn(D0::Item) -> D1,
     {
         AndThen {
-            decoder0: inner,
+            decoder0,
             decoder1: None,
             and_then,
         }
     }
 }
-impl<T, U, F> Decode for AndThen<T, U, F>
+impl<D0, D1, F> Decode for AndThen<D0, D1, F>
 where
-    T: Decode,
-    U: Decode,
-    F: Fn(T::Item) -> U,
+    D0: Decode,
+    D1: Decode,
+    F: Fn(D0::Item) -> D1,
 {
-    type Item = U::Item;
+    type Item = D1::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         let mut item = None;
-        while !buf.is_empty() {
+        while !buf.is_empty() && item.is_none() {
             if let Some(ref mut d) = self.decoder1 {
                 if let Some(x) = d.decode(buf)? {
                     item = Some(x);
-                    break;
                 }
             } else if let Some(d) = self.decoder0.decode(buf)?.map(&self.and_then) {
                 self.decoder1 = Some(d);
@@ -227,5 +229,74 @@ impl<E: Encode> Encode for Optional<E> {
 
     fn remaining_bytes(&self) -> Option<u64> {
         self.0.remaining_bytes()
+    }
+}
+
+#[derive(Debug)]
+pub struct Collect<D, T> {
+    decoder: D,
+    items: T,
+}
+impl<D, T: Default> Collect<D, T> {
+    pub(crate) fn new(decoder: D) -> Self {
+        Collect {
+            decoder,
+            items: T::default(),
+        }
+    }
+}
+impl<D, T> Decode for Collect<D, T>
+where
+    D: Decode,
+    T: Extend<D::Item> + Default,
+{
+    type Item = T;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        while !buf.is_empty() {
+            let old_buf_len = buf.len();
+            if let Some(item) = track!(self.decoder.decode(buf))? {
+                self.items.extend(iter::once(item));
+            } else if old_buf_len == buf.len() {
+                break;
+            }
+        }
+        if buf.is_eos() {
+            Ok(Some(mem::replace(&mut self.items, T::default())))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Take<D> {
+    decoder: D,
+    limit: u64,
+}
+impl<D> Take<D> {
+    pub(crate) fn new(decoder: D, limit: u64) -> Self {
+        Take { decoder, limit }
+    }
+}
+impl<D: Decode> Decode for Take<D> {
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        let len = cmp::min(buf.len() as u64, self.limit) as usize;
+        let remaining = self.limit - len as u64;
+        let remaining = buf.remaining_bytes()
+            .map_or(remaining, |n| cmp::min(n, remaining));
+
+        let (item, consumed_len) = {
+            let mut buf = DecodeBuf::with_remaining_bytes(&buf[..len], remaining);
+            let item = track!(self.decoder.decode(&mut buf))?;
+            let consumed_len = len - buf.len();
+            (item, consumed_len)
+        };
+
+        self.limit -= consumed_len as u64;
+        track!(buf.consume(consumed_len))?;
+        Ok(item)
     }
 }

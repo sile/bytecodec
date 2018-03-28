@@ -54,12 +54,12 @@ pub struct BytesDecoder<B> {
     bytes: B,
     offset: usize,
 }
-impl<B: Default> BytesDecoder<B> {
-    pub fn new() -> Self {
-        Self::default()
+impl<B> BytesDecoder<B> {
+    pub fn new(bytes: B) -> Self {
+        BytesDecoder { bytes, offset: 0 }
     }
 }
-impl<B: AsMut<[u8]> + Default> Decode for BytesDecoder<B> {
+impl<B: AsMut<[u8]> + Clone> Decode for BytesDecoder<B> {
     type Item = B;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
@@ -70,8 +70,8 @@ impl<B: AsMut<[u8]> + Default> Decode for BytesDecoder<B> {
         self.offset += size;
 
         if self.offset == self.bytes.as_mut().len() {
-            let bytes = mem::replace(&mut self.bytes, B::default());
-            Ok(Some(bytes))
+            self.offset = 0;
+            Ok(Some(self.bytes.clone()))
         } else {
             track_assert!(!buf.is_eos(), ErrorKind::InvalidInput);
             Ok(None)
