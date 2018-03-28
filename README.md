@@ -7,3 +7,4 @@ A tiny Rust framework for implementing byte-oriented encoders/decoders.
 - byte-oriented
 - incremental (asynchronous)
 - composable
+- support serde
