@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
 
 use {Error, ErrorKind, Result};
-use combinator::{EncoderChain, MapErr, Repeat, StartEncodingFrom};
+use combinator::{EncoderChain, MapErr, Optional, Repeat, StartEncodingFrom};
 
 pub trait Encode {
     type Item;
@@ -41,6 +41,10 @@ pub trait EncodeExt: Encode + Sized {
         I: Iterator<Item = Self::Item>,
     {
         Repeat::new(self)
+    }
+
+    fn optional(self) -> Optional<Self> {
+        Optional::new(self)
     }
 
     fn boxed(self) -> BoxEncoder<Self::Item>
@@ -124,5 +128,3 @@ impl<'a> Write for EncodeBuf<'a> {
         Ok(())
     }
 }
-
-// TODO: impl for Result, Option

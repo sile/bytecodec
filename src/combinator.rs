@@ -203,3 +203,29 @@ where
         None
     }
 }
+
+#[derive(Debug)]
+pub struct Optional<E>(E);
+impl<E> Optional<E> {
+    pub(crate) fn new(encoder: E) -> Self {
+        Optional(encoder)
+    }
+}
+impl<E: Encode> Encode for Optional<E> {
+    type Item = Option<E::Item>;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        track!(self.0.encode(buf))
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        if let Some(item) = item {
+            track!(self.0.start_encoding(item))?;
+        }
+        Ok(())
+    }
+
+    fn remaining_bytes(&self) -> Option<u64> {
+        self.0.remaining_bytes()
+    }
+}
