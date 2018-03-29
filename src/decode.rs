@@ -11,13 +11,16 @@ pub trait Decode {
     type Item;
 
     // NOTE: 一バイトも消費されない場合には、もうデコード可能なitemが存在しないことを意味する
+    //
+    // TODO: 呼び出し側を簡単にするために「Someを返す」or「bufの最後まで読む」とすることを検討
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>>;
 
     // Returns the number of bytes needed to proceed next state.
-    fn requiring_bytes(&self) -> Option<u64> {
+    fn requiring_bytes_hint(&self) -> Option<u64> {
         None
     }
 }
+// TODO:
 impl Decode for () {
     type Item = ();
 
@@ -37,7 +40,13 @@ impl<D: Decode> Decode for Option<D> {
     }
 }
 
-// TODO: ExactSizeDecoder
+pub trait ExactBytesDecode: Decode {
+    fn requiring_bytes(&self) -> u64 {
+        self.requiring_bytes_hint().expect("Must be a `Some` value")
+    }
+}
+
+pub trait StreamDecode: Decode {}
 
 pub trait DecodeExt: Decode + Sized {
     fn map<T, F>(self, f: F) -> Map<Self, T, F>
@@ -163,8 +172,8 @@ impl<'a> DecodeBuf<'a> {
     }
 
     pub fn consume(&mut self, size: usize) -> Result<()> {
-        track_assert!(self.offset + size <= self.len(), ErrorKind::InvalidInput;
-                      self.offset, size, self.len());
+        track_assert!(self.offset + size <= self.buf.len(), ErrorKind::InvalidInput;
+                      self.offset, size, self.buf.len());
         self.offset += size;
         Ok(())
     }

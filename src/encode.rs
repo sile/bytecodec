@@ -15,6 +15,10 @@ pub trait Encode {
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
+    fn can_start(&self, _item: &Self::Item) -> bool {
+        self.is_empty()
+    }
+
     fn remaining_bytes(&self) -> Option<u64>;
 
     fn is_empty(&self) -> bool {

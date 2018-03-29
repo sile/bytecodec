@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
@@ -10,7 +9,6 @@ pub struct BufEncoder<E: Encode> {
     buf: Vec<u8>,
     head: usize,
     tail: usize,
-    queue: VecDeque<E::Item>,
 }
 impl<E: Encode> BufEncoder<E> {
     pub fn new(encoder: E) -> Self {
@@ -19,8 +17,15 @@ impl<E: Encode> BufEncoder<E> {
             buf: vec![0; 4096],
             head: 0,
             tail: 0,
-            queue: VecDeque::new(),
         }
+    }
+
+    pub fn inner(&self) -> &E {
+        &self.encoder
+    }
+
+    pub fn inner_mut(&mut self) -> &mut E {
+        &mut self.encoder
     }
 
     pub fn encode<W: Write>(&mut self, mut writer: W) -> Result<bool> {
@@ -43,11 +48,7 @@ impl<E: Encode> BufEncoder<E> {
                     }
                 }
             } else if self.encoder.is_completed() {
-                if let Some(item) = self.queue.pop_front() {
-                    track!(self.encoder.start_encoding(item))?;
-                } else {
-                    return Ok(false);
-                }
+                return Ok(false);
             } else {
                 let mut buf = EncodeBuf::new(&mut self.buf[self.tail..]);
                 while !buf.is_empty() {
@@ -58,18 +59,19 @@ impl<E: Encode> BufEncoder<E> {
         }
     }
 
-    pub fn enqueue_item(&mut self, item: E::Item) {
-        self.queue.push_back(item);
+    pub fn start_encoding(&mut self, item: E::Item) -> Result<()> {
+        track!(self.encoder.start_encoding(item))
     }
 }
 
 // TODO: rename
 #[derive(Debug)]
-pub struct BufDecoder<D> {
+pub struct BufDecoder<D: Decode> {
     decoder: D,
     buf: Vec<u8>,
     head: usize,
     tail: usize,
+    item: Option<D::Item>,
 }
 impl<D: Decode> BufDecoder<D> {
     pub fn new(decoder: D) -> Self {
@@ -78,41 +80,33 @@ impl<D: Decode> BufDecoder<D> {
             buf: vec![0; 4096],
             head: 0,
             tail: 0,
+            item: None,
         }
     }
 
-    pub fn decode<R: Read>(&mut self, mut reader: R) -> Result<Decoded<D::Item>> {
-        loop {
+    pub fn decode<R: Read>(&mut self, mut reader: R) -> Result<bool> {
+        while self.item.is_none() {
             if self.tail != 0 {
                 let mut buf = DecodeBuf::new(&self.buf[self.head..self.tail]);
-                let item = track!(self.decoder.decode(&mut buf))?;
+                self.item = track!(self.decoder.decode(&mut buf))?;
                 if buf.is_empty() {
                     self.head = 0;
                     self.tail = 0;
                 } else {
                     self.head = self.tail - buf.len();
                 }
-                if let Some(item) = item {
-                    return Ok(Decoded {
-                        eos: false,
-                        item: Some(item),
-                    });
-                }
             } else {
                 match reader.read(&mut self.buf) {
                     Err(e) => {
                         if e.kind() == io::ErrorKind::WouldBlock {
-                            return Ok(Decoded {
-                                eos: false,
-                                item: None,
-                            });
+                            return Ok(false);
                         }
                         return Err(track!(Error::from(e)));
                     }
                     Ok(0) => {
                         let mut buf = DecodeBuf::eos();
-                        let item = track!(self.decoder.decode(&mut buf))?;
-                        return Ok(Decoded { eos: true, item });
+                        self.item = track!(self.decoder.decode(&mut buf))?;
+                        return Ok(true);
                     }
                     Ok(size) => {
                         self.tail = size;
@@ -120,11 +114,10 @@ impl<D: Decode> BufDecoder<D> {
                 }
             }
         }
+        Ok(false)
     }
-}
 
-#[derive(Debug)]
-pub struct Decoded<T> {
-    pub eos: bool,
-    pub item: Option<T>,
+    pub fn pop_item(&mut self) -> Option<D::Item> {
+        self.item.take()
+    }
 }

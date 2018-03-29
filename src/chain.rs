@@ -38,7 +38,7 @@ where
     type Item = (D::Item,);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.inner.b.decode(buf)?.map(|i| (i,)))
+        Ok(self.inner.b.decoder.decode(buf)?.map(|i| (i,)))
     }
 }
 impl<D0, D1, T0> Decode for DecoderChain<D0, D1, (T0,)>
@@ -399,11 +399,40 @@ impl<T: Decode> Decode for Buffered<T> {
     type Item = T::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        if self.buffer.is_none() {
+        while !buf.is_empty() && self.buffer.is_none() {
+            let old_len = buf.len();
             if let Some(item) = track!(self.decoder.decode(buf))? {
                 self.buffer = Some(item);
+            } else {
+                // TODO: remove
+                //track_assert_ne!(old_len, buf.len(), ErrorKind::InvalidInput);
+                if old_len == buf.len() {
+                    break;
+                }
             }
         }
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use {Decode, DecodeBuf, DecodeExt, StartDecoderChain};
+    use fixnum_codec::U8Decoder;
+
+    #[test]
+    fn it_works() {
+        let mut decoder = StartDecoderChain
+            .chain(U8Decoder::new())
+            .chain(U8Decoder::new())
+            .chain(U8Decoder::new());
+
+        // TODO: remove
+        track_try_unwrap!(decoder.decode(&mut DecodeBuf::new(b"foo")));
+
+        assert_eq!(
+            track_try_unwrap!(decoder.decode(&mut DecodeBuf::new(b"foo"))),
+            Some((b'f', b'o', b'o'))
+        );
     }
 }

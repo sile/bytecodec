@@ -11,7 +11,9 @@ pub mod buf;
 pub mod bytes_codec;
 pub mod combinator;
 pub mod fixnum_codec;
-pub mod maker;
+pub mod marker {
+    pub use decode::{ExactBytesDecode, StreamDecode};
+}
 
 mod chain;
 mod decode;
