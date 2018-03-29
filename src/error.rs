@@ -12,7 +12,12 @@ impl From<Failure> for Error {
 }
 impl From<std::io::Error> for Error {
     fn from(f: std::io::Error) -> Self {
-        ErrorKind::Other.cause(f).into()
+        let kind = if f.kind() == std::io::ErrorKind::UnexpectedEof {
+            ErrorKind::UnexpectedEos
+        } else {
+            ErrorKind::Other
+        };
+        kind.cause(f).into()
     }
 }
 
@@ -20,6 +25,7 @@ impl From<std::io::Error> for Error {
 pub enum ErrorKind {
     InvalidInput,
     Full,
+    UnexpectedEos,
     Other,
 }
 impl TrackableErrorKind for ErrorKind {}

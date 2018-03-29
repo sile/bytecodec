@@ -6,6 +6,7 @@ use std::ops::{Deref, DerefMut};
 use {Error, ErrorKind, Result};
 use combinator::{EncoderChain, MapErr, Optional, Repeat, StartEncodingFrom};
 
+// or `Encoder`
 pub trait Encode {
     type Item;
 
@@ -19,6 +20,15 @@ pub trait Encode {
     fn is_empty(&self) -> bool {
         self.remaining_bytes() == Some(0)
     }
+
+    fn is_completed(&self) -> bool {
+        self.is_empty()
+    }
+}
+
+pub trait ExactSizeEncode: Encode {
+    // TODO: rename
+    fn remaining_bytes(&self) -> u64;
 }
 
 pub trait EncodeExt: Encode + Sized {
@@ -69,6 +79,7 @@ pub trait EncodeExt: Encode + Sized {
 }
 impl<T: Encode> EncodeExt for T {}
 
+// TODO: delete
 pub struct BoxEncoder<T>(Box<Encode<Item = T> + Send + 'static>);
 impl<T> fmt::Debug for BoxEncoder<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

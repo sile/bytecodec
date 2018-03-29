@@ -279,6 +279,10 @@ impl<D> Take<D> {
     pub(crate) fn new(decoder: D, limit: u64) -> Self {
         Take { decoder, limit }
     }
+
+    pub fn set_limit(&mut self, limit: u64) {
+        self.limit = limit;
+    }
 }
 impl<D: Decode> Decode for Take<D> {
     type Item = D::Item;
