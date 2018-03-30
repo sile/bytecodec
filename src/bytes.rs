@@ -1,3 +1,4 @@
+//! Encoders and decoders for reading/writing byte sequences.
 use std::io::{Read, Write};
 use std::mem;
 use trackable::error::ErrorKindExt;
@@ -49,12 +50,41 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     }
 }
 
+/// A variant of `BytesDecoder` for copyable bytes types.
+///
+/// Unlike `BytesDecoder`, this has no restriction on decoding count.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::bytes::CopyableBytesDecoder;
+///
+/// let mut decoder = CopyableBytesDecoder::new([0; 3]);
+/// let mut input = DecodeBuf::new(b"fooba");
+///
+/// // Decodes first item
+/// assert_eq!(decoder.requiring_bytes_hint(), Some(3));
+/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(item.as_ref(), Some(b"foo"));
+///
+/// // Decodes second item
+/// assert_eq!(decoder.requiring_bytes_hint(), Some(3));
+/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(item, None);
+/// assert_eq!(decoder.requiring_bytes_hint(), Some(1));
+///
+/// let mut input = DecodeBuf::new(b"r");
+/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(item.as_ref(), Some(b"bar"));
+/// ```
 #[derive(Debug, Default)]
 pub struct CopyableBytesDecoder<B> {
     bytes: B,
     offset: usize,
 }
 impl<B> CopyableBytesDecoder<B> {
+    /// Makes a new `CopyableBytesDecoder` instance.
     pub fn new(bytes: B) -> Self {
         CopyableBytesDecoder { bytes, offset: 0 }
     }
@@ -83,12 +113,31 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
     }
 }
 
+/// `BytesDecoder` copies bytes from an input sequence to a slice.
+///
+/// This is a oneshot decoder (i.e., it decodes only one item).
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::bytes::BytesDecoder;
+///
+/// let mut decoder = BytesDecoder::new([0; 3]);
+/// assert_eq!(decoder.requiring_bytes_hint(), Some(3));
+///
+/// let mut input = DecodeBuf::new(b"foobar");
+/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(item.as_ref(), Some(b"foo"));
+/// assert_eq!(decoder.requiring_bytes_hint(), Some(0)); // no more items are decoded
+/// ```
 #[derive(Debug)]
 pub struct BytesDecoder<B> {
     bytes: Option<B>,
     offset: usize,
 }
 impl<B> BytesDecoder<B> {
+    /// Makes a new `BytesDecoder` instance for filling the given byte slice.
     pub fn new(bytes: B) -> Self {
         BytesDecoder {
             bytes: Some(bytes),
@@ -126,9 +175,31 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
     }
 }
 
+/// `RemainingBytesDecoder` reads all the bytes from a input sequence until it reaches EOS.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::bytes::RemainingBytesDecoder;
+///
+/// let mut decoder = RemainingBytesDecoder::new();
+/// assert_eq!(decoder.requiring_bytes_hint(), None);
+///
+/// let mut input = DecodeBuf::new(b"foo");
+/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(item, None);
+/// assert!(!input.is_eos());
+///
+/// let mut input = DecodeBuf::with_remaining_bytes(b"bar", 0);
+/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(item, Some(b"foobar".to_vec()));
+/// assert!(input.is_eos());
+/// ```
 #[derive(Debug, Default)]
 pub struct RemainingBytesDecoder(Vec<u8>);
 impl RemainingBytesDecoder {
+    /// Makes a new `RemainingBytesDecoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -190,9 +261,23 @@ impl<S> Default for Utf8Encoder<S> {
     }
 }
 
+/// `Utf8Decoder` decodes Rust strings from a input byte sequence.
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::bytes::Utf8Decoder;
+///
+/// let mut decoder = Utf8Decoder::new();
+///
+/// let mut input = DecodeBuf::with_remaining_bytes(b"foo", 0);
+/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(item, Some("foo".to_owned()));
+/// ```
 #[derive(Debug, Default)]
 pub struct Utf8Decoder<D = RemainingBytesDecoder>(D);
 impl Utf8Decoder<RemainingBytesDecoder> {
+    /// Makes a new `Utf8Decoder` that uses `RemainingBytesDecoder` as the internal bytes decoder.
     pub fn new() -> Self {
         Utf8Decoder(RemainingBytesDecoder::new())
     }
@@ -201,6 +286,7 @@ impl<D> Utf8Decoder<D>
 where
     D: Decode<Item = Vec<u8>>,
 {
+    /// Makes a new `Utf8Decoder` with the given bytes decoder.
     pub fn with_bytes_decoder(bytes_decoder: D) -> Self {
         Utf8Decoder(bytes_decoder)
     }
@@ -222,5 +308,27 @@ where
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.requiring_bytes_hint()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use {Decode, DecodeBuf, ErrorKind};
+    use super::*;
+
+    #[test]
+    fn bytes_decoder_works() {
+        let mut decoder = BytesDecoder::new([0; 3]);
+        assert_eq!(decoder.requiring_bytes_hint(), Some(3));
+
+        let mut input = DecodeBuf::new(b"foobar");
+        let item = decoder.decode(&mut input).unwrap();
+        assert_eq!(item.as_ref(), Some(b"foo"));
+        assert_eq!(decoder.requiring_bytes_hint(), Some(0));
+
+        assert_eq!(
+            decoder.decode(&mut input).err().map(|e| *e.kind()),
+            Some(ErrorKind::DecoderTerminated)
+        );
     }
 }
