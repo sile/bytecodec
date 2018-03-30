@@ -1,5 +1,4 @@
 use std::cmp;
-use std::fmt;
 use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
 
@@ -27,6 +26,33 @@ pub trait Encode {
 
     fn is_completed(&self) -> bool {
         self.is_empty()
+    }
+}
+impl<E: ?Sized + Encode> Encode for Box<E> {
+    type Item = E::Item;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        (**self).encode(buf)
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        (**self).start_encoding(item)
+    }
+
+    fn can_start(&self, item: &Self::Item) -> bool {
+        (**self).can_start(item)
+    }
+
+    fn remaining_bytes(&self) -> Option<u64> {
+        (**self).remaining_bytes()
+    }
+
+    fn is_empty(&self) -> bool {
+        (**self).is_empty()
+    }
+
+    fn is_completed(&self) -> bool {
+        (**self).is_completed()
     }
 }
 
@@ -73,38 +99,8 @@ pub trait EncodeExt: Encode + Sized {
     fn optional(self) -> Optional<Self> {
         Optional::new(self)
     }
-
-    fn boxed(self) -> BoxEncoder<Self::Item>
-    where
-        Self: Send + 'static,
-    {
-        BoxEncoder(Box::new(self))
-    }
 }
 impl<T: Encode> EncodeExt for T {}
-
-// TODO: delete
-pub struct BoxEncoder<T>(Box<Encode<Item = T> + Send + 'static>);
-impl<T> fmt::Debug for BoxEncoder<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "BoxEncoder(_)")
-    }
-}
-impl<T> Encode for BoxEncoder<T> {
-    type Item = T;
-
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.0.encode(buf)
-    }
-
-    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        self.0.start_encoding(item)
-    }
-
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.0.remaining_bytes()
-    }
-}
 
 #[derive(Debug)]
 pub struct EncodeBuf<'a> {

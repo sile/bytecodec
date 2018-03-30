@@ -3,6 +3,7 @@ use std::mem;
 use trackable::error::ErrorKindExt;
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
+use marker::ExactBytesDecode;
 
 #[derive(Debug)]
 pub struct BytesEncoder<B> {
@@ -59,8 +60,7 @@ impl<B> BytesDecoder<B> {
         BytesDecoder { bytes, offset: 0 }
     }
 }
-// TODO: remove clone
-impl<B: AsMut<[u8]> + Clone> Decode for BytesDecoder<B> {
+impl<B: AsRef<[u8]> + AsMut<[u8]> + Clone> Decode for BytesDecoder<B> {
     type Item = B;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
@@ -74,11 +74,60 @@ impl<B: AsMut<[u8]> + Clone> Decode for BytesDecoder<B> {
             self.offset = 0;
             Ok(Some(self.bytes.clone()))
         } else {
-            track_assert!(!buf.is_eos(), ErrorKind::InvalidInput);
+            track_assert!(!buf.is_eos(), ErrorKind::UnexpectedEos);
             Ok(None)
         }
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        Some((self.bytes.as_ref().len() - self.offset) as u64)
+    }
 }
+impl<B: AsRef<[u8]> + AsMut<[u8]> + Clone> ExactBytesDecode for BytesDecoder<B> {}
+
+#[derive(Debug)]
+pub struct OneshotBytesDecoder<B> {
+    bytes: Option<B>,
+    offset: usize,
+}
+impl<B> OneshotBytesDecoder<B> {
+    pub fn new(bytes: B) -> Self {
+        OneshotBytesDecoder {
+            bytes: Some(bytes),
+            offset: 0,
+        }
+    }
+}
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for OneshotBytesDecoder<B> {
+    type Item = B;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        if let Some(ref mut bytes) = self.bytes {
+            let size = track!(
+                buf.read(&mut bytes.as_mut()[self.offset..])
+                    .map_err(Error::from)
+            )?;
+            self.offset += size;
+        } else {
+            track_panic!(ErrorKind::DecoderTerminated);
+        }
+
+        if Some(self.offset) == self.bytes.as_ref().map(|b| b.as_ref().len()) {
+            Ok(self.bytes.take())
+        } else {
+            track_assert!(!buf.is_eos(), ErrorKind::UnexpectedEos);
+            Ok(None)
+        }
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        let n = self.bytes
+            .as_ref()
+            .map_or(0, |b| b.as_ref().len() - self.offset);
+        Some(n as u64)
+    }
+}
+impl<B: AsRef<[u8]> + AsMut<[u8]>> ExactBytesDecode for OneshotBytesDecoder<B> {}
 
 pub type VecEncoder = BytesEncoder<Vec<u8>>;
 
@@ -103,6 +152,10 @@ impl Decode for VecDecoder {
         } else {
             Ok(None)
         }
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        None
     }
 }
 
@@ -138,10 +191,17 @@ where
     pub fn new(bytes_decoder: D) -> Self {
         Utf8Decoder(bytes_decoder)
     }
-}
-impl Utf8Decoder<BytesDecoder<Vec<u8>>> {
-    pub fn with_len(len: usize) -> Self {
-        Utf8Decoder(BytesDecoder::new(vec![0; len]))
+
+    pub fn get_ref(&self) -> &D {
+        &self.0
+    }
+
+    pub fn get_mut(&mut self) -> &mut D {
+        &mut self.0
+    }
+
+    pub fn into_inner(self) -> D {
+        self.0
     }
 }
 impl<D> Decode for Utf8Decoder<D>
@@ -158,4 +218,9 @@ where
             Ok(None)
         }
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.0.requiring_bytes_hint()
+    }
 }
+impl<D: ExactBytesDecode<Item = Vec<u8>>> ExactBytesDecode for Utf8Decoder<D> {}

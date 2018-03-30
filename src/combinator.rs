@@ -7,6 +7,7 @@ use std::mem;
 pub use chain::{DecoderChain, EncoderChain};
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
+use marker::ExactBytesDecode;
 
 #[derive(Debug)]
 pub struct Map<D, T, F> {
@@ -34,8 +35,18 @@ where
     type Item = T;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        self.decoder.decode(buf).map(|r| r.map(&self.map))
+        track!(self.decoder.decode(buf)).map(|r| r.map(&self.map))
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.decoder.requiring_bytes_hint()
+    }
+}
+impl<D, T, F> ExactBytesDecode for Map<D, T, F>
+where
+    D: ExactBytesDecode,
+    F: Fn(D::Item) -> T,
+{
 }
 
 #[derive(Debug)]
@@ -59,8 +70,18 @@ where
     type Item = D::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        self.codec.decode(buf).map_err(&self.map_err)
+        track!(self.codec.decode(buf)).map_err(&self.map_err)
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.codec.requiring_bytes_hint()
+    }
+}
+impl<D, F> ExactBytesDecode for MapErr<D, F>
+where
+    D: ExactBytesDecode,
+    F: Fn(Error) -> Error,
+{
 }
 impl<E, F> Encode for MapErr<E, F>
 where
@@ -110,13 +131,14 @@ where
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         let mut item = None;
-        while !buf.is_empty() && item.is_none() {
+        loop {
             if let Some(ref mut d) = self.decoder1 {
-                if let Some(x) = d.decode(buf)? {
-                    item = Some(x);
-                }
-            } else if let Some(d) = self.decoder0.decode(buf)?.map(&self.and_then) {
+                item = track!(d.decode(buf))?;
+                break;
+            } else if let Some(d) = track!(self.decoder0.decode(buf))?.map(&self.and_then) {
                 self.decoder1 = Some(d);
+            } else {
+                break;
             }
         }
         if item.is_some() {
@@ -124,6 +146,21 @@ where
         }
         Ok(item)
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        if let Some(ref d) = self.decoder1 {
+            d.requiring_bytes_hint()
+        } else {
+            self.decoder0.requiring_bytes_hint()
+        }
+    }
+}
+impl<D0, D1, F> ExactBytesDecode for AndThen<D0, D1, F>
+where
+    D0: ExactBytesDecode,
+    D1: ExactBytesDecode,
+    F: Fn(D0::Item) -> D1,
+{
 }
 
 #[derive(Debug)]
@@ -207,6 +244,7 @@ where
     }
 }
 
+// deref, deref_mut
 #[derive(Debug)]
 pub struct Optional<E>(E);
 impl<E> Optional<E> {
@@ -254,22 +292,29 @@ where
     type Item = T;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        while !buf.is_empty() {
-            let old_buf_len = buf.len();
-            if let Some(item) = track!(self.decoder.decode(buf))? {
-                self.items.extend(iter::once(item));
-            } else if old_buf_len == buf.len() {
-                break;
-            }
+        while let Some(item) = track!(self.decoder.decode(buf))? {
+            self.items.extend(iter::once(item));
         }
-        if buf.is_eos() {
+
+        if buf.is_eos() || self.decoder.terminated() {
             Ok(Some(mem::replace(&mut self.items, T::default())))
         } else {
             Ok(None)
         }
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.decoder.requiring_bytes_hint()
+    }
+}
+impl<D, T> ExactBytesDecode for Collect<D, T>
+where
+    D: ExactBytesDecode,
+    T: Extend<D::Item> + Default,
+{
 }
 
+// TODO: rename
 #[derive(Debug)]
 pub struct Take<D> {
     decoder: D,
@@ -288,21 +333,28 @@ impl<D: Decode> Decode for Take<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let len = cmp::min(buf.len() as u64, self.limit) as usize;
-        let remaining = self.limit - len as u64;
-        let remaining = buf.remaining_bytes()
-            .map_or(remaining, |n| cmp::min(n, remaining));
+        let min_len = cmp::min(buf.len() as u64, self.limit) as usize;
+        let remaining_len = self.limit - min_len as u64;
+        let remaining_len = buf.remaining_bytes()
+            .map_or(remaining_len, |n| cmp::min(n, remaining_len));
 
         let (item, consumed_len) = {
-            let mut buf = DecodeBuf::with_remaining_bytes(&buf[..len], remaining);
-            let item = track!(self.decoder.decode(&mut buf))?;
-            let consumed_len = len - buf.len();
+            let mut limited_buf = DecodeBuf::with_remaining_bytes(&buf[..min_len], remaining_len);
+            let item = track!(self.decoder.decode(&mut limited_buf);
+                              self.limit, buf.len(), buf.remaining_bytes())?;
+            let consumed_len = min_len - limited_buf.len();
             (item, consumed_len)
         };
 
         self.limit -= consumed_len as u64;
         track!(buf.consume(consumed_len))?;
         Ok(item)
+    }
+}
+impl<D: Decode> ExactBytesDecode for Take<D> {
+    fn requiring_bytes(&self) -> u64 {
+        self.requiring_bytes_hint()
+            .map_or(self.limit, |n| cmp::min(n, self.limit))
     }
 }
 
@@ -331,12 +383,23 @@ where
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         if let Some(item) = track!(self.decoder.decode(buf))? {
-            (self.validate)(&item)?;
+            track!((self.validate)(&item).map_err(Error::from))?;
             Ok(Some(item))
         } else {
             Ok(None)
         }
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.decoder.requiring_bytes_hint()
+    }
+}
+impl<D, F, E> ExactBytesDecode for Validate<D, F, E>
+where
+    D: ExactBytesDecode,
+    F: for<'a> Fn(&'a D::Item) -> std::result::Result<(), E>,
+    Error: From<E>,
+{
 }
 
 #[derive(Debug)]
@@ -356,17 +419,30 @@ impl<D: Decode> Decode for IgnoreRest<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        track_assert!(buf.remaining_bytes().is_some(), ErrorKind::InvalidInput);
-        while !buf.is_empty() && self.item.is_none() {
+        track_assert!(
+            buf.remaining_bytes().is_some(),
+            ErrorKind::InvalidInput,
+            "Cannot ignore infinity byte stream"
+        );
+
+        if self.item.is_none() {
             self.item = track!(self.decoder.decode(buf))?;
         }
         if self.item.is_some() {
-            let len = buf.len();
-            track!(buf.consume(len))?;
+            let rest = buf.len();
+            track!(buf.consume(rest))?;
             if buf.is_eos() {
                 return Ok(self.item.take());
             }
         }
         Ok(None)
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        if self.item.is_none() {
+            self.decoder.requiring_bytes_hint()
+        } else {
+            None
+        }
     }
 }

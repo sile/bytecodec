@@ -1,6 +1,5 @@
 use std;
 use std::cmp;
-use std::fmt;
 use std::io::{self, Read};
 use std::ops::Deref;
 
@@ -10,24 +9,46 @@ use combinator::{AndThen, Collect, DecoderChain, IgnoreRest, Map, MapErr, Take, 
 pub trait Decode {
     type Item;
 
-    // NOTE: 一バイトも消費されない場合には、もうデコード可能なitemが存在しないことを意味する
     //
-    // TODO: 呼び出し側を簡単にするために「Someを返す」or「bufの最後まで読む」とすることを検討
+    // 実装側の責務:
+    // - `Ok(Some(...))`を返す
+    // - さもなければ、`buf`を最後まで消費する
+    //
+    // 上記のいずれにも該当しない場合には、呼び出し元は、
+    // デコーダがこれ以上生成するitemは存在しない元判断可能
+    //
+    // `buf`は空の可能性もある
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>>;
 
     // Returns the number of bytes needed to proceed next state.
+    //
+    // 注意: 「状態の遷移」であり「アイテムのデコード」ではない.
+    //        some/noneが途中で切り替わったりもする.
     fn requiring_bytes_hint(&self) -> Option<u64> {
+        // TODO: remove default impl
         None
     }
-}
-// TODO:
-impl Decode for () {
-    type Item = ();
 
-    fn decode(&mut self, _buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(Some(()))
+    // TODO: rename
+    fn terminated(&self) -> bool {
+        self.requiring_bytes_hint() == Some(0)
     }
 }
+impl<D: ?Sized + Decode> Decode for Box<D> {
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        (**self).decode(buf)
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        (**self).requiring_bytes_hint()
+    }
+}
+
+// TODO: Immediate or Value
+
+// TODO: remove or rename
 impl<D: Decode> Decode for Option<D> {
     type Item = Option<D::Item>;
 
@@ -45,8 +66,6 @@ pub trait ExactBytesDecode: Decode {
         self.requiring_bytes_hint().expect("Must be a `Some` value")
     }
 }
-
-pub trait StreamDecode: Decode {}
 
 pub trait DecodeExt: Decode + Sized {
     fn map<T, F>(self, f: F) -> Map<Self, T, F>
@@ -106,28 +125,10 @@ pub trait DecodeExt: Decode + Sized {
         Validate::new(self, f)
     }
 
-    fn boxed(self) -> BoxDecoder<Self::Item>
-    where
-        Self: Send + 'static,
-    {
-        BoxDecoder(Box::new(self))
-    }
+    // TODO: min, max
+    // TODO: max_bytes
 }
 impl<T: Decode> DecodeExt for T {}
-
-pub struct BoxDecoder<T>(Box<Decode<Item = T> + Send + 'static>);
-impl<T> fmt::Debug for BoxDecoder<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "BoxDecoder(_)")
-    }
-}
-impl<T> Decode for BoxDecoder<T> {
-    type Item = T;
-
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        self.0.decode(buf)
-    }
-}
 
 #[derive(Debug)]
 pub struct DecodeBuf<'a> {

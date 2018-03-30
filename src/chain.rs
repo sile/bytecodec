@@ -1,14 +1,28 @@
 use std::marker::PhantomData;
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, Result};
+use marker::ExactBytesDecode;
 
+// TODO:
 #[derive(Debug)]
 pub struct StartDecoderChain;
 impl StartDecoderChain {
-    pub fn chain<D: Decode>(&self, decoder: D) -> DecoderChain<(), D, ()> {
-        DecoderChain::new((), decoder)
+    pub fn chain<D: Decode>(&self, decoder: D) -> DecoderChain<Self, D, ()> {
+        DecoderChain::new(StartDecoderChain, decoder)
     }
 }
+impl Decode for StartDecoderChain {
+    type Item = ();
+
+    fn decode(&mut self, _buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        track_panic!(ErrorKind::DecoderTerminated);
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        Some(0)
+    }
+}
+impl ExactBytesDecode for StartDecoderChain {}
 
 #[derive(Debug)]
 pub struct StartEncoderChain;
@@ -20,25 +34,29 @@ impl StartEncoderChain {
 
 // #[derive(Debug)]
 pub struct DecoderChain<D0: Decode, D1: Decode, T = <D0 as Decode>::Item> {
-    inner: Chain<Buffered<D0>, Buffered<D1>>,
+    inner: Chain<Buffered<D0>, D1>,
     _item: PhantomData<T>,
 }
 impl<D0: Decode, D1: Decode, T> DecoderChain<D0, D1, T> {
     pub(crate) fn new(d0: D0, d1: D1) -> Self {
         DecoderChain {
-            inner: Chain::new(Buffered::new(d0), Buffered::new(d1)),
+            inner: Chain::new(Buffered::new(d0), d1),
             _item: PhantomData,
         }
     }
 }
-impl<D> Decode for DecoderChain<(), D, ()>
+impl<D> Decode for DecoderChain<StartDecoderChain, D, ()>
 where
     D: Decode,
 {
     type Item = (D::Item,);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.inner.b.decoder.decode(buf)?.map(|i| (i,)))
+        Ok(self.inner.b.decode(buf)?.map(|i| (i,)))
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
     }
 }
 impl<D0, D1, T0> Decode for DecoderChain<D0, D1, (T0,)>
@@ -51,6 +69,10 @@ where
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         Ok(self.inner.decode(buf)?.map(|(t, i)| (t.0, i)))
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
+    }
 }
 impl<D0, D1, T0, T1> Decode for DecoderChain<D0, D1, (T0, T1)>
 where
@@ -62,6 +84,10 @@ where
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         Ok(self.inner.decode(buf)?.map(|(t, i)| (t.0, t.1, i)))
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
+    }
 }
 impl<D0, D1, T0, T1, T2> Decode for DecoderChain<D0, D1, (T0, T1, T2)>
 where
@@ -72,6 +98,10 @@ where
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         Ok(self.inner.decode(buf)?.map(|(t, i)| (t.0, t.1, t.2, i)))
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
     }
 }
 impl<D0, D1, T0, T1, T2, T3> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3)>
@@ -86,6 +116,10 @@ where
             .decode(buf)?
             .map(|(t, i)| (t.0, t.1, t.2, t.3, i)))
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
+    }
 }
 impl<D0, D1, T0, T1, T2, T3, T4> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3, T4)>
 where
@@ -99,6 +133,10 @@ where
             .decode(buf)?
             .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, i)))
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
+    }
 }
 impl<D0, D1, T0, T1, T2, T3, T4, T5> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3, T4, T5)>
 where
@@ -111,6 +149,10 @@ where
         Ok(self.inner
             .decode(buf)?
             .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, i)))
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
     }
 }
 impl<D0, D1, T0, T1, T2, T3, T4, T5, T6> Decode
@@ -126,6 +168,17 @@ where
             .decode(buf)?
             .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, t.6, i)))
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
+    }
+}
+impl<D0, D1, T> ExactBytesDecode for DecoderChain<D0, D1, T>
+where
+    D0: ExactBytesDecode,
+    D1: ExactBytesDecode,
+    Self: Decode,
+{
 }
 
 #[derive(Debug)]
@@ -300,7 +353,7 @@ where
 struct Chain<A, B> {
     a: A,
     b: B,
-    i: usize,
+    i: usize, // TODO: remove
 }
 impl<A, B> Chain<A, B> {
     fn new(a: A, b: B) -> Self {
@@ -348,7 +401,7 @@ where
         size
     }
 }
-impl<A, B> Decode for Chain<Buffered<A>, Buffered<B>>
+impl<A, B> Decode for Chain<Buffered<A>, B>
 where
     A: Decode,
     B: Decode,
@@ -356,69 +409,75 @@ where
     type Item = (A::Item, B::Item);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        while !buf.is_empty() && self.i < 2 {
-            let buf_len = buf.len();
-            match self.i {
-                0 => debug_assert!(track!(self.a.decode(buf))?.is_none()),
-                1 => debug_assert!(track!(self.b.decode(buf))?.is_none()),
-                _ => unreachable!(),
-            };
-            if buf_len == buf.len() {
-                self.i += 1;
+        let item = loop {
+            if self.a.item.is_none() {
+                track!(self.a.decode(buf))?;
+                if self.a.item.is_none() {
+                    break None;
+                }
             }
-        }
-        if self.i == 2 {
-            self.i = 0;
-            let item0 = track_assert_some!(self.a.take_item(), ErrorKind::Other);
-            let item1 = track_assert_some!(self.b.take_item(), ErrorKind::Other);
-            Ok(Some((item0, item1)))
+            if let Some(b) = track!(self.b.decode(buf))? {
+                let a = self.a.item.take().expect("Never fails");
+                break Some((a, b));
+            } else {
+                break None;
+            }
+        };
+        Ok(item)
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        if self.a.item.is_none() {
+            self.a.requiring_bytes_hint()
         } else {
-            Ok(None)
+            self.b.requiring_bytes_hint()
         }
     }
 }
+impl<A, B> ExactBytesDecode for Chain<Buffered<A>, B>
+where
+    A: ExactBytesDecode,
+    B: ExactBytesDecode,
+{
+}
 
 #[derive(Debug)]
-pub struct Buffered<T: Decode> {
+struct Buffered<T: Decode> {
     decoder: T,
-    buffer: Option<T::Item>,
+    item: Option<T::Item>,
 }
 impl<T: Decode> Buffered<T> {
     fn new(decoder: T) -> Self {
         Buffered {
             decoder,
-            buffer: None,
+            item: None,
         }
-    }
-
-    fn take_item(&mut self) -> Option<T::Item> {
-        self.buffer.take()
     }
 }
 impl<T: Decode> Decode for Buffered<T> {
     type Item = T::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        while !buf.is_empty() && self.buffer.is_none() {
-            let old_len = buf.len();
-            if let Some(item) = track!(self.decoder.decode(buf))? {
-                self.buffer = Some(item);
-            } else {
-                // TODO: remove
-                //track_assert_ne!(old_len, buf.len(), ErrorKind::InvalidInput);
-                if old_len == buf.len() {
-                    break;
-                }
-            }
+        if self.item.is_none() {
+            self.item = track!(self.decoder.decode(buf))?;
         }
         Ok(None)
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        if self.item.is_some() {
+            Some(0)
+        } else {
+            self.decoder.requiring_bytes_hint()
+        }
+    }
 }
+impl<T: ExactBytesDecode> ExactBytesDecode for Buffered<T> {}
 
 #[cfg(test)]
 mod test {
     use {Decode, DecodeBuf, DecodeExt, StartDecoderChain};
-    use fixnum_codec::U8Decoder;
+    use fixnum::U8Decoder;
 
     #[test]
     fn it_works() {
@@ -426,9 +485,6 @@ mod test {
             .chain(U8Decoder::new())
             .chain(U8Decoder::new())
             .chain(U8Decoder::new());
-
-        // TODO: remove
-        track_try_unwrap!(decoder.decode(&mut DecodeBuf::new(b"foo")));
 
         assert_eq!(
             track_try_unwrap!(decoder.decode(&mut DecodeBuf::new(b"foo"))),

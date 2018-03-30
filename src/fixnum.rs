@@ -2,6 +2,7 @@ use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, Result};
 use bytes::{BytesDecoder, BytesEncoder};
+use marker::ExactBytesDecode;
 
 macro_rules! impl_decode {
     ($ty:ty, $item:ty) => {
@@ -12,7 +13,12 @@ macro_rules! impl_decode {
                 let item = track!(self.0.decode(buf))?;
                 Ok(item.map(Self::decode_item))
             }
+
+            fn requiring_bytes_hint(&self) -> Option<u64> {
+                self.0.requiring_bytes_hint()
+            }
         }
+        impl ExactBytesDecode for $ty {}
     }
 }
 

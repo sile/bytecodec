@@ -3,16 +3,17 @@ extern crate byteorder;
 extern crate trackable;
 
 pub use chain::{StartDecoderChain, StartEncoderChain};
-pub use decode::{BoxDecoder, Decode, DecodeBuf, DecodeExt};
-pub use encode::{BoxEncoder, Encode, EncodeBuf, EncodeExt, ExactSizeEncode};
+pub use decode::{Decode, DecodeBuf, DecodeExt};
+pub use encode::{Encode, EncodeBuf, EncodeExt, ExactSizeEncode};
 pub use error::{Error, ErrorKind};
 
-pub mod buf;
+pub mod buf; // TODO: rename (io?)
 pub mod bytes;
 pub mod combinator;
 pub mod fixnum;
+// TODO: rename
 pub mod marker {
-    pub use decode::{ExactBytesDecode, StreamDecode};
+    pub use decode::ExactBytesDecode;
 }
 
 mod chain;
@@ -21,5 +22,3 @@ mod encode;
 mod error;
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-// TODO: RingBuffer{to_encode_buf, to_decode_buf}
