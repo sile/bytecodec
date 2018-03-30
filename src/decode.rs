@@ -130,6 +130,12 @@ pub trait DecodeExt: Decode + Sized {
 }
 impl<T: Decode> DecodeExt for T {}
 
+/// Decoding buffer.
+///
+/// A `DecodeBuf` represents a slice of a byte sequence.
+/// Decoders consume consecutive buffers and decode items.
+///
+/// In addition, `DecodeBuf` optionally provides the number of bytes remaining in the sequence to decoders.
 #[derive(Debug)]
 pub struct DecodeBuf<'a> {
     buf: &'a [u8],
@@ -137,6 +143,19 @@ pub struct DecodeBuf<'a> {
     remaining_bytes: Option<u64>,
 }
 impl DecodeBuf<'static> {
+    /// Makes a `DecodeBuf` instance that represents the end-of-sequence
+    /// (i.e., zero length slice and zero remaining bytes).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::DecodeBuf;
+    ///
+    /// let buf = DecodeBuf::eos();
+    /// assert_eq!(buf.len(), 0);
+    /// assert_eq!(buf.remaining_bytes(), Some(0));
+    /// assert!(buf.is_eos());
+    /// ```
     pub fn eos() -> Self {
         DecodeBuf {
             buf: &[],
@@ -146,6 +165,17 @@ impl DecodeBuf<'static> {
     }
 }
 impl<'a> DecodeBuf<'a> {
+    /// Makes a new `DecodeBuf` instance without remaining bytes information.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::DecodeBuf;
+    ///
+    /// let buf = DecodeBuf::new(b"foo");
+    /// assert_eq!(buf.as_ref(), b"foo");
+    /// assert_eq!(buf.remaining_bytes(), None);
+    /// ```
     pub fn new(buf: &'a [u8]) -> Self {
         DecodeBuf {
             buf,
@@ -154,6 +184,15 @@ impl<'a> DecodeBuf<'a> {
         }
     }
 
+    /// Makes a new `DecodeBuf` instance with the given number of remaining bytes.
+    ///
+    /// ```
+    /// use bytecodec::DecodeBuf;
+    ///
+    /// let buf = DecodeBuf::with_remaining_bytes(b"foo", 10);
+    /// assert_eq!(buf.as_ref(), b"foo");
+    /// assert_eq!(buf.remaining_bytes(), Some(10));
+    /// ```
     pub fn with_remaining_bytes(buf: &'a [u8], remaining_bytes: u64) -> Self {
         DecodeBuf {
             buf,
@@ -162,16 +201,88 @@ impl<'a> DecodeBuf<'a> {
         }
     }
 
-    // buf.len()に加えて、次のitemをデコードするのに必要なバイト数.
-    // 不明な場合には`None`
+    /// Returns the number of bytes remaining in the sequence.
+    ///
+    /// Note that it does not contain the number of the bytes in this buffer.
+    ///
+    /// `None` means there is no knowledge about the length of the byte sequence.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::DecodeBuf;
+    ///
+    /// let mut buf = DecodeBuf::with_remaining_bytes(b"foo", 10);
+    /// assert_eq!(buf.len(), 3);
+    /// assert_eq!(buf.remaining_bytes(), Some(10));
+    ///
+    /// buf.consume(2).unwrap();
+    /// assert_eq!(buf.len(), 1);
+    /// assert_eq!(buf.remaining_bytes(), Some(10));
+    /// ```
     pub fn remaining_bytes(&self) -> Option<u64> {
         self.remaining_bytes
     }
 
+    /// Returns `true` if it reaches the end of the sequence(EOS), otherwise `false`.
+    ///
+    /// Operationally, "EOS" means both the length of the current buffer and the remaining bytes are `0`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::DecodeBuf;
+    ///
+    /// // The buffer is not empty (not EOS)
+    /// let mut buf = DecodeBuf::with_remaining_bytes(b"foo", 0);
+    /// assert_eq!(buf.len(), 3);
+    /// assert_eq!(buf.remaining_bytes(), Some(0));
+    /// assert!(!buf.is_eos());
+    ///
+    /// // The buffer and remaining bytes are empty (EOS)
+    /// buf.consume(3).unwrap();
+    /// assert!(buf.is_empty());
+    /// assert!(buf.is_eos());
+    ///
+    /// // There are some remaining bytes (not EOS)
+    /// let buf = DecodeBuf::with_remaining_bytes(b"", 10);
+    /// assert_eq!(buf.remaining_bytes(), Some(10));
+    /// assert!(!buf.is_eos());
+    ///
+    /// // The number of remaining bytes is unknown (can not judge it is EOS)
+    /// let buf = DecodeBuf::new(b"");
+    /// assert_eq!(buf.remaining_bytes(), None);
+    /// assert!(!buf.is_eos());
+    /// ```
     pub fn is_eos(&self) -> bool {
-        self.remaining_bytes().map_or(false, |n| n == 0)
+        self.is_empty() && self.remaining_bytes().map_or(false, |n| n == 0)
     }
 
+    /// Consumes the specified number of the bytes from the beginning of this buffer.
+    ///
+    /// Note the invocation of the `Read::read()` method automatically consumes the read bytes.
+    ///
+    /// # Errors
+    ///
+    /// If `size` exceeds the length of the buffer, it will return an `ErrorKind::InvalidInput` error.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::io::Read;
+    /// use bytecodec::DecodeBuf;
+    ///
+    /// let mut buf = DecodeBuf::new(b"foo");
+    /// assert_eq!(buf.as_ref(), b"foo");
+    ///
+    /// buf.consume(1).unwrap();
+    /// assert_eq!(buf.as_ref(), b"oo");
+    ///
+    /// buf.read_to_end(&mut Vec::new()).unwrap();
+    /// assert_eq!(buf.as_ref(), b"");
+    ///
+    /// assert!(buf.consume(1).is_err());
+    /// ```
     pub fn consume(&mut self, size: usize) -> Result<()> {
         track_assert!(self.offset + size <= self.buf.len(), ErrorKind::InvalidInput;
                       self.offset, size, self.buf.len());
