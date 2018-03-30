@@ -24,14 +24,14 @@ pub trait Decode {
     //
     // 注意: 「状態の遷移」であり「アイテムのデコード」ではない.
     //        some/noneが途中で切り替わったりもする.
+    //
+    // 状態の遷移、というよりは、必要バイト数の下限.
+    //
+    // NOTE: `Some(0)`は「次のdecode呼び出しでbufを消費せずにitemを取得可能」ないし
+    // 「これ以上デコードされるitemがない」ことを意味する.
     fn requiring_bytes_hint(&self) -> Option<u64> {
         // TODO: remove default impl
         None
-    }
-
-    // TODO: rename
-    fn terminated(&self) -> bool {
-        self.requiring_bytes_hint() == Some(0)
     }
 }
 impl<D: ?Sized + Decode> Decode for Box<D> {
@@ -58,12 +58,6 @@ impl<D: Decode> Decode for Option<D> {
         } else {
             Ok(None)
         }
-    }
-}
-
-pub trait ExactBytesDecode: Decode {
-    fn requiring_bytes(&self) -> u64 {
-        self.requiring_bytes_hint().expect("Must be a `Some` value")
     }
 }
 

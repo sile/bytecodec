@@ -11,10 +11,6 @@ pub mod buf; // TODO: rename (io?)
 pub mod bytes;
 pub mod combinator;
 pub mod fixnum;
-// TODO: rename
-pub mod marker {
-    pub use decode::ExactBytesDecode;
-}
 
 mod chain;
 mod decode;

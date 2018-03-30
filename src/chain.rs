@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, Result};
-use marker::ExactBytesDecode;
 
 // TODO:
 #[derive(Debug)]
@@ -22,7 +21,6 @@ impl Decode for StartDecoderChain {
         Some(0)
     }
 }
-impl ExactBytesDecode for StartDecoderChain {}
 
 #[derive(Debug)]
 pub struct StartEncoderChain;
@@ -172,13 +170,6 @@ where
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.inner.requiring_bytes_hint()
     }
-}
-impl<D0, D1, T> ExactBytesDecode for DecoderChain<D0, D1, T>
-where
-    D0: ExactBytesDecode,
-    D1: ExactBytesDecode,
-    Self: Decode,
-{
 }
 
 #[derive(Debug)]
@@ -427,18 +418,19 @@ where
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        if self.a.item.is_none() {
-            self.a.requiring_bytes_hint()
-        } else {
-            self.b.requiring_bytes_hint()
+        let a = self.a
+            .item
+            .as_ref()
+            .map(|_| 0)
+            .or_else(|| self.a.requiring_bytes_hint());
+        let b = self.b.requiring_bytes_hint();
+        match (a, b) {
+            (Some(a), Some(b)) => Some(a + b),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
         }
     }
-}
-impl<A, B> ExactBytesDecode for Chain<Buffered<A>, B>
-where
-    A: ExactBytesDecode,
-    B: ExactBytesDecode,
-{
 }
 
 #[derive(Debug)]
@@ -472,7 +464,6 @@ impl<T: Decode> Decode for Buffered<T> {
         }
     }
 }
-impl<T: ExactBytesDecode> ExactBytesDecode for Buffered<T> {}
 
 #[cfg(test)]
 mod test {

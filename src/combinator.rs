@@ -7,7 +7,6 @@ use std::mem;
 pub use chain::{DecoderChain, EncoderChain};
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
-use marker::ExactBytesDecode;
 
 #[derive(Debug)]
 pub struct Map<D, T, F> {
@@ -42,12 +41,6 @@ where
         self.decoder.requiring_bytes_hint()
     }
 }
-impl<D, T, F> ExactBytesDecode for Map<D, T, F>
-where
-    D: ExactBytesDecode,
-    F: Fn(D::Item) -> T,
-{
-}
 
 #[derive(Debug)]
 pub struct MapErr<C, F> {
@@ -76,12 +69,6 @@ where
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.codec.requiring_bytes_hint()
     }
-}
-impl<D, F> ExactBytesDecode for MapErr<D, F>
-where
-    D: ExactBytesDecode,
-    F: Fn(Error) -> Error,
-{
 }
 impl<E, F> Encode for MapErr<E, F>
 where
@@ -154,13 +141,6 @@ where
             self.decoder0.requiring_bytes_hint()
         }
     }
-}
-impl<D0, D1, F> ExactBytesDecode for AndThen<D0, D1, F>
-where
-    D0: ExactBytesDecode,
-    D1: ExactBytesDecode,
-    F: Fn(D0::Item) -> D1,
-{
 }
 
 #[derive(Debug)]
@@ -296,7 +276,7 @@ where
             self.items.extend(iter::once(item));
         }
 
-        if buf.is_eos() || self.decoder.terminated() {
+        if buf.is_eos() || self.decoder.requiring_bytes_hint() == Some(0) {
             Ok(Some(mem::replace(&mut self.items, T::default())))
         } else {
             Ok(None)
@@ -306,12 +286,6 @@ where
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.decoder.requiring_bytes_hint()
     }
-}
-impl<D, T> ExactBytesDecode for Collect<D, T>
-where
-    D: ExactBytesDecode,
-    T: Extend<D::Item> + Default,
-{
 }
 
 // TODO: rename
@@ -351,12 +325,6 @@ impl<D: Decode> Decode for Take<D> {
         Ok(item)
     }
 }
-impl<D: Decode> ExactBytesDecode for Take<D> {
-    fn requiring_bytes(&self) -> u64 {
-        self.requiring_bytes_hint()
-            .map_or(self.limit, |n| cmp::min(n, self.limit))
-    }
-}
 
 #[derive(Debug)]
 pub struct Validate<D, F, E> {
@@ -393,13 +361,6 @@ where
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.decoder.requiring_bytes_hint()
     }
-}
-impl<D, F, E> ExactBytesDecode for Validate<D, F, E>
-where
-    D: ExactBytesDecode,
-    F: for<'a> Fn(&'a D::Item) -> std::result::Result<(), E>,
-    Error: From<E>,
-{
 }
 
 #[derive(Debug)]

@@ -3,7 +3,6 @@ use std::mem;
 use trackable::error::ErrorKindExt;
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
-use marker::ExactBytesDecode;
 
 #[derive(Debug)]
 pub struct BytesEncoder<B> {
@@ -51,16 +50,16 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
 }
 
 #[derive(Debug, Default)]
-pub struct BytesDecoder<B> {
+pub struct CopyableBytesDecoder<B> {
     bytes: B,
     offset: usize,
 }
-impl<B> BytesDecoder<B> {
+impl<B> CopyableBytesDecoder<B> {
     pub fn new(bytes: B) -> Self {
-        BytesDecoder { bytes, offset: 0 }
+        CopyableBytesDecoder { bytes, offset: 0 }
     }
 }
-impl<B: AsRef<[u8]> + AsMut<[u8]> + Clone> Decode for BytesDecoder<B> {
+impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
     type Item = B;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
@@ -72,7 +71,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Clone> Decode for BytesDecoder<B> {
 
         if self.offset == self.bytes.as_mut().len() {
             self.offset = 0;
-            Ok(Some(self.bytes.clone()))
+            Ok(Some(self.bytes))
         } else {
             track_assert!(!buf.is_eos(), ErrorKind::UnexpectedEos);
             Ok(None)
@@ -83,22 +82,21 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Clone> Decode for BytesDecoder<B> {
         Some((self.bytes.as_ref().len() - self.offset) as u64)
     }
 }
-impl<B: AsRef<[u8]> + AsMut<[u8]> + Clone> ExactBytesDecode for BytesDecoder<B> {}
 
 #[derive(Debug)]
-pub struct OneshotBytesDecoder<B> {
+pub struct BytesDecoder<B> {
     bytes: Option<B>,
     offset: usize,
 }
-impl<B> OneshotBytesDecoder<B> {
+impl<B> BytesDecoder<B> {
     pub fn new(bytes: B) -> Self {
-        OneshotBytesDecoder {
+        BytesDecoder {
             bytes: Some(bytes),
             offset: 0,
         }
     }
 }
-impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for OneshotBytesDecoder<B> {
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
     type Item = B;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
@@ -127,18 +125,15 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for OneshotBytesDecoder<B> {
         Some(n as u64)
     }
 }
-impl<B: AsRef<[u8]> + AsMut<[u8]>> ExactBytesDecode for OneshotBytesDecoder<B> {}
-
-pub type VecEncoder = BytesEncoder<Vec<u8>>;
 
 #[derive(Debug, Default)]
-pub struct VecDecoder(Vec<u8>);
-impl VecDecoder {
+pub struct RemainingBytesDecoder(Vec<u8>);
+impl RemainingBytesDecoder {
     pub fn new() -> Self {
         Self::default()
     }
 }
-impl Decode for VecDecoder {
+impl Decode for RemainingBytesDecoder {
     type Item = Vec<u8>;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
@@ -159,49 +154,55 @@ impl Decode for VecDecoder {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct Utf8Encoder(VecEncoder);
-impl Utf8Encoder {
+#[derive(Debug)]
+struct Utf8Bytes<T>(T);
+impl<T: AsRef<str>> AsRef<[u8]> for Utf8Bytes<T> {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref().as_bytes()
+    }
+}
+
+#[derive(Debug)]
+pub struct Utf8Encoder<S = String>(BytesEncoder<Utf8Bytes<S>>);
+impl<S> Utf8Encoder<S> {
     pub fn new() -> Self {
         Self::default()
     }
 }
-impl Encode for Utf8Encoder {
-    type Item = String;
+impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
+    type Item = S;
 
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         track!(self.0.encode(buf))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track!(self.0.start_encoding(item.into_bytes()))
+        track!(self.0.start_encoding(Utf8Bytes(item)))
     }
 
     fn remaining_bytes(&self) -> Option<u64> {
         self.0.remaining_bytes()
     }
 }
+impl<S> Default for Utf8Encoder<S> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[derive(Debug, Default)]
-pub struct Utf8Decoder<D>(D);
+pub struct Utf8Decoder<D = RemainingBytesDecoder>(D);
+impl Utf8Decoder<RemainingBytesDecoder> {
+    pub fn new() -> Self {
+        Utf8Decoder(RemainingBytesDecoder::new())
+    }
+}
 impl<D> Utf8Decoder<D>
 where
     D: Decode<Item = Vec<u8>>,
 {
-    pub fn new(bytes_decoder: D) -> Self {
+    pub fn with_bytes_decoder(bytes_decoder: D) -> Self {
         Utf8Decoder(bytes_decoder)
-    }
-
-    pub fn get_ref(&self) -> &D {
-        &self.0
-    }
-
-    pub fn get_mut(&mut self) -> &mut D {
-        &mut self.0
-    }
-
-    pub fn into_inner(self) -> D {
-        self.0
     }
 }
 impl<D> Decode for Utf8Decoder<D>
@@ -223,4 +224,3 @@ where
         self.0.requiring_bytes_hint()
     }
 }
-impl<D: ExactBytesDecode<Item = Vec<u8>>> ExactBytesDecode for Utf8Decoder<D> {}

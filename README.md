@@ -15,3 +15,4 @@ A tiny Rust framework for implementing byte-oriented encoders/decoders.
   - convenient for small/middle size objects
 - independent from I/O
   - Easily adapt to synchronous I/O, asynchronous I/O, UDP, etc
+- trackable error

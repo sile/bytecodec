@@ -1,8 +1,7 @@
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, Result};
-use bytes::{BytesDecoder, BytesEncoder};
-use marker::ExactBytesDecode;
+use bytes::{BytesEncoder, CopyableBytesDecoder};
 
 macro_rules! impl_decode {
     ($ty:ty, $item:ty) => {
@@ -18,7 +17,6 @@ macro_rules! impl_decode {
                 self.0.requiring_bytes_hint()
             }
         }
-        impl ExactBytesDecode for $ty {}
     }
 }
 
@@ -45,7 +43,7 @@ macro_rules! impl_encode {
 }
 
 #[derive(Debug, Default)]
-pub struct U8Decoder(BytesDecoder<[u8; 1]>);
+pub struct U8Decoder(CopyableBytesDecoder<[u8; 1]>);
 impl U8Decoder {
     pub fn new() -> Self {
         Self::default()
@@ -72,7 +70,7 @@ impl U8Encoder {
 impl_encode!(U8Encoder, u8);
 
 #[derive(Debug, Default)]
-pub struct I8Decoder(BytesDecoder<[u8; 1]>);
+pub struct I8Decoder(CopyableBytesDecoder<[u8; 1]>);
 impl I8Decoder {
     pub fn new() -> Self {
         Self::default()
@@ -99,7 +97,7 @@ impl I8Encoder {
 impl_encode!(I8Encoder, i8);
 
 #[derive(Debug, Default)]
-pub struct U16beDecoder(BytesDecoder<[u8; 2]>);
+pub struct U16beDecoder(CopyableBytesDecoder<[u8; 2]>);
 impl U16beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -112,7 +110,7 @@ impl U16beDecoder {
 impl_decode!(U16beDecoder, u16);
 
 #[derive(Debug, Default)]
-pub struct U16leDecoder(BytesDecoder<[u8; 2]>);
+pub struct U16leDecoder(CopyableBytesDecoder<[u8; 2]>);
 impl U16leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -153,7 +151,7 @@ impl U16leEncoder {
 impl_encode!(U16leEncoder, u16);
 
 #[derive(Debug, Default)]
-pub struct I16beDecoder(BytesDecoder<[u8; 2]>);
+pub struct I16beDecoder(CopyableBytesDecoder<[u8; 2]>);
 impl I16beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -166,7 +164,7 @@ impl I16beDecoder {
 impl_decode!(I16beDecoder, i16);
 
 #[derive(Debug, Default)]
-pub struct I16leDecoder(BytesDecoder<[u8; 2]>);
+pub struct I16leDecoder(CopyableBytesDecoder<[u8; 2]>);
 impl I16leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -207,7 +205,7 @@ impl I16leEncoder {
 impl_encode!(I16leEncoder, i16);
 
 #[derive(Debug, Default)]
-pub struct U24beDecoder(BytesDecoder<[u8; 3]>);
+pub struct U24beDecoder(CopyableBytesDecoder<[u8; 3]>);
 impl U24beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -220,7 +218,7 @@ impl U24beDecoder {
 impl_decode!(U24beDecoder, u32);
 
 #[derive(Debug, Default)]
-pub struct U24leDecoder(BytesDecoder<[u8; 3]>);
+pub struct U24leDecoder(CopyableBytesDecoder<[u8; 3]>);
 impl U24leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -263,7 +261,7 @@ impl U24leEncoder {
 impl_encode!(U24leEncoder, u32);
 
 #[derive(Debug, Default)]
-pub struct U32beDecoder(BytesDecoder<[u8; 4]>);
+pub struct U32beDecoder(CopyableBytesDecoder<[u8; 4]>);
 impl U32beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -276,7 +274,7 @@ impl U32beDecoder {
 impl_decode!(U32beDecoder, u32);
 
 #[derive(Debug, Default)]
-pub struct U32leDecoder(BytesDecoder<[u8; 4]>);
+pub struct U32leDecoder(CopyableBytesDecoder<[u8; 4]>);
 impl U32leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -317,7 +315,7 @@ impl U32leEncoder {
 impl_encode!(U32leEncoder, u32);
 
 #[derive(Debug, Default)]
-pub struct I32beDecoder(BytesDecoder<[u8; 4]>);
+pub struct I32beDecoder(CopyableBytesDecoder<[u8; 4]>);
 impl I32beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -330,7 +328,7 @@ impl I32beDecoder {
 impl_decode!(I32beDecoder, i32);
 
 #[derive(Debug, Default)]
-pub struct I32leDecoder(BytesDecoder<[u8; 4]>);
+pub struct I32leDecoder(CopyableBytesDecoder<[u8; 4]>);
 impl I32leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -371,7 +369,7 @@ impl I32leEncoder {
 impl_encode!(I32leEncoder, i32);
 
 #[derive(Debug, Default)]
-pub struct U40beDecoder(BytesDecoder<[u8; 5]>);
+pub struct U40beDecoder(CopyableBytesDecoder<[u8; 5]>);
 impl U40beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -384,7 +382,7 @@ impl U40beDecoder {
 impl_decode!(U40beDecoder, u64);
 
 #[derive(Debug, Default)]
-pub struct U40leDecoder(BytesDecoder<[u8; 5]>);
+pub struct U40leDecoder(CopyableBytesDecoder<[u8; 5]>);
 impl U40leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -429,7 +427,7 @@ impl U40leEncoder {
 impl_encode!(U40leEncoder, u64);
 
 #[derive(Debug, Default)]
-pub struct U48beDecoder(BytesDecoder<[u8; 6]>);
+pub struct U48beDecoder(CopyableBytesDecoder<[u8; 6]>);
 impl U48beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -442,7 +440,7 @@ impl U48beDecoder {
 impl_decode!(U48beDecoder, u64);
 
 #[derive(Debug, Default)]
-pub struct U48leDecoder(BytesDecoder<[u8; 6]>);
+pub struct U48leDecoder(CopyableBytesDecoder<[u8; 6]>);
 impl U48leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -487,7 +485,7 @@ impl U48leEncoder {
 impl_encode!(U48leEncoder, u64);
 
 #[derive(Debug, Default)]
-pub struct U56beDecoder(BytesDecoder<[u8; 7]>);
+pub struct U56beDecoder(CopyableBytesDecoder<[u8; 7]>);
 impl U56beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -500,7 +498,7 @@ impl U56beDecoder {
 impl_decode!(U56beDecoder, u64);
 
 #[derive(Debug, Default)]
-pub struct U56leDecoder(BytesDecoder<[u8; 7]>);
+pub struct U56leDecoder(CopyableBytesDecoder<[u8; 7]>);
 impl U56leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -545,7 +543,7 @@ impl U56leEncoder {
 impl_encode!(U56leEncoder, u64);
 
 #[derive(Debug, Default)]
-pub struct U64beDecoder(BytesDecoder<[u8; 8]>);
+pub struct U64beDecoder(CopyableBytesDecoder<[u8; 8]>);
 impl U64beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -558,7 +556,7 @@ impl U64beDecoder {
 impl_decode!(U64beDecoder, u64);
 
 #[derive(Debug, Default)]
-pub struct U64leDecoder(BytesDecoder<[u8; 8]>);
+pub struct U64leDecoder(CopyableBytesDecoder<[u8; 8]>);
 impl U64leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -599,7 +597,7 @@ impl U64leEncoder {
 impl_encode!(U64leEncoder, u64);
 
 #[derive(Debug, Default)]
-pub struct I64beDecoder(BytesDecoder<[u8; 8]>);
+pub struct I64beDecoder(CopyableBytesDecoder<[u8; 8]>);
 impl I64beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -612,7 +610,7 @@ impl I64beDecoder {
 impl_decode!(I64beDecoder, i64);
 
 #[derive(Debug, Default)]
-pub struct I64leDecoder(BytesDecoder<[u8; 8]>);
+pub struct I64leDecoder(CopyableBytesDecoder<[u8; 8]>);
 impl I64leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -653,7 +651,7 @@ impl I64leEncoder {
 impl_encode!(I64leEncoder, i64);
 
 #[derive(Debug, Default)]
-pub struct F32beDecoder(BytesDecoder<[u8; 4]>);
+pub struct F32beDecoder(CopyableBytesDecoder<[u8; 4]>);
 impl F32beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -666,7 +664,7 @@ impl F32beDecoder {
 impl_decode!(F32beDecoder, f32);
 
 #[derive(Debug, Default)]
-pub struct F32leDecoder(BytesDecoder<[u8; 4]>);
+pub struct F32leDecoder(CopyableBytesDecoder<[u8; 4]>);
 impl F32leDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -707,7 +705,7 @@ impl F32leEncoder {
 impl_encode!(F32leEncoder, f32);
 
 #[derive(Debug, Default)]
-pub struct F64beDecoder(BytesDecoder<[u8; 8]>);
+pub struct F64beDecoder(CopyableBytesDecoder<[u8; 8]>);
 impl F64beDecoder {
     pub fn new() -> Self {
         Self::default()
@@ -720,7 +718,7 @@ impl F64beDecoder {
 impl_decode!(F64beDecoder, f64);
 
 #[derive(Debug, Default)]
-pub struct F64leDecoder(BytesDecoder<[u8; 8]>);
+pub struct F64leDecoder(CopyableBytesDecoder<[u8; 8]>);
 impl F64leDecoder {
     pub fn new() -> Self {
         Self::default()
