@@ -324,6 +324,12 @@ impl<D: Decode> Decode for Take<D> {
         track!(buf.consume(consumed_len))?;
         Ok(item)
     }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.decoder
+            .requiring_bytes_hint()
+            .map(|n| cmp::min(n, self.limit))
+    }
 }
 
 #[derive(Debug)]

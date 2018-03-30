@@ -6,33 +6,35 @@ use std::ops::Deref;
 use {Error, ErrorKind, Result};
 use combinator::{AndThen, Collect, DecoderChain, IgnoreRest, Map, MapErr, Take, Validate};
 
+/// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {
+    /// The type of items to be decoded.
     type Item;
 
-    //
-    // 実装側の責務:
-    // - `Ok(Some(...))`を返す
-    // - さもなければ、`buf`を最後まで消費する
-    //
-    // 上記のいずれにも該当しない場合には、呼び出し元は、
-    // デコーダがこれ以上生成するitemは存在しない元判断可能
-    //
-    // `buf`は空の可能性もある
+    /// Consumes the given buffer (a part of a byte sequence), and decodes an item from it.
+    ///
+    /// If an item is successfully decoded, the decoder will return `Ok(Some(..))`.
+    ///
+    /// If the buffer does not contain enough bytes to decode the next item,
+    /// the decoder will return `Ok(None)`.
+    /// In this case, the decoder **must** consume all the bytes in the buffer.
+    ///
+    /// Finally, if there are no items to be decoded anymore, the decoder will return `Ok(None)`.
+    /// In this case, the one or more bytes in the buffer may be consumed
+    /// for detecting the termination.
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>>;
 
-    // Returns the number of bytes needed to proceed next state.
-    //
-    // 注意: 「状態の遷移」であり「アイテムのデコード」ではない.
-    //        some/noneが途中で切り替わったりもする.
-    //
-    // 状態の遷移、というよりは、必要バイト数の下限.
-    //
-    // NOTE: `Some(0)`は「次のdecode呼び出しでbufを消費せずにitemを取得可能」ないし
-    // 「これ以上デコードされるitemがない」ことを意味する.
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        // TODO: remove default impl
-        None
-    }
+    /// Returns the lower bound of the number of bytes needed to decode the next item.
+    ///
+    /// If the decoder does not know the value, it will return `None`
+    /// (e.g., null-terminated strings have no pre-estimable length).
+    ///
+    /// If the decoder returns `Some(0)`, it means one of the followings:
+    /// - (a) There is an already decoded item
+    ///   - The next invocation of `decode()` will return it without consuming any bytes
+    /// - (b) There are no decodable items
+    ///   - All decodable items have been decoded, and the decoder has no further works
+    fn requiring_bytes_hint(&self) -> Option<u64>;
 }
 impl<D: ?Sized + Decode> Decode for Box<D> {
     type Item = D::Item;
@@ -58,6 +60,10 @@ impl<D: Decode> Decode for Option<D> {
         } else {
             Ok(None)
         }
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.as_ref().map_or(Some(0), |d| d.requiring_bytes_hint())
     }
 }
 
