@@ -1,7 +1,7 @@
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, Result};
-use bytes_codec::{BytesDecoder, BytesEncoder};
+use bytes::{BytesDecoder, BytesEncoder};
 
 macro_rules! impl_decode {
     ($ty:ty, $item:ty) => {

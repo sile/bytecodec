@@ -8,9 +8,9 @@ pub use encode::{BoxEncoder, Encode, EncodeBuf, EncodeExt, ExactSizeEncode};
 pub use error::{Error, ErrorKind};
 
 pub mod buf;
-pub mod bytes_codec;
+pub mod bytes;
 pub mod combinator;
-pub mod fixnum_codec;
+pub mod fixnum;
 pub mod marker {
     pub use decode::{ExactBytesDecode, StreamDecode};
 }
