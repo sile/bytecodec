@@ -71,9 +71,10 @@ pub trait EncodeExt: Encode + Sized {
         Ok(this)
     }
 
-    fn map_err<F>(self, f: F) -> MapErr<Self, F>
+    fn map_err<F, E>(self, f: F) -> MapErr<Self, F, E>
     where
-        F: Fn(Error) -> Error,
+        F: Fn(Error) -> E,
+        Error: From<E>,
     {
         MapErr::new(self, f)
     }

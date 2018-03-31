@@ -52,27 +52,34 @@ where
 ///
 /// This is created by calling `{DecodeExt, EncodeExt}::map_err` method.
 #[derive(Debug)]
-pub struct MapErr<C, F> {
+pub struct MapErr<C, F, E> {
     codec: C,
     map_err: F,
+    _error: PhantomData<E>,
 }
-impl<C, F> MapErr<C, F> {
+impl<C, F, E> MapErr<C, F, E> {
     pub(crate) fn new(codec: C, map_err: F) -> Self
     where
-        F: Fn(Error) -> Error,
+        F: Fn(Error) -> E,
+        Error: From<E>,
     {
-        MapErr { codec, map_err }
+        MapErr {
+            codec,
+            map_err,
+            _error: PhantomData,
+        }
     }
 }
-impl<D, F> Decode for MapErr<D, F>
+impl<D, F, E> Decode for MapErr<D, F, E>
 where
     D: Decode,
-    F: Fn(Error) -> Error,
+    F: Fn(Error) -> E,
+    Error: From<E>,
 {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        track!(self.codec.decode(buf)).map_err(&self.map_err)
+        self.codec.decode(buf).map_err(|e| (self.map_err)(e).into())
     }
 
     fn has_terminated(&self) -> bool {
@@ -83,19 +90,22 @@ where
         self.codec.requiring_bytes_hint()
     }
 }
-impl<E, F> Encode for MapErr<E, F>
+impl<C, F, E> Encode for MapErr<C, F, E>
 where
-    E: Encode,
-    F: Fn(Error) -> Error,
+    C: Encode,
+    F: Fn(Error) -> E,
+    Error: From<E>,
 {
-    type Item = E::Item;
+    type Item = C::Item;
 
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.codec.encode(buf).map_err(&self.map_err)
+        self.codec.encode(buf).map_err(|e| (self.map_err)(e).into())
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        self.codec.start_encoding(item).map_err(&self.map_err)
+        self.codec
+            .start_encoding(item)
+            .map_err(|e| (self.map_err)(e).into())
     }
 
     fn remaining_bytes(&self) -> Option<u64> {
@@ -248,6 +258,52 @@ where
 
     fn remaining_bytes(&self) -> Option<u64> {
         None
+    }
+}
+
+/// Combinator for representing optional decoders.
+///
+/// This is created by calling `DecodeExt::omit` method.
+#[derive(Debug)]
+pub struct Omit<D>(Option<D>);
+impl<D> Omit<D> {
+    pub(crate) fn new(decoder: D, do_omit: bool) -> Self {
+        if do_omit {
+            Omit(None)
+        } else {
+            Omit(Some(decoder))
+        }
+    }
+}
+impl<D: Decode> Decode for Omit<D> {
+    type Item = Option<D::Item>;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        if let Some(ref mut d) = self.0 {
+            if let Some(item) = track!(d.decode(buf))? {
+                Ok(Some(Some(item)))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(Some(None))
+        }
+    }
+
+    fn has_terminated(&self) -> bool {
+        if let Some(ref d) = self.0 {
+            d.has_terminated()
+        } else {
+            false
+        }
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        if let Some(ref d) = self.0 {
+            d.requiring_bytes_hint()
+        } else {
+            Some(0)
+        }
     }
 }
 
@@ -423,6 +479,9 @@ impl<D: Decode> Decode for Length<D> {
     }
 }
 
+/// Combinator for decoding the specified number of items.
+///
+/// This is created by calling `DecodeExt::takeExact` method.
 #[derive(Debug)]
 pub struct Take<D> {
     decoder: D,
@@ -436,10 +495,12 @@ impl<D> Take<D> {
         }
     }
 
+    /// Returns the number of remaining items to be decoded.
     pub fn remaining_items(&self) -> usize {
         self.remaining_items
     }
 
+    /// Sets the number of remaining items to be decoded.
     pub fn set_remaining_items(&mut self, n: usize) {
         self.remaining_items = n;
     }
@@ -470,32 +531,35 @@ impl<D: Decode> Decode for Take<D> {
     }
 }
 
+/// Combinator which tries to convert decoded values by calling the specified function.
+///
+/// This is created by calling `DecodeExt::try_map` method.
 #[derive(Debug)]
-pub struct Validate<D, F, E> {
+pub struct TryMap<D, F, T, E> {
     decoder: D,
-    validate: F,
-    _error: PhantomData<E>,
+    try_map: F,
+    _phantom: PhantomData<(T, E)>,
 }
-impl<D, F, E> Validate<D, F, E> {
-    pub(crate) fn new(decoder: D, validate: F) -> Self {
-        Validate {
+impl<D, F, T, E> TryMap<D, F, T, E> {
+    pub(crate) fn new(decoder: D, try_map: F) -> Self {
+        TryMap {
             decoder,
-            validate,
-            _error: PhantomData,
+            try_map,
+            _phantom: PhantomData,
         }
     }
 }
-impl<D, F, E> Decode for Validate<D, F, E>
+impl<D, F, T, E> Decode for TryMap<D, F, T, E>
 where
     D: Decode,
-    F: for<'a> Fn(&'a D::Item) -> std::result::Result<(), E>,
+    F: Fn(D::Item) -> std::result::Result<T, E>,
     Error: From<E>,
 {
-    type Item = D::Item;
+    type Item = T;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         if let Some(item) = track!(self.decoder.decode(buf))? {
-            track!((self.validate)(&item).map_err(Error::from))?;
+            let item = track!((self.try_map)(item).map_err(Error::from))?;
             Ok(Some(item))
         } else {
             Ok(None)
@@ -511,27 +575,29 @@ where
     }
 }
 
+/// Combinator for skipping the remaining bytes in an input byte sequence
+/// after decoding an item by using `D`.
 #[derive(Debug)]
-pub struct IgnoreRest<D: Decode> {
+pub struct SkipRemaining<D: Decode> {
     decoder: D,
     item: Option<D::Item>,
 }
-impl<D: Decode> IgnoreRest<D> {
+impl<D: Decode> SkipRemaining<D> {
     pub(crate) fn new(decoder: D) -> Self {
-        IgnoreRest {
+        SkipRemaining {
             decoder,
             item: None,
         }
     }
 }
-impl<D: Decode> Decode for IgnoreRest<D> {
+impl<D: Decode> Decode for SkipRemaining<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         track_assert!(
             buf.remaining_bytes().is_some(),
             ErrorKind::InvalidInput,
-            "Cannot ignore infinity byte stream"
+            "Cannot skip infinity byte stream"
         );
 
         if self.item.is_none() {
@@ -561,6 +627,101 @@ impl<D: Decode> Decode for IgnoreRest<D> {
         } else {
             None
         }
+    }
+}
+
+/// Combinator that will fail if the number of consumed bytes exceeds the specified size.
+#[derive(Debug)]
+pub struct MaxBytes<D> {
+    decoder: D,
+    consumed_bytes: u64,
+    max_bytes: u64,
+}
+impl<D> MaxBytes<D> {
+    pub(crate) fn new(decoder: D, max_bytes: u64) -> Self {
+        MaxBytes {
+            decoder,
+            consumed_bytes: 0,
+            max_bytes,
+        }
+    }
+
+    fn max_remaining_bytes(&self) -> u64 {
+        self.max_bytes - self.consumed_bytes
+    }
+}
+impl<D: Decode> Decode for MaxBytes<D> {
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        let actual_buf_len = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
+        let (item, consumed_len) = {
+            let mut actual_buf = if let Some(remaining_bytes) = buf.remaining_bytes() {
+                let actual_remaining_bytes = remaining_bytes + (buf.len() - actual_buf_len) as u64;
+                DecodeBuf::with_remaining_bytes(&buf[..actual_buf_len], actual_remaining_bytes)
+            } else {
+                DecodeBuf::new(&buf[..actual_buf_len])
+            };
+            let item = track!(self.decoder.decode(&mut actual_buf))?;
+            let consumed_len = actual_buf_len - actual_buf.len();
+            (item, consumed_len)
+        };
+
+        self.consumed_bytes += consumed_len as u64;
+        track!(buf.consume(consumed_len))?;
+        if self.consumed_bytes == self.max_bytes {
+            track_assert!(item.is_some(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
+                          self.max_bytes);
+        }
+        if item.is_some() {
+            self.consumed_bytes = 0;
+        }
+        Ok(item)
+    }
+
+    fn has_terminated(&self) -> bool {
+        self.decoder.has_terminated()
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.decoder.requiring_bytes_hint()
+    }
+}
+
+/// Combinator for declaring an assertion about decoded items.
+///
+/// This created by calling `DecodeExt::assert` method.
+#[derive(Debug)]
+pub struct Assert<D, F> {
+    decoder: D,
+    assert: F,
+}
+impl<D, F> Assert<D, F> {
+    pub(crate) fn new(decoder: D, assert: F) -> Self {
+        Assert { decoder, assert }
+    }
+}
+impl<D: Decode, F> Decode for Assert<D, F>
+where
+    F: for<'a> Fn(&'a D::Item) -> bool,
+{
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        if let Some(item) = track!(self.decoder.decode(buf))? {
+            track_assert!((self.assert)(&item), ErrorKind::InvalidInput);
+            Ok(Some(item))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn has_terminated(&self) -> bool {
+        self.decoder.has_terminated()
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.decoder.requiring_bytes_hint()
     }
 }
 

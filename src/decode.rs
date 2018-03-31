@@ -4,7 +4,8 @@ use std::io::{self, Read};
 use std::ops::Deref;
 
 use {Error, ErrorKind, Result};
-use combinator::{AndThen, Collect, DecoderChain, IgnoreRest, Length, Map, MapErr, Take, Validate};
+use combinator::{AndThen, Assert, Collect, DecoderChain, Length, Map, MapErr, MaxBytes, Omit,
+                 SkipRemaining, Take, TryMap};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {
@@ -121,6 +122,40 @@ pub trait DecodeExt: Decode + Sized {
         Map::new(self, f)
     }
 
+    /// Creates a decoder that tries to convert decoded values by calling the given function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate bytecodec;
+    /// #[macro_use]
+    /// extern crate trackable;
+    ///
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt, ErrorKind, Result};
+    /// use bytecodec::fixnum::U8Decoder;
+    ///
+    /// # fn main() {
+    /// let mut decoder = U8Decoder::new().try_map(|b| -> Result<_> {
+    ///     track_assert_ne!(b, 0, ErrorKind::InvalidInput);
+    ///     Ok(b * 2)
+    /// });
+    /// let mut input = DecodeBuf::new(&[0, 4][..]);
+    ///
+    /// let error = decoder.decode(&mut input).err().unwrap();
+    /// assert_eq!(*error.kind(), ErrorKind::InvalidInput);
+    ///
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some(8));
+    /// # }
+    /// ```
+    fn try_map<F, T, E>(self, f: F) -> TryMap<Self, F, T, E>
+    where
+        F: Fn(Self::Item) -> std::result::Result<T, E>,
+        Error: From<E>,
+    {
+        TryMap::new(self, f)
+    }
+
     /// Creates a decoder for modifying decoding errors produced by `self`.
     ///
     /// # Examples
@@ -157,9 +192,10 @@ pub trait DecodeExt: Decode + Sized {
     ///   [4] at src/decode.rs:17\n");
     /// # }
     /// ```
-    fn map_err<F>(self, f: F) -> MapErr<Self, F>
+    fn map_err<F, E>(self, f: F) -> MapErr<Self, F, E>
     where
-        F: Fn(Error) -> Error,
+        F: Fn(Error) -> E,
+        Error: From<E>,
     {
         MapErr::new(self, f)
     }
@@ -268,33 +304,107 @@ pub trait DecodeExt: Decode + Sized {
     ///
     /// # Examples
     ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::fixnum::U8Decoder;
+    ///
+    /// let mut decoder = U8Decoder::new().take(2).collect::<Vec<_>>();
+    /// let mut input = DecodeBuf::new(b"foo");
+    ///
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some(vec![b'f', b'o']));
+    /// ```
     fn take(self, n: usize) -> Take<Self> {
         Take::new(self, n)
     }
 
-    // fn present(self, b: bool) -> Option<Self> {
-    //     if b {
-    //         Some(self)
-    //     } else {
-    //         None
-    //     }
-    // }
-
-    // or skip_remainings
-    fn ignore_rest(self) -> IgnoreRest<Self> {
-        IgnoreRest::new(self)
+    /// Creates a decoder that will omit decoding items if `do_omit = true` is specified.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::fixnum::U8Decoder;
+    ///
+    /// let mut input = DecodeBuf::new(b"foo");
+    ///
+    /// let mut decoder = U8Decoder::new().omit(true);
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some(None));
+    ///
+    /// let mut decoder = U8Decoder::new().omit(false);
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some(Some(b'f')));
+    /// ```
+    fn omit(self, do_omit: bool) -> Omit<Self> {
+        Omit::new(self, do_omit)
     }
 
-    fn validate<F, E>(self, f: F) -> Validate<Self, F, E>
+    /// Creates a decoder for skipping the remaining bytes in an input byte sequence
+    /// after decoding an item by using `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::fixnum::U8Decoder;
+    ///
+    /// let mut input = DecodeBuf::with_remaining_bytes(b"foo", 0);
+    ///
+    /// let mut decoder = U8Decoder::new().skip_remaining();
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some(b'f'));
+    /// assert!(input.is_eos());
+    /// ```
+    fn skip_remaining(self) -> SkipRemaining<Self> {
+        SkipRemaining::new(self)
+    }
+
+    /// Creates a decoder that will fail if the number of consumed bytes exceeds `bytes`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt, ErrorKind};
+    /// use bytecodec::bytes::Utf8Decoder;
+    ///
+    /// let mut decoder = Utf8Decoder::new().max_bytes(3);
+    ///
+    /// let mut input = DecodeBuf::with_remaining_bytes(b"foo", 0);
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some("foo".to_owned())); // OK
+    ///
+    /// let mut input = DecodeBuf::with_remaining_bytes(b"hello", 0);
+    /// let error = decoder.decode(&mut input).err();
+    /// assert_eq!(error.map(|e| *e.kind()), Some(ErrorKind::InvalidInput)); // Error
+    /// ```
+    fn max_bytes(self, bytes: u64) -> MaxBytes<Self> {
+        MaxBytes::new(self, bytes)
+    }
+
+    /// Creates a decoder that will fail if the given assertion function returns `false`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt, ErrorKind};
+    /// use bytecodec::fixnum::U8Decoder;
+    ///
+    /// let mut decoder = U8Decoder::new().assert(|&b| b == 3);
+    ///
+    /// let mut input = DecodeBuf::new(&[3, 4][..]);
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some(3));
+    ///
+    /// let error = decoder.decode(&mut input).err();
+    /// assert_eq!(error.map(|e| *e.kind()), Some(ErrorKind::InvalidInput));
+    /// ```
+    fn assert<F>(self, f: F) -> Assert<Self, F>
     where
-        F: for<'a> Fn(&'a Self::Item) -> std::result::Result<(), E>,
-        Error: From<E>,
+        F: for<'a> Fn(&'a Self::Item) -> bool,
     {
-        Validate::new(self, f)
+        Assert::new(self, f)
     }
-
-    // TODO: min, max
-    // TODO: max_bytes
 }
 impl<T: Decode> DecodeExt for T {}
 
