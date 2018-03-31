@@ -22,8 +22,18 @@ pub trait Decode {
     ///
     /// # Errors
     ///
-    /// TODO
-    ///
+    /// Decoders return the following kinds of errors as necessary:
+    /// - `ErrorKind::DecoderTerminated`:
+    ///   - If all decodable items have been decoded,
+    ///     the decoder **must** return this kind of error when `decode()` method is called.
+    /// - `ErrorKind::UnexpectedEos`:
+    ///   - `DecodeBuf::is_eos()` returns `true` despite of
+    ///     the decoder requires more bytes to decode the next item.
+    /// - `ErrorKind::InvalidInput`:
+    ///   - Decoded items have invalid values
+    ///   - Invalid parameters were given to decoders
+    /// - `ErrorKind::Error`:
+    ///   - Other errors
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>>;
 
     /// Returns `true` if the decoder cannot decode items anymore, otherwise `false`.
@@ -41,8 +51,16 @@ pub trait Decode {
     /// - (a) There is an already decoded item
     ///   - The next invocation of `decode()` will return it without consuming any bytes
     /// - (b) There are no decodable items
-    ///   - All decodable items have been decoded, and the decoder has no further works
-    fn requiring_bytes_hint(&self) -> Option<u64>;
+    ///   - All decodable items have been decoded, and the decoder cannot do any further works
+    ///
+    /// The default implementation returns `Some(0)` if the decoder has terminated, otherwise `None`.
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        if self.has_terminated() {
+            Some(0)
+        } else {
+            None
+        }
+    }
 }
 impl<D: ?Sized + Decode> Decode for Box<D> {
     type Item = D::Item;
