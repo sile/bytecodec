@@ -3,7 +3,7 @@ extern crate byteorder;
 extern crate trackable;
 
 pub use chain::{StartDecoderChain, StartEncoderChain};
-pub use decode::{Decode, DecodeBuf, DecodeExt};
+pub use decode::{Decode, DecodeBuf, DecodeExt, DecodedValue};
 pub use encode::{Encode, EncodeBuf, EncodeExt, ExactSizeEncode};
 pub use error::{Error, ErrorKind};
 

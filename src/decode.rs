@@ -48,22 +48,40 @@ impl<D: ?Sized + Decode> Decode for Box<D> {
     }
 }
 
-// TODO: Immediate or Value
+/// `DecodedValue` represents a decoded item.
+///
+/// It does not consume any bytes, and returns the given item when `decode()` was first called.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Decode, DecodeBuf, DecodedValue};
+///
+/// let mut decoder = DecodedValue::new(10);
+///
+/// let mut input = DecodeBuf::new(b"foo");
+/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(item, Some(10));
+/// assert_eq!(input.len(), 3);
+/// ```
+#[derive(Debug)]
+pub struct DecodedValue<T>(Option<T>);
+impl<T> DecodedValue<T> {
+    /// Makes a new `DecodedValue` instance.
+    pub fn new(value: T) -> Self {
+        DecodedValue(Some(value))
+    }
+}
+impl<T> Decode for DecodedValue<T> {
+    type Item = T;
 
-// TODO: remove or rename
-impl<D: Decode> Decode for Option<D> {
-    type Item = Option<D::Item>;
-
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        if let Some(ref mut d) = *self {
-            Ok(track!(d.decode(buf))?.map(Some))
-        } else {
-            Ok(None)
-        }
+    fn decode(&mut self, _buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        let item = track_assert_some!(self.0.take(), ErrorKind::DecoderTerminated);
+        Ok(Some(item))
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.as_ref().map_or(Some(0), |d| d.requiring_bytes_hint())
+        Some(0)
     }
 }
 
