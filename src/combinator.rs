@@ -8,6 +8,9 @@ pub use chain::{DecoderChain, EncoderChain};
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
 
+/// Combinator for converting decoded items to other values.
+///
+/// This is created by calling `DecodeExt::map` method.
 #[derive(Debug)]
 pub struct Map<D, T, F> {
     decoder: D,
@@ -42,6 +45,9 @@ where
     }
 }
 
+/// Combinator for modifying encoding/decoding errors.
+///
+/// This is created by calling `{DecodeExt, EncodeExt}::map_err` method.
 #[derive(Debug)]
 pub struct MapErr<C, F> {
     codec: C,
@@ -90,6 +96,12 @@ where
     }
 }
 
+/// Combinator for conditional decoding.
+///
+/// If the first item is successfully decoded,
+/// it will start decoding the second item by using the decoder returned by `f` function.
+///
+/// This is created by calling `DecodeExt::and_then` method.
 #[derive(Debug)]
 pub struct AndThen<D0, D1, F> {
     decoder0: D0,

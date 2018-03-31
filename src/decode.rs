@@ -22,6 +22,11 @@ pub trait Decode {
     /// Finally, if there are no items to be decoded anymore, the decoder will return `Ok(None)`.
     /// In this case, the one or more bytes in the buffer may be consumed
     /// for detecting the termination.
+    ///
+    /// # Errors
+    ///
+    /// TODO
+    ///
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>>;
 
     /// Returns the lower bound of the number of bytes needed to decode the next item.
@@ -85,7 +90,20 @@ impl<T> Decode for DecodedValue<T> {
     }
 }
 
+/// An extension of `Decode` trait.
 pub trait DecodeExt: Decode + Sized {
+    /// Add `Map` combinator for converting decoded values by calling the given function.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::fixnum::U8Decoder;
+    ///
+    /// let mut decoder = U8Decoder::new().map(|b| b * 2);
+    /// let item = decoder.decode(&mut DecodeBuf::new(&[10][..])).unwrap();
+    /// assert_eq!(item, Some(20));
+    /// ```
     fn map<T, F>(self, f: F) -> Map<Self, T, F>
     where
         F: Fn(Self::Item) -> T,
@@ -93,6 +111,42 @@ pub trait DecodeExt: Decode + Sized {
         Map::new(self, f)
     }
 
+    /// Add `MapErr` combinator for modifying decoding errors.
+    ///
+    /// # Examples
+    ///
+    /// The following code shows the idiomatic way to track decoding errors:
+    ///
+    /// TODO
+    ///
+    /// ```no_run
+    /// extern crate bytecodec;
+    /// #[macro_use]
+    /// extern crate trackable;
+    ///
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::fixnum::U16beDecoder;
+    ///
+    /// # fn main() {
+    /// let mut decoder =
+    ///     U16beDecoder::new().map_err(|e| track!(e, "oops!"));
+    ///     // or `track_err!(U16beDecoder::new(), "oops!")`
+    ///
+    /// let mut input =
+    ///     DecodeBuf::with_remaining_bytes(&[10][..], 0); // Insufficient bytes
+    ///
+    /// let error = track!(decoder.decode(&mut input)).err().unwrap();
+    ///
+    /// assert_eq!(error.to_string(), "\
+    /// UnexpectedEos (cause; assertion failed: `!buf.is_eos()`)
+    /// HISTORY:
+    ///   [0] at src/bytes.rs:106
+    ///   [1] at src/fixnum.rs:152
+    ///   [2] at src/combinator.rs:69
+    ///   [3] at src/decode.rs:11 -- oops!
+    ///   [4] at src/decode.rs:17\n");
+    /// # }
+    /// ```
     fn map_err<F>(self, f: F) -> MapErr<Self, F>
     where
         F: Fn(Error) -> Error,
@@ -100,6 +154,26 @@ pub trait DecodeExt: Decode + Sized {
         MapErr::new(self, f)
     }
 
+    /// Add `AndThen` combinator for conditional decoding.
+    ///
+    /// If the first item is successfully decoded,
+    /// it will start decoding the second item by using the decoder returned by `f` function.
+    ///
+    /// # Examples
+    ///
+    /// Decodes a length-prefixed string:
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::bytes::Utf8Decoder;
+    /// use bytecodec::fixnum::U8Decoder;
+    ///
+    /// let mut decoder = U8Decoder::new().and_then(|len| Utf8Decoder::new().take(len as u64));
+    /// let mut input = DecodeBuf::new(b"\x03foobar");
+    ///
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some("foo".to_owned()));
+    /// ```
     fn and_then<D, F>(self, f: F) -> AndThen<Self, D, F>
     where
         F: Fn(Self::Item) -> D,
@@ -123,14 +197,15 @@ pub trait DecodeExt: Decode + Sized {
         Take::new(self, size)
     }
 
-    fn present(self, b: bool) -> Option<Self> {
-        if b {
-            Some(self)
-        } else {
-            None
-        }
-    }
+    // fn present(self, b: bool) -> Option<Self> {
+    //     if b {
+    //         Some(self)
+    //     } else {
+    //         None
+    //     }
+    // }
 
+    // or skip_remainings
     fn ignore_rest(self) -> IgnoreRest<Self> {
         IgnoreRest::new(self)
     }
