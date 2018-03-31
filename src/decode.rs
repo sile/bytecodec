@@ -4,7 +4,7 @@ use std::io::{self, Read};
 use std::ops::Deref;
 
 use {Error, ErrorKind, Result};
-use combinator::{AndThen, Collect, DecoderChain, IgnoreRest, Map, MapErr, Take, Validate};
+use combinator::{AndThen, Collect, DecoderChain, IgnoreRest, Length, Map, MapErr, Take, Validate};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {
@@ -18,10 +18,6 @@ pub trait Decode {
     /// If the buffer does not contain enough bytes to decode the next item,
     /// the decoder will return `Ok(None)`.
     /// In this case, the decoder **must** consume all the bytes in the buffer.
-    ///
-    /// Finally, if there are no items to be decoded anymore, the decoder will return `Ok(None)`.
-    /// In this case, the one or more bytes in the buffer may be consumed
-    /// for detecting the termination.
     ///
     /// # Errors
     ///
@@ -92,7 +88,7 @@ impl<T> Decode for DecodedValue<T> {
 
 /// An extension of `Decode` trait.
 pub trait DecodeExt: Decode + Sized {
-    /// Add `Map` combinator for converting decoded values by calling the given function.
+    /// Creates a decoder that converts decoded values by calling the given function.
     ///
     /// # Examples
     ///
@@ -111,13 +107,13 @@ pub trait DecodeExt: Decode + Sized {
         Map::new(self, f)
     }
 
-    /// Add `MapErr` combinator for modifying decoding errors.
+    /// Creates a decoder for modifying decoding errors produced by `self`.
     ///
     /// # Examples
     ///
     /// The following code shows the idiomatic way to track decoding errors:
     ///
-    /// TODO
+    /// TODO: remove `no_run`
     ///
     /// ```no_run
     /// extern crate bytecodec;
@@ -154,7 +150,7 @@ pub trait DecodeExt: Decode + Sized {
         MapErr::new(self, f)
     }
 
-    /// Add `AndThen` combinator for conditional decoding.
+    /// Creates a decoder that enables conditional decoding.
     ///
     /// If the first item is successfully decoded,
     /// it will start decoding the second item by using the decoder returned by `f` function.
@@ -168,7 +164,7 @@ pub trait DecodeExt: Decode + Sized {
     /// use bytecodec::bytes::Utf8Decoder;
     /// use bytecodec::fixnum::U8Decoder;
     ///
-    /// let mut decoder = U8Decoder::new().and_then(|len| Utf8Decoder::new().take(len as u64));
+    /// let mut decoder = U8Decoder::new().and_then(|len| Utf8Decoder::new().length(len as u64));
     /// let mut input = DecodeBuf::new(b"\x03foobar");
     ///
     /// let item = decoder.decode(&mut input).unwrap();
@@ -182,10 +178,47 @@ pub trait DecodeExt: Decode + Sized {
         AndThen::new(self, f)
     }
 
-    fn chain<D: Decode>(self, other: D) -> DecoderChain<Self, D> {
+    /// Takes two decoders and creates a new decoder that decodes both items in sequence.
+    ///
+    /// Chains are started by calling `StartDecoderChain::chain` method.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt, StartDecoderChain};
+    /// use bytecodec::fixnum::U8Decoder;
+    ///
+    /// let mut decoder = StartDecoderChain
+    ///     .chain(U8Decoder::new())
+    ///     .chain(U8Decoder::new())
+    ///     .chain(U8Decoder::new());
+    ///
+    /// let mut input = DecodeBuf::new(b"foobar");
+    ///
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some((b'f', b'o', b'o')));
+    ///
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some((b'b', b'a', b'r')));
+    /// ```
+    fn chain<D: Decode>(self, other: D) -> DecoderChain<Self, D, Self::Item> {
         DecoderChain::new(self, other)
     }
 
+    /// Creates a decoder for collecting decoded items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::fixnum::U8Decoder;
+    ///
+    /// let mut decoder = U8Decoder::new().collect::<Vec<_>>();
+    /// let mut input = DecodeBuf::with_remaining_bytes(b"foo", 0);
+    ///
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some(vec![b'f', b'o', b'o']));
+    /// ```
     fn collect<T>(self) -> Collect<Self, T>
     where
         T: Extend<Self::Item> + Default,
@@ -193,8 +226,36 @@ pub trait DecodeExt: Decode + Sized {
         Collect::new(self)
     }
 
-    fn take(self, size: u64) -> Take<Self> {
-        Take::new(self, size)
+    /// Creates a decoder that consumes the specified number of bytes exactly.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeBuf, DecodeExt, ErrorKind};
+    /// use bytecodec::bytes::Utf8Decoder;
+    ///
+    /// let mut decoder = Utf8Decoder::new().length(3);
+    /// let mut input = DecodeBuf::with_remaining_bytes(b"foobarba", 0);
+    ///
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some("foo".to_owned()));
+    ///
+    /// let item = decoder.decode(&mut input).unwrap();
+    /// assert_eq!(item, Some("bar".to_owned()));
+    ///
+    /// let error = decoder.decode(&mut input).err().unwrap();
+    /// assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
+    /// ```
+    fn length(self, expected_bytes: u64) -> Length<Self> {
+        Length::new(self, expected_bytes)
+    }
+
+    /// Creates a decoder that decodes `n` items by using `self`.
+    ///
+    /// # Examples
+    ///
+    fn take(self, n: usize) -> Take<Self> {
+        Take::new(self, n)
     }
 
     // fn present(self, b: bool) -> Option<Self> {

@@ -2,45 +2,44 @@ use std::marker::PhantomData;
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, Result};
 
-// TODO:
+/// An object for starting a chain of decoders.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Decode, DecodeBuf, DecodeExt, StartDecoderChain};
+/// use bytecodec::fixnum::U8Decoder;
+///
+/// let mut decoder = StartDecoderChain
+///     .chain(U8Decoder::new())
+///     .chain(U8Decoder::new())
+///     .chain(U8Decoder::new());
+///
+/// let mut input = DecodeBuf::new(b"foobar");
+///
+/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(item, Some((b'f', b'o', b'o')));
+///
+/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(item, Some((b'b', b'a', b'r')));
+/// ```
 #[derive(Debug)]
 pub struct StartDecoderChain;
 impl StartDecoderChain {
+    /// Starts decoders chain.
     pub fn chain<D: Decode>(&self, decoder: D) -> DecoderChain<Self, D, ()> {
         DecoderChain::new(StartDecoderChain, decoder)
     }
 }
-impl Decode for StartDecoderChain {
-    type Item = ();
 
-    fn decode(&mut self, _buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        track_panic!(ErrorKind::DecoderTerminated);
-    }
-
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        Some(0)
-    }
-}
-
+/// Combinator for connecting decoders to a chain.
+///
+/// This is created by calling `StartDecoderChain::chain` or `DecodeExt::chain` methods.
 #[derive(Debug)]
-pub struct StartEncoderChain;
-impl StartEncoderChain {
-    pub fn chain<E: Encode>(&self, encoder: E) -> EncoderChain<Self, E, ()> {
-        EncoderChain::new(StartEncoderChain, encoder)
-    }
-}
-
-// #[derive(Debug)]
-pub struct DecoderChain<D0: Decode, D1: Decode, T = <D0 as Decode>::Item> {
-    inner: Chain<Buffered<D0>, D1>,
-    _item: PhantomData<T>,
-}
-impl<D0: Decode, D1: Decode, T> DecoderChain<D0, D1, T> {
+pub struct DecoderChain<D0, D1, T>(Chain<Buffered<D0, T>, D1>);
+impl<D0, D1, T> DecoderChain<D0, D1, T> {
     pub(crate) fn new(d0: D0, d1: D1) -> Self {
-        DecoderChain {
-            inner: Chain::new(Buffered::new(d0), d1),
-            _item: PhantomData,
-        }
+        DecoderChain(Chain::new(Buffered::new(d0), d1))
     }
 }
 impl<D> Decode for DecoderChain<StartDecoderChain, D, ()>
@@ -50,11 +49,11 @@ where
     type Item = (D::Item,);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.inner.b.decode(buf)?.map(|i| (i,)))
+        Ok(self.0.b.decode(buf)?.map(|i| (i,)))
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+        self.0.b.requiring_bytes_hint()
     }
 }
 impl<D0, D1, T0> Decode for DecoderChain<D0, D1, (T0,)>
@@ -65,11 +64,11 @@ where
     type Item = (T0, D1::Item);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.inner.decode(buf)?.map(|(t, i)| (t.0, i)))
+        Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, i)))
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+        self.0.requiring_bytes_hint()
     }
 }
 impl<D0, D1, T0, T1> Decode for DecoderChain<D0, D1, (T0, T1)>
@@ -80,11 +79,11 @@ where
     type Item = (T0, T1, D1::Item);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.inner.decode(buf)?.map(|(t, i)| (t.0, t.1, i)))
+        Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, t.1, i)))
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+        self.0.requiring_bytes_hint()
     }
 }
 impl<D0, D1, T0, T1, T2> Decode for DecoderChain<D0, D1, (T0, T1, T2)>
@@ -95,11 +94,11 @@ where
     type Item = (T0, T1, T2, D1::Item);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.inner.decode(buf)?.map(|(t, i)| (t.0, t.1, t.2, i)))
+        Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, t.1, t.2, i)))
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+        self.0.requiring_bytes_hint()
     }
 }
 impl<D0, D1, T0, T1, T2, T3> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3)>
@@ -110,13 +109,11 @@ where
     type Item = (T0, T1, T2, T3, D1::Item);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.inner
-            .decode(buf)?
-            .map(|(t, i)| (t.0, t.1, t.2, t.3, i)))
+        Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, t.1, t.2, t.3, i)))
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+        self.0.requiring_bytes_hint()
     }
 }
 impl<D0, D1, T0, T1, T2, T3, T4> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3, T4)>
@@ -127,13 +124,13 @@ where
     type Item = (T0, T1, T2, T3, T4, D1::Item);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.inner
+        Ok(self.0
             .decode(buf)?
             .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, i)))
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+        self.0.requiring_bytes_hint()
     }
 }
 impl<D0, D1, T0, T1, T2, T3, T4, T5> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3, T4, T5)>
@@ -144,13 +141,13 @@ where
     type Item = (T0, T1, T2, T3, T4, T5, D1::Item);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.inner
+        Ok(self.0
             .decode(buf)?
             .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, i)))
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+        self.0.requiring_bytes_hint()
     }
 }
 impl<D0, D1, T0, T1, T2, T3, T4, T5, T6> Decode
@@ -162,13 +159,21 @@ where
     type Item = (T0, T1, T2, T3, T4, T5, T6, D1::Item);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.inner
+        Ok(self.0
             .decode(buf)?
             .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, t.6, i)))
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+        self.0.requiring_bytes_hint()
+    }
+}
+
+#[derive(Debug)]
+pub struct StartEncoderChain;
+impl StartEncoderChain {
+    pub fn chain<E: Encode>(&self, encoder: E) -> EncoderChain<Self, E, ()> {
+        EncoderChain::new(StartEncoderChain, encoder)
     }
 }
 
@@ -392,7 +397,7 @@ where
         size
     }
 }
-impl<A, B> Decode for Chain<Buffered<A>, B>
+impl<A, B> Decode for Chain<Buffered<A, A::Item>, B>
 where
     A: Decode,
     B: Decode,
@@ -434,11 +439,11 @@ where
 }
 
 #[derive(Debug)]
-struct Buffered<T: Decode> {
+struct Buffered<T, I> {
     decoder: T,
-    item: Option<T::Item>,
+    item: Option<I>,
 }
-impl<T: Decode> Buffered<T> {
+impl<T, I> Buffered<T, I> {
     fn new(decoder: T) -> Self {
         Buffered {
             decoder,
@@ -446,7 +451,7 @@ impl<T: Decode> Buffered<T> {
         }
     }
 }
-impl<T: Decode> Decode for Buffered<T> {
+impl<T: Decode> Decode for Buffered<T, T::Item> {
     type Item = T::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {

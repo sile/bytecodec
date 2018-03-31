@@ -263,6 +263,9 @@ impl<E: Encode> Encode for Optional<E> {
     }
 }
 
+/// Combinator for collecting decoded items.
+///
+/// This is created by calling `DecodeExt::collect` method.
 #[derive(Debug)]
 pub struct Collect<D, T> {
     decoder: D,
@@ -284,8 +287,12 @@ where
     type Item = T;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        while let Some(item) = track!(self.decoder.decode(buf))? {
-            self.items.extend(iter::once(item));
+        while !buf.is_empty() {
+            if let Some(item) = track!(self.decoder.decode(buf))? {
+                self.items.extend(iter::once(item));
+            } else {
+                break;
+            }
         }
 
         if buf.is_eos() || self.decoder.requiring_bytes_hint() == Some(0) {
@@ -300,47 +307,127 @@ where
     }
 }
 
-// TODO: rename
+/// Combinator for consuming the specified number of bytes exactly.
+///
+/// This is created by calling `DecodeExt::length` method.
+#[derive(Debug)]
+pub struct Length<D> {
+    decoder: D,
+    expected_bytes: u64,
+    remaining_bytes: u64,
+}
+impl<D> Length<D> {
+    pub(crate) fn new(decoder: D, expected_bytes: u64) -> Self {
+        Length {
+            decoder,
+            expected_bytes,
+            remaining_bytes: expected_bytes,
+        }
+    }
+
+    /// Returns the number of bytes expected to be consumed for decoding an item.
+    pub fn expected_bytes(&self) -> u64 {
+        self.expected_bytes
+    }
+
+    /// Sets the number of bytes expected to be consumed for decoding an item.
+    ///
+    /// # Errors
+    ///
+    /// If the decoder is in the middle of decoding an item, it willl return an `ErrorKind::Other` error.
+    pub fn set_expected_bytes(&mut self, bytes: u64) -> Result<()> {
+        track_assert_eq!(
+            self.remaining_bytes,
+            self.expected_bytes,
+            ErrorKind::Other,
+            "An item is being decoded"
+        );
+        self.expected_bytes = bytes;
+        Ok(())
+    }
+
+    /// Returns the number of remaining bytes required to decode the next item.
+    pub fn remaining_bytes(&self) -> u64 {
+        self.remaining_bytes
+    }
+}
+impl<D: Decode> Decode for Length<D> {
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        let buf_len = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
+        let expected_remaining_bytes = self.remaining_bytes - buf_len as u64;
+        if let Some(remaining_bytes) = buf.remaining_bytes() {
+            track_assert!(remaining_bytes >= expected_remaining_bytes, ErrorKind::UnexpectedEos;
+                          remaining_bytes, expected_remaining_bytes);
+        }
+        let (item, consumed_len) = {
+            let mut actual_buf =
+                DecodeBuf::with_remaining_bytes(&buf[..buf_len], expected_remaining_bytes);
+            let item = track!(self.decoder.decode(&mut actual_buf))?;
+            let consumed_len = buf_len - actual_buf.len();
+            (item, consumed_len)
+        };
+
+        self.remaining_bytes -= consumed_len as u64;
+        track!(buf.consume(consumed_len))?;
+        if item.is_some() {
+            track_assert_eq!(
+                self.remaining_bytes,
+                0,
+                ErrorKind::Other,
+                "Decoder consumes too few bytes"
+            );
+            self.remaining_bytes = self.expected_bytes
+        }
+        Ok(item)
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        Some(self.remaining_bytes)
+    }
+}
+
 #[derive(Debug)]
 pub struct Take<D> {
     decoder: D,
-    limit: u64,
+    remaining_items: usize,
 }
 impl<D> Take<D> {
-    pub(crate) fn new(decoder: D, limit: u64) -> Self {
-        Take { decoder, limit }
+    pub(crate) fn new(decoder: D, remaining_items: usize) -> Self {
+        Take {
+            decoder,
+            remaining_items,
+        }
     }
 
-    pub fn set_limit(&mut self, limit: u64) {
-        self.limit = limit;
+    pub fn remaining_items(&self) -> usize {
+        self.remaining_items
+    }
+
+    pub fn set_remaining_items(&mut self, n: usize) {
+        self.remaining_items = n;
     }
 }
 impl<D: Decode> Decode for Take<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let min_len = cmp::min(buf.len() as u64, self.limit) as usize;
-        let remaining_len = self.limit - min_len as u64;
-        let remaining_len = buf.remaining_bytes()
-            .map_or(remaining_len, |n| cmp::min(n, remaining_len));
-
-        let (item, consumed_len) = {
-            let mut limited_buf = DecodeBuf::with_remaining_bytes(&buf[..min_len], remaining_len);
-            let item = track!(self.decoder.decode(&mut limited_buf);
-                              self.limit, buf.len(), buf.remaining_bytes())?;
-            let consumed_len = min_len - limited_buf.len();
-            (item, consumed_len)
-        };
-
-        self.limit -= consumed_len as u64;
-        track!(buf.consume(consumed_len))?;
-        Ok(item)
+        track_assert_ne!(self.remaining_items, 0, ErrorKind::DecoderTerminated);
+        if let Some(item) = track!(self.decoder.decode(buf))? {
+            self.remaining_items -= 1;
+            Ok(Some(item))
+        } else {
+            Ok(None)
+        }
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.decoder
-            .requiring_bytes_hint()
-            .map(|n| cmp::min(n, self.limit))
+        if self.remaining_items == 0 {
+            Some(0)
+        } else {
+            self.decoder.requiring_bytes_hint()
+        }
     }
 }
 
@@ -423,5 +510,45 @@ impl<D: Decode> Decode for IgnoreRest<D> {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use {Decode, DecodeBuf, DecodeExt, ErrorKind};
+    use bytes::Utf8Decoder;
+    use fixnum::U8Decoder;
+
+    #[test]
+    fn collect_works() {
+        let mut decoder = U8Decoder::new().collect::<Vec<_>>();
+        let mut input = DecodeBuf::with_remaining_bytes(b"foo", 0);
+
+        let item = track_try_unwrap!(decoder.decode(&mut input));
+        assert_eq!(item, Some(vec![b'f', b'o', b'o']));
+    }
+
+    #[test]
+    fn take_works() {
+        let mut decoder = U8Decoder::new().take(2).collect::<Vec<_>>();
+        let mut input = DecodeBuf::new(b"foo");
+
+        let item = track_try_unwrap!(decoder.decode(&mut input));
+        assert_eq!(item, Some(vec![b'f', b'o']));
+    }
+
+    #[test]
+    fn length_works() {
+        let mut decoder = Utf8Decoder::new().length(3);
+        let mut input = DecodeBuf::with_remaining_bytes(b"foobarba", 0);
+
+        let item = track_try_unwrap!(decoder.decode(&mut input));
+        assert_eq!(item, Some("foo".to_owned()));
+
+        let item = track_try_unwrap!(decoder.decode(&mut input));
+        assert_eq!(item, Some("bar".to_owned()));
+
+        let error = decoder.decode(&mut input).err().unwrap();
+        assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
     }
 }

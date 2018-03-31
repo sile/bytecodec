@@ -96,6 +96,8 @@ pub trait EncodeExt: Encode + Sized {
         Repeat::new(self)
     }
 
+    // padding
+
     fn optional(self) -> Optional<Self> {
         Optional::new(self)
     }
