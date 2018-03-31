@@ -52,6 +52,10 @@ where
         Ok(self.0.b.decode(buf)?.map(|i| (i,)))
     }
 
+    fn has_terminated(&self) -> bool {
+        self.0.b.has_terminated()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.b.requiring_bytes_hint()
     }
@@ -65,6 +69,10 @@ where
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, i)))
+    }
+
+    fn has_terminated(&self) -> bool {
+        self.0.has_terminated()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -82,6 +90,10 @@ where
         Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, t.1, i)))
     }
 
+    fn has_terminated(&self) -> bool {
+        self.0.has_terminated()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.requiring_bytes_hint()
     }
@@ -97,6 +109,10 @@ where
         Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, t.1, t.2, i)))
     }
 
+    fn has_terminated(&self) -> bool {
+        self.0.has_terminated()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.requiring_bytes_hint()
     }
@@ -110,6 +126,10 @@ where
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, t.1, t.2, t.3, i)))
+    }
+
+    fn has_terminated(&self) -> bool {
+        self.0.has_terminated()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -129,6 +149,10 @@ where
             .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, i)))
     }
 
+    fn has_terminated(&self) -> bool {
+        self.0.has_terminated()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.requiring_bytes_hint()
     }
@@ -144,6 +168,10 @@ where
         Ok(self.0
             .decode(buf)?
             .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, i)))
+    }
+
+    fn has_terminated(&self) -> bool {
+        self.0.has_terminated()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -162,6 +190,10 @@ where
         Ok(self.0
             .decode(buf)?
             .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, t.6, i)))
+    }
+
+    fn has_terminated(&self) -> bool {
+        self.0.has_terminated()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -422,6 +454,14 @@ where
         Ok(item)
     }
 
+    fn has_terminated(&self) -> bool {
+        if self.a.item.is_none() {
+            self.a.has_terminated()
+        } else {
+            self.b.has_terminated()
+        }
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         let a = self.a
             .item
@@ -459,6 +499,14 @@ impl<T: Decode> Decode for Buffered<T, T::Item> {
             self.item = track!(self.decoder.decode(buf))?;
         }
         Ok(None)
+    }
+
+    fn has_terminated(&self) -> bool {
+        if self.item.is_some() {
+            true
+        } else {
+            self.decoder.has_terminated()
+        }
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {

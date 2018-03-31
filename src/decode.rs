@@ -25,6 +25,12 @@ pub trait Decode {
     ///
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>>;
 
+    /// Returns `true` if the decoder cannot decode items anymore, otherwise `false`.
+    ///
+    /// If it returns `true`, the next invocation of `decode` method
+    /// **must** return an `ErrorKind::DecoderTerminated` error.
+    fn has_terminated(&self) -> bool;
+
     /// Returns the lower bound of the number of bytes needed to decode the next item.
     ///
     /// If the decoder does not know the value, it will return `None`
@@ -42,6 +48,10 @@ impl<D: ?Sized + Decode> Decode for Box<D> {
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         (**self).decode(buf)
+    }
+
+    fn has_terminated(&self) -> bool {
+        (**self).has_terminated()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -79,6 +89,10 @@ impl<T> Decode for DecodedValue<T> {
     fn decode(&mut self, _buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         let item = track_assert_some!(self.0.take(), ErrorKind::DecoderTerminated);
         Ok(Some(item))
+    }
+
+    fn has_terminated(&self) -> bool {
+        self.0.is_none()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {

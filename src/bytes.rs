@@ -108,6 +108,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
         }
     }
 
+    fn has_terminated(&self) -> bool {
+        false
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         Some((self.bytes.as_ref().len() - self.offset) as u64)
     }
@@ -167,6 +171,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
         }
     }
 
+    fn has_terminated(&self) -> bool {
+        self.bytes.is_none()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         let n = self.bytes
             .as_ref()
@@ -218,6 +226,10 @@ impl Decode for RemainingBytesDecoder {
         } else {
             Ok(None)
         }
+    }
+
+    fn has_terminated(&self) -> bool {
+        false
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -304,6 +316,10 @@ where
         } else {
             Ok(None)
         }
+    }
+
+    fn has_terminated(&self) -> bool {
+        self.0.has_terminated()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
