@@ -39,6 +39,9 @@ pub trait Decode {
     /// **must** return an `ErrorKind::DecoderTerminated` error.
     fn has_terminated(&self) -> bool;
 
+    /// Returns `true` if the decoder does not have an item that being decoded, otherwise `false`.
+    fn is_idle(&self) -> bool;
+
     /// Returns the lower bound of the number of bytes needed to decode the next item.
     ///
     /// If the decoder does not know the value, it will return `None`
@@ -68,6 +71,10 @@ impl<D: ?Sized + Decode> Decode for Box<D> {
 
     fn has_terminated(&self) -> bool {
         (**self).has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        (**self).is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -108,6 +115,10 @@ impl<T> Decode for DecodedValue<T> {
     }
 
     fn has_terminated(&self) -> bool {
+        self.0.is_none()
+    }
+
+    fn is_idle(&self) -> bool {
         self.0.is_none()
     }
 
@@ -199,7 +210,7 @@ pub trait DecodeExt: Decode + Sized {
     /// UnexpectedEos (cause; assertion failed: `!buf.is_eos()`)
     /// HISTORY:
     ///   [0] at src/bytes.rs:143
-    ///   [1] at src/fixnum.rs:195
+    ///   [1] at src/fixnum.rs:199
     ///   [2] at src/decode.rs:11 -- oops!
     ///   [3] at src/decode.rs:17\n");
     /// # }

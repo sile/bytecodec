@@ -148,7 +148,7 @@ pub trait EncodeExt: Encode + Sized {
     /// UnexpectedEos (cause; assertion failed: `!buf.is_eos()`; self.offset=0, b.as_ref().len()=1)
     /// HISTORY:
     ///   [0] at src/bytes.rs:55
-    ///   [1] at src/fixnum.rs:113
+    ///   [1] at src/fixnum.rs:117
     ///   [2] at src/encode.rs:13 -- oops!
     ///   [3] at src/encode.rs:14\n");
     /// # }

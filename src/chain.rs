@@ -56,6 +56,10 @@ where
         self.0.b.has_terminated()
     }
 
+    fn is_idle(&self) -> bool {
+        self.0.b.is_idle()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.b.requiring_bytes_hint()
     }
@@ -73,6 +77,10 @@ where
 
     fn has_terminated(&self) -> bool {
         self.0.has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -94,6 +102,10 @@ where
         self.0.has_terminated()
     }
 
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.requiring_bytes_hint()
     }
@@ -113,6 +125,10 @@ where
         self.0.has_terminated()
     }
 
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.requiring_bytes_hint()
     }
@@ -130,6 +146,10 @@ where
 
     fn has_terminated(&self) -> bool {
         self.0.has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -153,6 +173,10 @@ where
         self.0.has_terminated()
     }
 
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.requiring_bytes_hint()
     }
@@ -172,6 +196,10 @@ where
 
     fn has_terminated(&self) -> bool {
         self.0.has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -194,6 +222,10 @@ where
 
     fn has_terminated(&self) -> bool {
         self.0.has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -506,6 +538,10 @@ where
         }
     }
 
+    fn is_idle(&self) -> bool {
+        self.a.item.is_none() && self.a.is_idle()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         let a = self.a
             .item
@@ -596,6 +632,10 @@ impl<T: Decode> Decode for Buffered<T, T::Item> {
         } else {
             self.decoder.has_terminated()
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.item.is_some() || self.decoder.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {

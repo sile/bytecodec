@@ -18,6 +18,10 @@ macro_rules! impl_decode {
                 false
             }
 
+            fn is_idle(&self) -> bool {
+                self.0.is_idle()
+            }
+
             fn requiring_bytes_hint(&self) -> Option<u64> {
                 self.0.requiring_bytes_hint()
             }

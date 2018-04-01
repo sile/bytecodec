@@ -47,6 +47,10 @@ where
         self.decoder.has_terminated()
     }
 
+    fn is_idle(&self) -> bool {
+        self.decoder.is_idle()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.decoder.requiring_bytes_hint()
     }
@@ -88,6 +92,10 @@ where
 
     fn has_terminated(&self) -> bool {
         self.codec.has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.codec.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -187,6 +195,10 @@ where
         } else {
             self.decoder0.has_terminated()
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.decoder1.is_none() && self.decoder0.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -398,6 +410,10 @@ impl<D: Decode> Decode for Omit<D> {
         }
     }
 
+    fn is_idle(&self) -> bool {
+        self.0.as_ref().map_or(true, |d| d.is_idle())
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         if let Some(ref d) = self.0 {
             d.requiring_bytes_hint()
@@ -453,15 +469,15 @@ pub struct Collect<D, T> {
     decoder: D,
     items: Option<T>,
 }
-impl<D, T: Default> Collect<D, T> {
+impl<D, T> Collect<D, T> {
     pub(crate) fn new(decoder: D) -> Self {
         Collect {
             decoder,
-            items: Some(T::default()),
+            items: None,
         }
     }
 }
-impl<D, T> Decode for Collect<D, T>
+impl<D, T: Default> Decode for Collect<D, T>
 where
     D: Decode,
     T: Extend<D::Item>,
@@ -469,8 +485,11 @@ where
     type Item = T;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        if self.items.is_none() {
+            self.items = Some(T::default());
+        }
         {
-            let items = track_assert_some!(self.items.as_mut(), ErrorKind::DecoderTerminated);
+            let items = self.items.as_mut().expect("Never fails");
             while !(buf.is_empty() && buf.is_eos()) && !self.decoder.has_terminated() {
                 if let Some(item) = track!(self.decoder.decode(buf))? {
                     items.extend(iter::once(item));
@@ -483,15 +502,15 @@ where
     }
 
     fn has_terminated(&self) -> bool {
-        self.items.is_none() || self.decoder.has_terminated()
+        self.decoder.has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.items.is_none()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        if self.items.is_none() {
-            Some(0)
-        } else {
-            self.decoder.requiring_bytes_hint()
-        }
+        self.decoder.requiring_bytes_hint()
     }
 }
 
@@ -575,6 +594,10 @@ impl<D: Decode> Decode for Length<D> {
         }
     }
 
+    fn is_idle(&self) -> bool {
+        self.remaining_bytes == self.expected_bytes
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         if self.has_terminated() {
             Some(0)
@@ -643,33 +666,25 @@ impl<E: Encode> ExactBytesEncode for Length<E> {
 #[derive(Debug)]
 pub struct Take<D> {
     decoder: D,
-    remaining_items: usize,
+    limit: usize,
+    decoded_items: usize,
 }
 impl<D> Take<D> {
-    pub(crate) fn new(decoder: D, remaining_items: usize) -> Self {
+    pub(crate) fn new(decoder: D, count: usize) -> Self {
         Take {
             decoder,
-            remaining_items,
+            limit: count,
+            decoded_items: 0,
         }
-    }
-
-    /// Returns the number of remaining items to be decoded.
-    pub fn remaining_items(&self) -> usize {
-        self.remaining_items
-    }
-
-    /// Sets the number of remaining items to be decoded.
-    pub fn set_remaining_items(&mut self, n: usize) {
-        self.remaining_items = n;
     }
 }
 impl<D: Decode> Decode for Take<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        track_assert_ne!(self.remaining_items, 0, ErrorKind::DecoderTerminated);
+        track_assert_ne!(self.decoded_items, self.limit, ErrorKind::DecoderTerminated);
         if let Some(item) = track!(self.decoder.decode(buf))? {
-            self.remaining_items -= 1;
+            self.decoded_items += 1;
             Ok(Some(item))
         } else {
             Ok(None)
@@ -677,7 +692,11 @@ impl<D: Decode> Decode for Take<D> {
     }
 
     fn has_terminated(&self) -> bool {
-        self.remaining_items == 0
+        self.decoder.has_terminated() || self.decoded_items == self.limit
+    }
+
+    fn is_idle(&self) -> bool {
+        self.decoded_items == 0 || self.decoded_items == self.limit
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -726,6 +745,10 @@ where
 
     fn has_terminated(&self) -> bool {
         self.decoder.has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.decoder.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -779,6 +802,10 @@ impl<D: Decode> Decode for SkipRemaining<D> {
         }
     }
 
+    fn is_idle(&self) -> bool {
+        self.item.is_none() && self.decoder.is_idle()
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         if self.item.is_none() {
             self.decoder.requiring_bytes_hint()
@@ -830,6 +857,10 @@ impl<D: Decode> Decode for MaxBytes<D> {
 
     fn has_terminated(&self) -> bool {
         self.codec.has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.codec.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -902,6 +933,10 @@ where
 
     fn has_terminated(&self) -> bool {
         self.decoder.has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.decoder.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
