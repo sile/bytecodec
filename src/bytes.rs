@@ -18,7 +18,7 @@ use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, ExactBytesEncode, R
 ///     let mut buf = EncodeBuf::new(&mut output);
 ///     let mut encoder = BytesEncoder::with_item(b"foo").unwrap();
 ///     encoder.encode(&mut buf).unwrap();
-///     assert!(encoder.is_completed());
+///     assert!(encoder.is_idle());
 ///     assert_eq!(buf.len(), 1);
 /// }
 /// assert_eq!(&output[..], b"foo\x00");
@@ -65,7 +65,7 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert!(self.is_completed(), ErrorKind::EncoderFull);
+        track_assert!(self.is_idle(), ErrorKind::EncoderFull);
         self.bytes = Some(item);
         self.offset = 0;
         Ok(())
@@ -75,7 +75,7 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
         Some(self.requiring_bytes())
     }
 
-    fn is_completed(&self) -> bool {
+    fn is_idle(&self) -> bool {
         self.bytes.is_none()
     }
 }
@@ -309,7 +309,7 @@ impl<T: AsRef<str>> AsRef<[u8]> for Utf8Bytes<T> {
 ///     let mut buf = EncodeBuf::new(&mut output);
 ///     let mut encoder = Utf8Encoder::with_item("foo").unwrap();
 ///     encoder.encode(&mut buf).unwrap();
-///     assert!(encoder.is_completed());
+///     assert!(encoder.is_idle());
 ///     assert_eq!(buf.len(), 1);
 /// }
 /// assert_eq!(&output[..], b"foo\x00");
@@ -337,8 +337,8 @@ impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
         self.0.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.0.is_completed()
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 }
 impl<S: AsRef<str>> ExactBytesEncode for Utf8Encoder<S> {
@@ -438,7 +438,7 @@ mod test {
             let mut buf = EncodeBuf::new(&mut output);
             let mut encoder = Utf8Encoder::with_item("foo").unwrap();
             encoder.encode(&mut buf).unwrap();
-            assert!(encoder.is_completed());
+            assert!(encoder.is_idle());
             assert_eq!(buf.len(), 1);
         }
         assert_eq!(&output[..], b"foo\x00");

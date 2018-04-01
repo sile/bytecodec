@@ -272,7 +272,7 @@ impl Encode for StartEncoderChain {
         track_panic!(ErrorKind::Other)
     }
 
-    fn is_completed(&self) -> bool {
+    fn is_idle(&self) -> bool {
         true
     }
 
@@ -316,8 +316,8 @@ where
         self.inner.b.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.inner.b.is_completed()
+    fn is_idle(&self) -> bool {
+        self.inner.b.is_idle()
     }
 }
 impl<E0, E1, T0> Encode for EncoderChain<E0, E1, (T0,)>
@@ -339,8 +339,8 @@ where
         self.inner.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.inner.is_completed()
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 }
 impl<E0, E1, T0, T1> Encode for EncoderChain<E0, E1, (T0, T1)>
@@ -362,8 +362,8 @@ where
         self.inner.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.inner.is_completed()
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 }
 impl<E0, E1, T0, T1, T2> Encode for EncoderChain<E0, E1, (T0, T1, T2)>
@@ -385,8 +385,8 @@ where
         self.inner.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.inner.is_completed()
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 }
 impl<E0, E1, T0, T1, T2, T3> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3)>
@@ -408,8 +408,8 @@ where
         self.inner.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.inner.is_completed()
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 }
 impl<E0, E1, T0, T1, T2, T3, T4> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3, T4)>
@@ -431,8 +431,8 @@ where
         self.inner.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.inner.is_completed()
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 }
 impl<E0, E1, T0, T1, T2, T3, T4, T5> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3, T4, T5)>
@@ -455,8 +455,8 @@ where
         self.inner.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.inner.is_completed()
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 }
 impl<E0, E1, T0, T1, T2, T3, T4, T5, T6> Encode
@@ -480,8 +480,8 @@ where
         self.inner.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.inner.is_completed()
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 }
 impl<E0, E1, T> ExactBytesEncode for EncoderChain<E0, E1, T>
@@ -565,8 +565,8 @@ where
     type Item = (A::Item, B::Item);
 
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        while !buf.is_empty() && !self.is_completed() {
-            if !self.a.is_completed() {
+        while !buf.is_empty() && !self.is_idle() {
+            if !self.a.is_idle() {
                 track!(self.a.encode(buf))?;
             } else {
                 track!(self.b.encode(buf))?;
@@ -576,8 +576,8 @@ where
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert!(self.a.is_completed(), ErrorKind::EncoderFull);
-        track_assert!(self.b.is_completed(), ErrorKind::EncoderFull);
+        track_assert!(self.a.is_idle(), ErrorKind::EncoderFull);
+        track_assert!(self.b.is_idle(), ErrorKind::EncoderFull);
         track!(self.a.start_encoding(item.0))?;
         track!(self.b.start_encoding(item.1))?;
         Ok(())
@@ -589,8 +589,8 @@ where
             .and_then(|a| self.b.requiring_bytes_hint().map(|b| a + b))
     }
 
-    fn is_completed(&self) -> bool {
-        self.b.is_completed()
+    fn is_idle(&self) -> bool {
+        self.b.is_idle()
     }
 }
 impl<E0, E1> ExactBytesEncode for Chain<E0, E1>

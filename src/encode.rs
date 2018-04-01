@@ -29,7 +29,7 @@ pub trait Encode {
 
     /// Tries to start encoding the given item.
     ///
-    /// If the encoding has no items to be encoded (i.e., `is_completed()` returns `true`) and
+    /// If the encoding has no items to be encoded (i.e., `is_idle()` returns `true`) and
     /// the item is valid, the encoder **should** accept it.
     ///
     /// # Errors
@@ -43,7 +43,7 @@ pub trait Encode {
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
     /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
-    fn is_completed(&self) -> bool;
+    fn is_idle(&self) -> bool;
 
     /// Returns the number of bytes required to encode all the items in the encoder.
     ///
@@ -51,9 +51,9 @@ pub trait Encode {
     ///
     /// If there is no items to be encoded, the encoder **should** return `Ok(0)`.
     ///
-    /// The default implementation returns `Some(0)` if the encoder has no items, otherwise `None`.
+    /// The default implementation returns `Some(0)` if the encoder is idle, otherwise `None`.
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        if self.is_completed() {
+        if self.is_idle() {
             Some(0)
         } else {
             None
@@ -75,8 +75,8 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
         (**self).requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        (**self).is_completed()
+    fn is_idle(&self) -> bool {
+        (**self).is_idle()
     }
 }
 
@@ -112,7 +112,7 @@ pub trait EncodeExt: Encode + Sized {
     ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
     /// }
     /// assert_eq!(output, [7]);
-    /// assert!(encoder.is_completed());
+    /// assert!(encoder.is_idle());
     /// ```
     fn with_item(item: Self::Item) -> Result<Self>
     where

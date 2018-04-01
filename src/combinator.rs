@@ -124,8 +124,8 @@ where
         self.codec.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.codec.is_completed()
+    fn is_idle(&self) -> bool {
+        self.codec.is_idle()
     }
 }
 impl<C, F, E> ExactBytesEncode for MapErr<C, F, E>
@@ -248,8 +248,8 @@ where
         self.encoder.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.encoder.is_completed()
+    fn is_idle(&self) -> bool {
+        self.encoder.is_idle()
     }
 }
 impl<E, T, F> ExactBytesEncode for MapFrom<E, T, F>
@@ -302,8 +302,8 @@ where
         self.encoder.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.encoder.is_completed()
+    fn is_idle(&self) -> bool {
+        self.encoder.is_idle()
     }
 }
 impl<C, T, E, F> ExactBytesEncode for TryMapFrom<C, T, E, F>
@@ -343,7 +343,7 @@ where
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         while !buf.is_empty() && self.items.is_some() {
             track!(self.encoder.encode(buf))?;
-            if self.encoder.is_completed() {
+            if self.encoder.is_idle() {
                 if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
                     track!(self.encoder.start_encoding(item))?;
                 } else {
@@ -355,20 +355,20 @@ where
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert!(self.is_completed(), ErrorKind::EncoderFull);
+        track_assert!(self.is_idle(), ErrorKind::EncoderFull);
         self.items = Some(item);
         Ok(())
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        if self.is_completed() {
+        if self.is_idle() {
             Some(0)
         } else {
             None
         }
     }
 
-    fn is_completed(&self) -> bool {
+    fn is_idle(&self) -> bool {
         self.items.is_none()
     }
 }
@@ -449,8 +449,8 @@ impl<E: Encode> Encode for Optional<E> {
         self.0.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.0.is_completed()
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 }
 impl<E: ExactBytesEncode> ExactBytesEncode for Optional<E> {
@@ -625,7 +625,7 @@ impl<E: Encode> Encode for Length<E> {
         }
 
         self.remaining_bytes -= (original_buf_len - buf.len()) as u64;
-        if self.codec.is_completed() {
+        if self.codec.is_idle() {
             track_assert_eq!(
                 self.remaining_bytes,
                 0,
@@ -650,7 +650,7 @@ impl<E: Encode> Encode for Length<E> {
         Some(self.remaining_bytes)
     }
 
-    fn is_completed(&self) -> bool {
+    fn is_idle(&self) -> bool {
         self.remaining_bytes == self.expected_bytes
     }
 }
@@ -876,10 +876,10 @@ impl<E: Encode> Encode for MaxBytes<E> {
         buf.with_limit(actual_buf_len, |buf| track!(self.codec.encode(buf)))?;
         self.consumed_bytes = (old_buf_len - buf.len()) as u64;
         if self.consumed_bytes == self.max_bytes {
-            track_assert!(self.is_completed(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
+            track_assert!(self.is_idle(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
                           self.max_bytes);
         }
-        if self.is_completed() {
+        if self.is_idle() {
             self.consumed_bytes = 0;
         }
         Ok(())
@@ -893,8 +893,8 @@ impl<E: Encode> Encode for MaxBytes<E> {
         self.codec.requiring_bytes_hint()
     }
 
-    fn is_completed(&self) -> bool {
-        self.codec.is_completed()
+    fn is_idle(&self) -> bool {
+        self.codec.is_idle()
     }
 }
 impl<E: ExactBytesEncode> ExactBytesEncode for MaxBytes<E> {
@@ -967,7 +967,7 @@ impl<E: Encode> Encode for Padding<E> {
     type Item = E::Item;
 
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        if !self.encoder.is_completed() {
+        if !self.encoder.is_idle() {
             self.encoder.encode(buf)?
         }
         while 0 != buf.write(&[self.padding_byte][..]).expect("Never fails") {}
@@ -976,7 +976,7 @@ impl<E: Encode> Encode for Padding<E> {
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert!(self.is_completed(), ErrorKind::EncoderFull);
+        track_assert!(self.is_idle(), ErrorKind::EncoderFull);
         self.eos_reached = false;
         track!(self.encoder.start_encoding(item))
     }
@@ -985,7 +985,7 @@ impl<E: Encode> Encode for Padding<E> {
         None
     }
 
-    fn is_completed(&self) -> bool {
+    fn is_idle(&self) -> bool {
         self.eos_reached
     }
 }

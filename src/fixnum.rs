@@ -48,8 +48,8 @@ macro_rules! impl_encode {
                 self.0.requiring_bytes_hint()
             }
 
-            fn is_completed(&self) -> bool {
-                self.0.is_completed()
+            fn is_idle(&self) -> bool {
+                self.0.is_idle()
             }
         }
         impl ExactBytesEncode for $ty {
