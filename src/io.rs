@@ -177,8 +177,9 @@ impl<E: Encode> IoEncoder<E> {
                 return Ok(false);
             } else {
                 let mut buf = EncodeBuf::new(&mut self.buf[self.tail..]);
+                let old_buf_len = buf.len();
                 track!(self.inner.encode(&mut buf))?;
-                self.head = self.tail - buf.len();
+                self.tail += (old_buf_len - buf.len());
             }
         }
     }
