@@ -411,7 +411,7 @@ where
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert_eq!(self.i, 2, ErrorKind::Full);
+        track_assert_eq!(self.i, 2, ErrorKind::EncoderFull);
         self.i = 0;
         track!(self.a.start_encoding(item.0))?;
         track!(self.b.start_encoding(item.1))?;

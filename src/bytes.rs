@@ -35,7 +35,7 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert!(self.is_completed(), ErrorKind::Full);
+        track_assert!(self.is_completed(), ErrorKind::EncoderFull);
         self.bytes = Some(item);
         self.offset = 0;
         Ok(())

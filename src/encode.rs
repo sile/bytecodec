@@ -16,24 +16,34 @@ pub trait Encode {
     /// # Errors
     ///
     /// Encoders return the following kinds of errors as necessary:
-    /// - `ErrorKind::InvalidInput`: TODO
-    /// - `ErrorKind::UnexpectedEos`: TODO
-    /// - `ErrorKind::Other`: TODO
+    /// - `ErrorKind::InvalidInput`:
+    ///   - An item that the encoder could not encode was passed
+    /// - `ErrorKind::UnexpectedEos`:
+    ///   - The output byte sequence has reached the end in the middle of a encoding process
+    /// - `ErrorKind::Other`:
+    ///   - Other errors has occurred
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()>;
 
     /// Tries to start encoding the given item.
     ///
-    /// Typically it means that the item is pushed to the queue of the encoder.
-    ///
-    /// If the encoding queue is empty and the item is valid, the encoder **should** accept it.
+    /// If the encoding has no items to be encoded (i.e., `is_completed()` returns `true`) and
+    /// the item is valid, the encoder **should** accept it.
     ///
     /// # Errors
     ///
-    /// - `ErrorKind::EncoderFull`: TODO
-    /// - `ErrorKind::InvalidInput`: TODO
-    /// - `ErrorKind::Other`: TODO
+    /// - `ErrorKind::EncoderFull`:
+    ///   - The encoder cannot accept any more items
+    /// - `ErrorKind::InvalidInput`:
+    ///   - An invalid item was passed
+    /// - `ErrorKind::Other`:
+    ///   - Other errors has occurred
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
+    /// Returns the number of bytes required to encode all the items in the encoder.
+    ///
+    /// If the encoder does not known the value, it will return `None`.
+    ///
+    /// If there is no items to be encoded, the encoder **should** return `Ok(0)`.
     fn requiring_bytes_hint(&self) -> Option<u64>;
 
     /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
@@ -63,10 +73,19 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
     }
 }
 
+/// This trait indicates that the encoder always known the exact bytes required to encode remaining items.
+///
+/// By implementing this trait, the user of those encoders can implement length-prefixed protocols easily.
 pub trait ExactBytesEncode: Encode {
+    /// Returns the number of bytes required to encode all the items in the encoder.
     fn requiring_bytes(&self) -> u64 {
         self.requiring_bytes_hint()
             .expect("Must be a `Some(_)` value")
+    }
+}
+impl<E: ?Sized + ExactBytesEncode> ExactBytesEncode for Box<E> {
+    fn requiring_bytes(&self) -> u64 {
+        (**self).requiring_bytes()
     }
 }
 

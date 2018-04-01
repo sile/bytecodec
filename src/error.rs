@@ -25,8 +25,7 @@ impl From<std::io::Error> for Error {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorKind {
     InvalidInput,
-    // TODO: EncoderFull (?)
-    Full,
+    EncoderFull,
     UnexpectedEos,
     DecoderTerminated,
     Other,

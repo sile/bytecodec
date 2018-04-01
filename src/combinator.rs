@@ -251,7 +251,7 @@ where
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert!(self.items.is_none(), ErrorKind::Full);
+        track_assert!(self.items.is_none(), ErrorKind::EncoderFull);
         self.items = Some(item);
         Ok(())
     }
