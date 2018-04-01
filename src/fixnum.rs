@@ -43,6 +43,10 @@ macro_rules! impl_encode {
             fn requiring_bytes_hint(&self) -> Option<u64> {
                 self.0.requiring_bytes_hint()
             }
+
+            fn is_completed(&self) -> bool {
+                self.0.is_completed()
+            }
         }
     }
 }
@@ -73,6 +77,21 @@ impl U8Decoder {
 }
 impl_decode!(U8Decoder, u8);
 
+/// Encoder which encodes `u8` values.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U8Encoder;
+///
+/// let mut output = [0; 1];
+/// {
+///     let mut encoder = U8Encoder::with_item(7).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [7]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U8Encoder(BytesEncoder<[u8; 1]>);
 impl U8Encoder {
@@ -114,6 +133,21 @@ impl I8Decoder {
 }
 impl_decode!(I8Decoder, i8);
 
+/// Encoder which encodes `i8` values.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::I8Encoder;
+///
+/// let mut output = [0; 1];
+/// {
+///     let mut encoder = I8Encoder::with_item(-1).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [255]);
+/// ```
 #[derive(Debug, Default)]
 pub struct I8Encoder(BytesEncoder<[u8; 1]>);
 impl I8Encoder {
@@ -181,9 +215,25 @@ impl U16leDecoder {
 }
 impl_decode!(U16leDecoder, u16);
 
+/// Encoder which encodes `u16` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U16beEncoder;
+///
+/// let mut output = [0; 2];
+/// {
+///     let mut encoder = U16beEncoder::with_item(0x0102).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x01, 0x02]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U16beEncoder(BytesEncoder<[u8; 2]>);
 impl U16beEncoder {
+    /// Makes a new `U16beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -195,9 +245,25 @@ impl U16beEncoder {
 }
 impl_encode!(U16beEncoder, u16);
 
+/// Encoder which encodes `u16` values by little-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U16leEncoder;
+///
+/// let mut output = [0; 2];
+/// {
+///     let mut encoder = U16leEncoder::with_item(0x0102).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x02, 0x01]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U16leEncoder(BytesEncoder<[u8; 2]>);
 impl U16leEncoder {
+    /// Makes a new `U16leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -261,9 +327,25 @@ impl I16leDecoder {
 }
 impl_decode!(I16leDecoder, i16);
 
+/// Encoder which encodes `i16` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::I16beEncoder;
+///
+/// let mut output = [0; 2];
+/// {
+///     let mut encoder = I16beEncoder::with_item(-2).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0xFF, 0xFE]);
+/// ```
 #[derive(Debug, Default)]
 pub struct I16beEncoder(BytesEncoder<[u8; 2]>);
 impl I16beEncoder {
+    /// Makes a new `I16beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -275,9 +357,25 @@ impl I16beEncoder {
 }
 impl_encode!(I16beEncoder, i16);
 
+/// Encoder which encodes `i16` values by little-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::I16leEncoder;
+///
+/// let mut output = [0; 2];
+/// {
+///     let mut encoder = I16leEncoder::with_item(-2).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0xFE, 0xFF]);
+/// ```
 #[derive(Debug, Default)]
 pub struct I16leEncoder(BytesEncoder<[u8; 2]>);
 impl I16leEncoder {
+    /// Makes a new `I16leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -345,9 +443,27 @@ impl U24leDecoder {
 }
 impl_decode!(U24leDecoder, u32);
 
+/// Encoder which encodes unsigned 24-bit integers by big-endian byte order.
+///
+/// Although the type of items is `u32`, the most significant 8-bits must be `0`.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U24beEncoder;
+///
+/// let mut output = [0; 3];
+/// {
+///     let mut encoder = U24beEncoder::with_item(0x0001_0203).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x01, 0x02, 0x03]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U24beEncoder(BytesEncoder<[u8; 3]>);
 impl U24beEncoder {
+    /// Makes a new `U24beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -360,9 +476,27 @@ impl U24beEncoder {
 }
 impl_encode!(U24beEncoder, u32);
 
+/// Encoder which encodes unsigned 24-bit integers by little-endian byte order.
+///
+/// Although the type of items is `u32`, the most significant 8-bits must be `0`.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U24leEncoder;
+///
+/// let mut output = [0; 3];
+/// {
+///     let mut encoder = U24leEncoder::with_item(0x0001_0203).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x03, 0x02, 0x01]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U24leEncoder(BytesEncoder<[u8; 3]>);
 impl U24leEncoder {
+    /// Makes a new `U24leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -427,9 +561,25 @@ impl U32leDecoder {
 }
 impl_decode!(U32leDecoder, u32);
 
+/// Encoder which encodes `u32` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U32beEncoder;
+///
+/// let mut output = [0; 4];
+/// {
+///     let mut encoder = U32beEncoder::with_item(0x0102_0304).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x01, 0x02, 0x03, 0x04]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U32beEncoder(BytesEncoder<[u8; 4]>);
 impl U32beEncoder {
+    /// Makes a new `U32beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -441,9 +591,25 @@ impl U32beEncoder {
 }
 impl_encode!(U32beEncoder, u32);
 
+/// Encoder which encodes `u32` values by little-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U32leEncoder;
+///
+/// let mut output = [0; 4];
+/// {
+///     let mut encoder = U32leEncoder::with_item(0x0102_0304).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x04, 0x03, 0x02, 0x01]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U32leEncoder(BytesEncoder<[u8; 4]>);
 impl U32leEncoder {
+    /// Makes a new `U32leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -507,9 +673,25 @@ impl I32leDecoder {
 }
 impl_decode!(I32leDecoder, i32);
 
+/// Encoder which encodes `i32` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::I32beEncoder;
+///
+/// let mut output = [0; 4];
+/// {
+///     let mut encoder = I32beEncoder::with_item(-2).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0xFF, 0xFF, 0xFF, 0xFE]);
+/// ```
 #[derive(Debug, Default)]
 pub struct I32beEncoder(BytesEncoder<[u8; 4]>);
 impl I32beEncoder {
+    /// Makes a new `I32beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -521,9 +703,25 @@ impl I32beEncoder {
 }
 impl_encode!(I32beEncoder, i32);
 
+/// Encoder which encodes `i32` values by little-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::I32leEncoder;
+///
+/// let mut output = [0; 4];
+/// {
+///     let mut encoder = I32leEncoder::with_item(-2).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0xFE, 0xFF, 0xFF, 0xFF]);
+/// ```
 #[derive(Debug, Default)]
 pub struct I32leEncoder(BytesEncoder<[u8; 4]>);
 impl I32leEncoder {
+    /// Makes a new `I32leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -591,9 +789,27 @@ impl U40leDecoder {
 }
 impl_decode!(U40leDecoder, u64);
 
+/// Encoder which encodes unsigned 40-bit integers by big-endian byte order.
+///
+/// Although the type of items is `u64`, the most significant 24-bits must be `0`.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U40beEncoder;
+///
+/// let mut output = [0; 5];
+/// {
+///     let mut encoder = U40beEncoder::with_item(0x0000_0001_0203_0405).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x01, 0x02, 0x03, 0x04, 0x05]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U40beEncoder(BytesEncoder<[u8; 5]>);
 impl U40beEncoder {
+    /// Makes a new `U40beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -607,9 +823,27 @@ impl U40beEncoder {
 }
 impl_encode!(U40beEncoder, u64);
 
+/// Encoder which encodes unsigned 40-bit integers by little-endian byte order.
+///
+/// Although the type of items is `u64`, the most significant 24-bits must be `0`.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U40leEncoder;
+///
+/// let mut output = [0; 5];
+/// {
+///     let mut encoder = U40leEncoder::with_item(0x0000_0001_0203_0405).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x05, 0x04, 0x03, 0x02, 0x01]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U40leEncoder(BytesEncoder<[u8; 5]>);
 impl U40leEncoder {
+    /// Makes a new `U40leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -617,7 +851,7 @@ impl U40leEncoder {
     fn encode_item(n: u64, b: &mut [u8; 5]) -> Result<()> {
         track_assert!(n <= 0xFF_FFFF_FFFF, ErrorKind::InvalidInput);
         let len = b.len();
-        BigEndian::write_uint(b, n, len);
+        LittleEndian::write_uint(b, n, len);
         Ok(())
     }
 }
@@ -679,15 +913,33 @@ impl U48leDecoder {
 }
 impl_decode!(U48leDecoder, u64);
 
+/// Encoder which encodes unsigned 48-bit integers by big-endian byte order.
+///
+/// Although the type of items is `u64`, the most significant 16-bits must be `0`.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U48beEncoder;
+///
+/// let mut output = [0; 6];
+/// {
+///     let mut encoder = U48beEncoder::with_item(0x0000_0102_0304_0506).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U48beEncoder(BytesEncoder<[u8; 6]>);
 impl U48beEncoder {
+    /// Makes a new `U48beEncoder` integers.
     pub fn new() -> Self {
         Self::default()
     }
 
     fn encode_item(n: u64, b: &mut [u8; 6]) -> Result<()> {
-        track_assert!(n <= 0xFF_FFFF_FFFF, ErrorKind::InvalidInput);
+        track_assert!(n <= 0xFFFF_FFFF_FFFF, ErrorKind::InvalidInput);
         let len = b.len();
         BigEndian::write_uint(b, n, len);
         Ok(())
@@ -695,17 +947,35 @@ impl U48beEncoder {
 }
 impl_encode!(U48beEncoder, u64);
 
+/// Encoder which encodes unsigned 48-bit integers by little-endian byte order.
+///
+/// Although the type of items is `u64`, the most significant 16-bits must be `0`.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U48leEncoder;
+///
+/// let mut output = [0; 6];
+/// {
+///     let mut encoder = U48leEncoder::with_item(0x0000_0102_0304_0506).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U48leEncoder(BytesEncoder<[u8; 6]>);
 impl U48leEncoder {
+    /// Makes a new `U48leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
 
     fn encode_item(n: u64, b: &mut [u8; 6]) -> Result<()> {
-        track_assert!(n <= 0xFF_FFFF_FFFF, ErrorKind::InvalidInput);
+        track_assert!(n <= 0xFFFF_FFFF_FFFF, ErrorKind::InvalidInput);
         let len = b.len();
-        BigEndian::write_uint(b, n, len);
+        LittleEndian::write_uint(b, n, len);
         Ok(())
     }
 }
@@ -766,15 +1036,33 @@ impl U56leDecoder {
 }
 impl_decode!(U56leDecoder, u64);
 
+/// Encoder which encodes unsigned 56-bit integers by big-endian byte order.
+///
+/// Although the type of items is `u64`, the most significant 8-bits must be `0`.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U56beEncoder;
+///
+/// let mut output = [0; 7];
+/// {
+///     let mut encoder = U56beEncoder::with_item(0x0001_0203_0405_0607).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U56beEncoder(BytesEncoder<[u8; 7]>);
 impl U56beEncoder {
+    /// Makes a new `U56beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
 
     fn encode_item(n: u64, b: &mut [u8; 7]) -> Result<()> {
-        track_assert!(n <= 0xFF_FFFF_FFFF, ErrorKind::InvalidInput);
+        track_assert!(n <= 0xFF_FFFF_FFFF_FFFF, ErrorKind::InvalidInput);
         let len = b.len();
         BigEndian::write_uint(b, n, len);
         Ok(())
@@ -782,17 +1070,35 @@ impl U56beEncoder {
 }
 impl_encode!(U56beEncoder, u64);
 
+/// Encoder which encodes unsigned 56-bit integers by little-endian byte order.
+///
+/// Although the type of items is `u64`, the most significant 8-bits must be `0`.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U56leEncoder;
+///
+/// let mut output = [0; 7];
+/// {
+///     let mut encoder = U56leEncoder::with_item(0x0001_0203_0405_0607).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U56leEncoder(BytesEncoder<[u8; 7]>);
 impl U56leEncoder {
+    /// Makes a new `U56leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
 
     fn encode_item(n: u64, b: &mut [u8; 7]) -> Result<()> {
-        track_assert!(n <= 0xFF_FFFF_FFFF, ErrorKind::InvalidInput);
+        track_assert!(n <= 0xFF_FFFF_FFFF_FFFF, ErrorKind::InvalidInput);
         let len = b.len();
-        BigEndian::write_uint(b, n, len);
+        LittleEndian::write_uint(b, n, len);
         Ok(())
     }
 }
@@ -850,9 +1156,25 @@ impl U64leDecoder {
 }
 impl_decode!(U64leDecoder, u64);
 
+/// Encoder which encodes `u64` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U64beEncoder;
+///
+/// let mut output = [0; 8];
+/// {
+///     let mut encoder = U64beEncoder::with_item(0x0102_0304_0506_0708).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U64beEncoder(BytesEncoder<[u8; 8]>);
 impl U64beEncoder {
+    /// Makes a new `U64beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -864,9 +1186,25 @@ impl U64beEncoder {
 }
 impl_encode!(U64beEncoder, u64);
 
+/// Encoder which encodes `u64` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::U64leEncoder;
+///
+/// let mut output = [0; 8];
+/// {
+///     let mut encoder = U64leEncoder::with_item(0x0102_0304_0506_0708).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
+/// ```
 #[derive(Debug, Default)]
 pub struct U64leEncoder(BytesEncoder<[u8; 8]>);
 impl U64leEncoder {
+    /// Makes a new `U64leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -930,9 +1268,25 @@ impl I64leDecoder {
 }
 impl_decode!(I64leDecoder, i64);
 
+/// Encoder which encodes `i64` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::I64beEncoder;
+///
+/// let mut output = [0; 8];
+/// {
+///     let mut encoder = I64beEncoder::with_item(-2).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE]);
+/// ```
 #[derive(Debug, Default)]
 pub struct I64beEncoder(BytesEncoder<[u8; 8]>);
 impl I64beEncoder {
+    /// Makes a new `I64beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -944,9 +1298,25 @@ impl I64beEncoder {
 }
 impl_encode!(I64beEncoder, i64);
 
+/// Encoder which encodes `i64` values by little-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::I64leEncoder;
+///
+/// let mut output = [0; 8];
+/// {
+///     let mut encoder = I64leEncoder::with_item(-2).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+/// ```
 #[derive(Debug, Default)]
 pub struct I64leEncoder(BytesEncoder<[u8; 8]>);
 impl I64leEncoder {
+    /// Makes a new `I64leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -958,9 +1328,22 @@ impl I64leEncoder {
 }
 impl_encode!(I64leEncoder, i64);
 
+/// Decoder which decodes `f32` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::fixnum::F32beDecoder;
+///
+/// let mut decoder = F32beDecoder::new();
+/// let item = decoder.decode(&mut DecodeBuf::new(&[66, 246, 204, 205][..])).unwrap();
+/// assert_eq!(item, Some(123.4));
+/// ```
 #[derive(Debug, Default)]
 pub struct F32beDecoder(CopyableBytesDecoder<[u8; 4]>);
 impl F32beDecoder {
+    /// Makes a new `F32beDecoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -971,9 +1354,22 @@ impl F32beDecoder {
 }
 impl_decode!(F32beDecoder, f32);
 
+/// Decoder which decodes `f32` values by little-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::fixnum::F32leDecoder;
+///
+/// let mut decoder = F32leDecoder::new();
+/// let item = decoder.decode(&mut DecodeBuf::new(&[205, 204, 246, 66][..])).unwrap();
+/// assert_eq!(item, Some(123.4));
+/// ```
 #[derive(Debug, Default)]
 pub struct F32leDecoder(CopyableBytesDecoder<[u8; 4]>);
 impl F32leDecoder {
+    /// Makes a new `F32leDecoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -984,9 +1380,25 @@ impl F32leDecoder {
 }
 impl_decode!(F32leDecoder, f32);
 
+/// Encoder which encodes `f32` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::F32beEncoder;
+///
+/// let mut output = [0; 4];
+/// {
+///     let mut encoder = F32beEncoder::with_item(123.4).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [66, 246, 204, 205]);
+/// ```
 #[derive(Debug, Default)]
 pub struct F32beEncoder(BytesEncoder<[u8; 4]>);
 impl F32beEncoder {
+    /// Makes a new `F32beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -998,9 +1410,25 @@ impl F32beEncoder {
 }
 impl_encode!(F32beEncoder, f32);
 
+/// Encoder which encodes `f32` values by little-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::F32leEncoder;
+///
+/// let mut output = [0; 4];
+/// {
+///     let mut encoder = F32leEncoder::with_item(123.4).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [205, 204, 246, 66]);
+/// ```
 #[derive(Debug, Default)]
 pub struct F32leEncoder(BytesEncoder<[u8; 4]>);
 impl F32leEncoder {
+    /// Makes a new `F32leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -1012,9 +1440,22 @@ impl F32leEncoder {
 }
 impl_encode!(F32leEncoder, f32);
 
+/// Decoder which decodes `f64` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::fixnum::F64beDecoder;
+///
+/// let mut decoder = F64beDecoder::new();
+/// let item = decoder.decode(&mut DecodeBuf::new(&[64, 94, 221, 47, 26, 159, 190, 119][..])).unwrap();
+/// assert_eq!(item, Some(123.456));
+/// ```
 #[derive(Debug, Default)]
 pub struct F64beDecoder(CopyableBytesDecoder<[u8; 8]>);
 impl F64beDecoder {
+    /// Makes a new `F64beDecoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -1025,9 +1466,22 @@ impl F64beDecoder {
 }
 impl_decode!(F64beDecoder, f64);
 
+/// Decoder which decodes `f64` values by little-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::fixnum::F64leDecoder;
+///
+/// let mut decoder = F64leDecoder::new();
+/// let item = decoder.decode(&mut DecodeBuf::new(&[119, 190, 159, 26, 47, 221, 94, 64][..])).unwrap();
+/// assert_eq!(item, Some(123.456));
+/// ```
 #[derive(Debug, Default)]
 pub struct F64leDecoder(CopyableBytesDecoder<[u8; 8]>);
 impl F64leDecoder {
+    /// Makes a new `F64leDecoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -1038,9 +1492,25 @@ impl F64leDecoder {
 }
 impl_decode!(F64leDecoder, f64);
 
+/// Encoder which encodes `f64` values by big-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::F64beEncoder;
+///
+/// let mut output = [0; 8];
+/// {
+///     let mut encoder = F64beEncoder::with_item(123.456).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [64, 94, 221, 47, 26, 159, 190, 119]);
+/// ```
 #[derive(Debug, Default)]
 pub struct F64beEncoder(BytesEncoder<[u8; 8]>);
 impl F64beEncoder {
+    /// Makes a new `F64beEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -1052,9 +1522,25 @@ impl F64beEncoder {
 }
 impl_encode!(F64beEncoder, f64);
 
+/// Encoder which encodes `f64` values by little-endian byte order.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::fixnum::F64leEncoder;
+///
+/// let mut output = [0; 8];
+/// {
+///     let mut encoder = F64leEncoder::with_item(123.456).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output, [119, 190, 159, 26, 47, 221, 94, 64]);
+/// ```
 #[derive(Debug, Default)]
 pub struct F64leEncoder(BytesEncoder<[u8; 8]>);
 impl F64leEncoder {
+    /// Makes a new `F64leEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
