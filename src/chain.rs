@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, ExactBytesEncode, Result};
 
 /// An object for starting a chain of decoders.
 ///
@@ -201,14 +201,54 @@ where
     }
 }
 
+/// An object for starting a chain of encoders.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt, StartEncoderChain};
+/// use bytecodec::bytes::Utf8Encoder;
+/// use bytecodec::fixnum::U8Encoder;
+///
+/// let mut output = [0; 4];
+/// let mut encoder = StartEncoderChain
+///     .chain(U8Encoder::new())
+///     .chain(Utf8Encoder::new())
+///     .map_from(|s: String| (s.len() as u8, s));
+/// {
+///     encoder.start_encoding("foo".to_owned()).unwrap();
+///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+/// }
+/// assert_eq!(output.as_ref(), b"\x03foo");
+/// ```
 #[derive(Debug)]
 pub struct StartEncoderChain;
 impl StartEncoderChain {
+    /// Starts encoders chain.
     pub fn chain<E: Encode>(&self, encoder: E) -> EncoderChain<Self, E, ()> {
         EncoderChain::new(StartEncoderChain, encoder)
     }
 }
+impl Encode for StartEncoderChain {
+    type Item = ();
 
+    fn encode(&mut self, _buf: &mut EncodeBuf) -> Result<()> {
+        track_panic!(ErrorKind::Other)
+    }
+
+    fn start_encoding(&mut self, _item: Self::Item) -> Result<()> {
+        track_panic!(ErrorKind::Other)
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        Some(0)
+    }
+}
+impl ExactBytesEncode for StartEncoderChain {}
+
+/// Combinator for connecting encoders to a chain.
+///
+/// This is created by calling `StartEncoderChain::chain` or `EncodeExt::chain` methods.
 #[derive(Debug)]
 pub struct EncoderChain<E0, E1, T> {
     inner: Chain<E0, E1>,
@@ -239,6 +279,10 @@ where
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.inner.b.requiring_bytes_hint()
     }
+
+    fn is_completed(&self) -> bool {
+        self.inner.b.is_completed()
+    }
 }
 impl<E0, E1, T0> Encode for EncoderChain<E0, E1, (T0,)>
 where
@@ -257,6 +301,10 @@ where
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.inner.requiring_bytes_hint()
+    }
+
+    fn is_completed(&self) -> bool {
+        self.inner.is_completed()
     }
 }
 impl<E0, E1, T0, T1> Encode for EncoderChain<E0, E1, (T0, T1)>
@@ -277,6 +325,10 @@ where
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.inner.requiring_bytes_hint()
     }
+
+    fn is_completed(&self) -> bool {
+        self.inner.is_completed()
+    }
 }
 impl<E0, E1, T0, T1, T2> Encode for EncoderChain<E0, E1, (T0, T1, T2)>
 where
@@ -295,6 +347,10 @@ where
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.inner.requiring_bytes_hint()
+    }
+
+    fn is_completed(&self) -> bool {
+        self.inner.is_completed()
     }
 }
 impl<E0, E1, T0, T1, T2, T3> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3)>
@@ -315,6 +371,10 @@ where
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.inner.requiring_bytes_hint()
     }
+
+    fn is_completed(&self) -> bool {
+        self.inner.is_completed()
+    }
 }
 impl<E0, E1, T0, T1, T2, T3, T4> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3, T4)>
 where
@@ -333,6 +393,10 @@ where
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.inner.requiring_bytes_hint()
+    }
+
+    fn is_completed(&self) -> bool {
+        self.inner.is_completed()
     }
 }
 impl<E0, E1, T0, T1, T2, T3, T4, T5> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3, T4, T5)>
@@ -353,6 +417,10 @@ where
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.inner.requiring_bytes_hint()
+    }
+
+    fn is_completed(&self) -> bool {
+        self.inner.is_completed()
     }
 }
 impl<E0, E1, T0, T1, T2, T3, T4, T5, T6> Encode
@@ -375,58 +443,30 @@ where
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.inner.requiring_bytes_hint()
     }
+
+    fn is_completed(&self) -> bool {
+        self.inner.is_completed()
+    }
+}
+impl<E0, E1, T> ExactBytesEncode for EncoderChain<E0, E1, T>
+where
+    Self: Encode,
+    E0: ExactBytesEncode,
+    E1: ExactBytesEncode,
+{
+    fn requiring_bytes(&self) -> u64 {
+        self.inner.requiring_bytes()
+    }
 }
 
 #[derive(Debug)]
 struct Chain<A, B> {
     a: A,
     b: B,
-    i: usize, // TODO: remove
 }
 impl<A, B> Chain<A, B> {
     fn new(a: A, b: B) -> Self {
-        Chain { a, b, i: 0 }
-    }
-}
-impl<A, B> Encode for Chain<A, B>
-where
-    A: Encode,
-    B: Encode,
-{
-    type Item = (A::Item, B::Item);
-
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        while !buf.is_empty() && self.i < 2 {
-            let old_buf_len = buf.len();
-            match self.i {
-                0 => track!(self.a.encode(buf))?,
-                1 => track!(self.b.encode(buf))?,
-                _ => unreachable!(),
-            }
-            if old_buf_len == buf.len() {
-                self.i += 1;
-            }
-        }
-        Ok(())
-    }
-
-    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert_eq!(self.i, 2, ErrorKind::EncoderFull);
-        self.i = 0;
-        track!(self.a.start_encoding(item.0))?;
-        track!(self.b.start_encoding(item.1))?;
-        Ok(())
-    }
-
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        let mut size = Some(0);
-        if self.i <= 0 {
-            size = size.and_then(|x| self.a.requiring_bytes_hint().map(|y| x + y));
-        }
-        if self.i <= 1 {
-            size = size.and_then(|x| self.b.requiring_bytes_hint().map(|y| x + y));
-        }
-        size
+        Chain { a, b }
     }
 }
 impl<A, B> Decode for Chain<Buffered<A, A::Item>, B>
@@ -475,6 +515,51 @@ where
             (None, Some(b)) => Some(b),
             (None, None) => None,
         }
+    }
+}
+impl<A, B> Encode for Chain<A, B>
+where
+    A: Encode,
+    B: Encode,
+{
+    type Item = (A::Item, B::Item);
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        while !buf.is_empty() && !self.is_completed() {
+            if !self.a.is_completed() {
+                track!(self.a.encode(buf))?;
+            } else {
+                track!(self.b.encode(buf))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track_assert!(self.a.is_completed(), ErrorKind::EncoderFull);
+        track_assert!(self.b.is_completed(), ErrorKind::EncoderFull);
+        track!(self.a.start_encoding(item.0))?;
+        track!(self.b.start_encoding(item.1))?;
+        Ok(())
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.a
+            .requiring_bytes_hint()
+            .and_then(|a| self.b.requiring_bytes_hint().map(|b| a + b))
+    }
+
+    fn is_completed(&self) -> bool {
+        self.b.is_completed()
+    }
+}
+impl<E0, E1> ExactBytesEncode for Chain<E0, E1>
+where
+    E0: ExactBytesEncode,
+    E1: ExactBytesEncode,
+{
+    fn requiring_bytes(&self) -> u64 {
+        self.a.requiring_bytes() + self.b.requiring_bytes()
     }
 }
 

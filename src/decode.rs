@@ -177,9 +177,7 @@ pub trait DecodeExt: Decode + Sized {
     ///
     /// The following code shows the idiomatic way to track decoding errors:
     ///
-    /// TODO: remove `no_run`
-    ///
-    /// ```no_run
+    /// ```
     /// extern crate bytecodec;
     /// #[macro_use]
     /// extern crate trackable;
@@ -200,11 +198,10 @@ pub trait DecodeExt: Decode + Sized {
     /// assert_eq!(error.to_string(), "\
     /// UnexpectedEos (cause; assertion failed: `!buf.is_eos()`)
     /// HISTORY:
-    ///   [0] at src/bytes.rs:106
-    ///   [1] at src/fixnum.rs:152
-    ///   [2] at src/combinator.rs:69
-    ///   [3] at src/decode.rs:11 -- oops!
-    ///   [4] at src/decode.rs:17\n");
+    ///   [0] at src/bytes.rs:143
+    ///   [1] at src/fixnum.rs:195
+    ///   [2] at src/decode.rs:11 -- oops!
+    ///   [3] at src/decode.rs:17\n");
     /// # }
     /// ```
     fn map_err<F, E>(self, f: F) -> MapErr<Self, F, E>

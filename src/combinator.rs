@@ -1,11 +1,15 @@
+//! Encoders and decoders for combination.
+//!
+//! These are mainly created via the methods provided by `EncodeExt` or `DecodeExt` traits.
 use std;
 use std::cmp;
+use std::io::Write;
 use std::iter;
 use std::marker::PhantomData;
 
 pub use chain::{DecoderChain, EncoderChain};
 
-use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, ExactBytesEncode, Result};
 
 /// Combinator for converting decoded items to other values.
 ///
@@ -111,6 +115,20 @@ where
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.codec.requiring_bytes_hint()
     }
+
+    fn is_completed(&self) -> bool {
+        self.codec.is_completed()
+    }
+}
+impl<C, F, E> ExactBytesEncode for MapErr<C, F, E>
+where
+    C: ExactBytesEncode,
+    F: Fn(Error) -> E,
+    Error: From<E>,
+{
+    fn requiring_bytes(&self) -> u64 {
+        self.codec.requiring_bytes()
+    }
 }
 
 /// Combinator for conditional decoding.
@@ -180,22 +198,26 @@ where
     }
 }
 
+/// Combinator for converting items into ones that
+/// suited to the inner encoder by calling the given function.
+///
+/// This is created by calling `EncodeExt::map_from` method.
 #[derive(Debug)]
-pub struct StartEncodingFrom<E, T, F> {
+pub struct MapFrom<E, T, F> {
     encoder: E,
     _item: PhantomData<T>,
     from: F,
 }
-impl<E, T, F> StartEncodingFrom<E, T, F> {
+impl<E, T, F> MapFrom<E, T, F> {
     pub(crate) fn new(encoder: E, from: F) -> Self {
-        StartEncodingFrom {
+        MapFrom {
             encoder,
             _item: PhantomData,
             from,
         }
     }
 }
-impl<E, T, F> Encode for StartEncodingFrom<E, T, F>
+impl<E, T, F> Encode for MapFrom<E, T, F>
 where
     E: Encode,
     F: Fn(T) -> E::Item,
@@ -213,8 +235,79 @@ where
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.encoder.requiring_bytes_hint()
     }
+
+    fn is_completed(&self) -> bool {
+        self.encoder.is_completed()
+    }
+}
+impl<E, T, F> ExactBytesEncode for MapFrom<E, T, F>
+where
+    E: ExactBytesEncode,
+    F: Fn(T) -> E::Item,
+{
+    fn requiring_bytes(&self) -> u64 {
+        self.encoder.requiring_bytes()
+    }
 }
 
+/// Combinator that tries to convert items into ones that
+/// suited to the inner encoder by calling the given function.
+///
+/// This is created by calling `EncodeExt::try_map_from` method.
+#[derive(Debug)]
+pub struct TryMapFrom<C, T, E, F> {
+    encoder: C,
+    try_from: F,
+    _phantom: PhantomData<(T, E)>,
+}
+impl<C, T, E, F> TryMapFrom<C, T, E, F> {
+    pub(crate) fn new(encoder: C, try_from: F) -> Self {
+        TryMapFrom {
+            encoder,
+            try_from,
+            _phantom: PhantomData,
+        }
+    }
+}
+impl<C, T, E, F> Encode for TryMapFrom<C, T, E, F>
+where
+    C: Encode,
+    F: Fn(T) -> std::result::Result<C::Item, E>,
+    Error: From<E>,
+{
+    type Item = T;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        track!(self.encoder.encode(buf))
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        let item = track!((self.try_from)(item).map_err(Error::from))?;
+        track!(self.encoder.start_encoding(item))
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.encoder.requiring_bytes_hint()
+    }
+
+    fn is_completed(&self) -> bool {
+        self.encoder.is_completed()
+    }
+}
+impl<C, T, E, F> ExactBytesEncode for TryMapFrom<C, T, E, F>
+where
+    C: ExactBytesEncode,
+    F: Fn(T) -> std::result::Result<C::Item, E>,
+    Error: From<E>,
+{
+    fn requiring_bytes(&self) -> u64 {
+        self.encoder.requiring_bytes()
+    }
+}
+
+/// Combinator for repeating encoding of `E::Item`.
+///
+/// This is created by calling `EncodeExt::repeat` method.
 #[derive(Debug)]
 pub struct Repeat<E, I> {
     encoder: E,
@@ -307,7 +400,7 @@ impl<D: Decode> Decode for Omit<D> {
     }
 }
 
-// deref, deref_mut
+/// Combinator for representing an optional encoder.
 #[derive(Debug)]
 pub struct Optional<E>(E);
 impl<E> Optional<E> {
@@ -331,6 +424,15 @@ impl<E: Encode> Encode for Optional<E> {
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.requiring_bytes_hint()
+    }
+
+    fn is_completed(&self) -> bool {
+        self.0.is_completed()
+    }
+}
+impl<E: ExactBytesEncode> ExactBytesEncode for Optional<E> {
+    fn requiring_bytes(&self) -> u64 {
+        self.0.requiring_bytes()
     }
 }
 
@@ -388,17 +490,17 @@ where
 
 /// Combinator for consuming the specified number of bytes exactly.
 ///
-/// This is created by calling `DecodeExt::length` method.
+/// This is created by calling `{DecodeExt, EncodeExt}::length` method.
 #[derive(Debug)]
-pub struct Length<D> {
-    decoder: D,
+pub struct Length<C> {
+    codec: C,
     expected_bytes: u64,
     remaining_bytes: u64,
 }
-impl<D> Length<D> {
-    pub(crate) fn new(decoder: D, expected_bytes: u64) -> Self {
+impl<C> Length<C> {
+    pub(crate) fn new(codec: C, expected_bytes: u64) -> Self {
         Length {
-            decoder,
+            codec,
             expected_bytes,
             remaining_bytes: expected_bytes,
         }
@@ -413,7 +515,7 @@ impl<D> Length<D> {
     ///
     /// # Errors
     ///
-    /// If the decoder is in the middle of decoding an item, it willl return an `ErrorKind::Other` error.
+    /// If the codec is in the middle of decoding an item, it willl return an `ErrorKind::Other` error.
     pub fn set_expected_bytes(&mut self, bytes: u64) -> Result<()> {
         track_assert_eq!(
             self.remaining_bytes,
@@ -442,7 +544,7 @@ impl<D: Decode> Decode for Length<D> {
                           remaining_bytes, expected_remaining_bytes);
         }
         let item = buf.with_limit_and_remaining_bytes(buf_len, expected_remaining_bytes, |buf| {
-            track!(self.decoder.decode(buf))
+            track!(self.codec.decode(buf))
         })?;
 
         self.remaining_bytes -= (old_buf_len - buf.len()) as u64;
@@ -451,7 +553,7 @@ impl<D: Decode> Decode for Length<D> {
                 self.remaining_bytes,
                 0,
                 ErrorKind::Other,
-                "Decoder consumes too few bytes"
+                "Codec consumes too few bytes"
             );
             self.remaining_bytes = self.expected_bytes
         }
@@ -460,7 +562,7 @@ impl<D: Decode> Decode for Length<D> {
 
     fn has_terminated(&self) -> bool {
         if self.remaining_bytes == self.expected_bytes {
-            self.decoder.has_terminated()
+            self.codec.has_terminated()
         } else {
             false
         }
@@ -474,10 +576,63 @@ impl<D: Decode> Decode for Length<D> {
         }
     }
 }
+impl<E: Encode> Encode for Length<E> {
+    type Item = E::Item;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        if buf.is_eos() {
+            track_assert!(buf.len() as u64 >= self.remaining_bytes, ErrorKind::UnexpectedEos;
+                          buf.len(), self.remaining_bytes);
+        }
+
+        let original_buf_len = buf.len();
+        let limit = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
+        let eos = limit as u64 == self.remaining_bytes;
+        if eos {
+            buf.with_limit_and_eos(limit, |buf| track!(self.codec.encode(buf)))?;
+        } else {
+            buf.with_limit(limit, |buf| track!(self.codec.encode(buf)))?;
+        }
+
+        self.remaining_bytes -= (original_buf_len - buf.len()) as u64;
+        if self.codec.is_completed() {
+            track_assert_eq!(
+                self.remaining_bytes,
+                0,
+                ErrorKind::InvalidInput,
+                "Too small item"
+            );
+            self.remaining_bytes = self.expected_bytes;
+        }
+        Ok(())
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track_assert_eq!(
+            self.remaining_bytes,
+            self.expected_bytes,
+            ErrorKind::EncoderFull
+        );
+        track!(self.codec.start_encoding(item))
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        Some(self.remaining_bytes)
+    }
+
+    fn is_completed(&self) -> bool {
+        self.remaining_bytes == self.expected_bytes
+    }
+}
+impl<E: Encode> ExactBytesEncode for Length<E> {
+    fn requiring_bytes(&self) -> u64 {
+        self.remaining_bytes
+    }
+}
 
 /// Combinator for decoding the specified number of items.
 ///
-/// This is created by calling `DecodeExt::takeExact` method.
+/// This is created by calling `DecodeExt::take` method.
 #[derive(Debug)]
 pub struct Take<D> {
     decoder: D,
@@ -627,16 +782,18 @@ impl<D: Decode> Decode for SkipRemaining<D> {
 }
 
 /// Combinator that will fail if the number of consumed bytes exceeds the specified size.
+///
+/// This is created by calling `{DecodeExt, EncodeExt}::max_bytes` method.
 #[derive(Debug)]
-pub struct MaxBytes<D> {
-    decoder: D,
+pub struct MaxBytes<C> {
+    codec: C,
     consumed_bytes: u64,
     max_bytes: u64,
 }
-impl<D> MaxBytes<D> {
-    pub(crate) fn new(decoder: D, max_bytes: u64) -> Self {
+impl<C> MaxBytes<C> {
+    pub(crate) fn new(codec: C, max_bytes: u64) -> Self {
         MaxBytes {
-            decoder,
+            codec,
             consumed_bytes: 0,
             max_bytes,
         }
@@ -652,7 +809,7 @@ impl<D: Decode> Decode for MaxBytes<D> {
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         let old_buf_len = buf.len();
         let actual_buf_len = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
-        let item = buf.with_limit(actual_buf_len, |buf| track!(self.decoder.decode(buf)))?;
+        let item = buf.with_limit(actual_buf_len, |buf| track!(self.codec.decode(buf)))?;
         self.consumed_bytes = (old_buf_len - buf.len()) as u64;
         if self.consumed_bytes == self.max_bytes {
             track_assert!(item.is_some(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
@@ -665,11 +822,46 @@ impl<D: Decode> Decode for MaxBytes<D> {
     }
 
     fn has_terminated(&self) -> bool {
-        self.decoder.has_terminated()
+        self.codec.has_terminated()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.decoder.requiring_bytes_hint()
+        self.codec.requiring_bytes_hint()
+    }
+}
+impl<E: Encode> Encode for MaxBytes<E> {
+    type Item = E::Item;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        let old_buf_len = buf.len();
+        let actual_buf_len = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
+        buf.with_limit(actual_buf_len, |buf| track!(self.codec.encode(buf)))?;
+        self.consumed_bytes = (old_buf_len - buf.len()) as u64;
+        if self.consumed_bytes == self.max_bytes {
+            track_assert!(self.is_completed(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
+                          self.max_bytes);
+        }
+        if self.is_completed() {
+            self.consumed_bytes = 0;
+        }
+        Ok(())
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track!(self.codec.start_encoding(item))
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.codec.requiring_bytes_hint()
+    }
+
+    fn is_completed(&self) -> bool {
+        self.codec.is_completed()
+    }
+}
+impl<E: ExactBytesEncode> ExactBytesEncode for MaxBytes<E> {
+    fn requiring_bytes(&self) -> u64 {
+        self.codec.requiring_bytes()
     }
 }
 
@@ -710,11 +902,57 @@ where
     }
 }
 
+/// Combinator that keeps writing padding byte until it reaches EOS
+/// after encoding of `E`'s item has been completed.
+///
+/// This is created by calling `EncodeExt::padding` method.
+#[derive(Debug)]
+pub struct Padding<E> {
+    encoder: E,
+    padding_byte: u8,
+    eos_reached: bool,
+}
+impl<E> Padding<E> {
+    pub(crate) fn new(encoder: E, padding_byte: u8) -> Self {
+        Padding {
+            encoder,
+            padding_byte,
+            eos_reached: true,
+        }
+    }
+}
+impl<E: Encode> Encode for Padding<E> {
+    type Item = E::Item;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        if !self.encoder.is_completed() {
+            self.encoder.encode(buf)?
+        }
+        while 0 != buf.write(&[self.padding_byte][..]).expect("Never fails") {}
+        self.eos_reached = buf.is_eos();
+        Ok(())
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track_assert!(self.is_completed(), ErrorKind::EncoderFull);
+        self.eos_reached = false;
+        track!(self.encoder.start_encoding(item))
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        None
+    }
+
+    fn is_completed(&self) -> bool {
+        self.eos_reached
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeBuf, DecodeExt, ErrorKind};
-    use bytes::Utf8Decoder;
-    use fixnum::U8Decoder;
+    use {Decode, DecodeBuf, DecodeExt, Encode, EncodeBuf, EncodeExt, ErrorKind};
+    use bytes::{Utf8Decoder, Utf8Encoder};
+    use fixnum::{U8Decoder, U8Encoder};
 
     #[test]
     fn collect_works() {
@@ -735,7 +973,7 @@ mod test {
     }
 
     #[test]
-    fn length_works() {
+    fn decoder_length_works() {
         let mut decoder = Utf8Decoder::new().length(3);
         let mut input = DecodeBuf::with_remaining_bytes(b"foobarba", 0);
 
@@ -747,5 +985,55 @@ mod test {
 
         let error = decoder.decode(&mut input).err().unwrap();
         assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
+    }
+
+    #[test]
+    fn encoder_length_works() {
+        let mut output = [0; 4];
+        {
+            let mut encoder = Utf8Encoder::new().length(3);
+            encoder.start_encoding("hey").unwrap(); // OK
+            encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+        }
+        assert_eq!(output.as_ref(), b"hey\x00");
+
+        {
+            let mut encoder = Utf8Encoder::new().length(3);
+            encoder.start_encoding("hello").unwrap(); // Error (too long)
+            let error = encoder
+                .encode(&mut EncodeBuf::new(&mut output))
+                .err()
+                .unwrap();
+            assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
+        }
+
+        {
+            let mut encoder = Utf8Encoder::new().length(3);
+            encoder.start_encoding("hi").unwrap(); // Error (too short)
+            let error = encoder.encode(&mut EncodeBuf::new(&mut output)).err();
+            assert_eq!(error.map(|e| *e.kind()), Some(ErrorKind::InvalidInput));
+        }
+    }
+
+    #[test]
+    fn padding_works() {
+        let mut output = [0; 4];
+        {
+            let mut encoder = U8Encoder::new().padding(9).length(3);
+            encoder.start_encoding(3).unwrap();
+            encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+        }
+        assert_eq!(output.as_ref(), [3, 9, 9, 0]);
+    }
+
+    #[test]
+    fn repeat_works() {
+        let mut output = [0; 4];
+        {
+            let mut encoder = U8Encoder::new().repeat();
+            encoder.start_encoding(0..4).unwrap();
+            encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+        }
+        assert_eq!(output.as_ref(), [0, 1, 2, 3]);
     }
 }
