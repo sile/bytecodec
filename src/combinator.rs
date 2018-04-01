@@ -490,7 +490,7 @@ where
         }
         {
             let items = self.items.as_mut().expect("Never fails");
-            while !(buf.is_empty() && buf.is_eos()) && !self.decoder.has_terminated() {
+            while !(buf.is_empty() && buf.is_eos() || self.decoder.has_terminated()) {
                 if let Some(item) = track!(self.decoder.decode(buf))? {
                     items.extend(iter::once(item));
                 } else {

@@ -513,21 +513,18 @@ where
     type Item = (A::Item, B::Item);
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let item = loop {
+        if self.a.item.is_none() {
+            track!(self.a.decode(buf))?;
             if self.a.item.is_none() {
-                track!(self.a.decode(buf))?;
-                if self.a.item.is_none() {
-                    break None;
-                }
+                return Ok(None);
             }
-            if let Some(b) = track!(self.b.decode(buf))? {
-                let a = self.a.item.take().expect("Never fails");
-                break Some((a, b));
-            } else {
-                break None;
-            }
-        };
-        Ok(item)
+        }
+        if let Some(b) = track!(self.b.decode(buf))? {
+            let a = self.a.item.take().expect("Never fails");
+            Ok(Some((a, b)))
+        } else {
+            Ok(None)
+        }
     }
 
     fn has_terminated(&self) -> bool {
