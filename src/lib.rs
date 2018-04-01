@@ -7,10 +7,10 @@ pub use decode::{Decode, DecodeBuf, DecodeExt, DecodedValue};
 pub use encode::{Encode, EncodeBuf, EncodeExt, ExactBytesEncode};
 pub use error::{Error, ErrorKind};
 
-pub mod buf; // TODO: rename (io?)
 pub mod bytes;
 pub mod combinator;
 pub mod fixnum;
+pub mod io;
 
 mod chain;
 mod decode;
