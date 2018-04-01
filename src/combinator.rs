@@ -108,8 +108,8 @@ where
             .map_err(|e| (self.map_err)(e).into())
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.codec.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.codec.requiring_bytes_hint()
     }
 }
 
@@ -210,8 +210,8 @@ where
         track!(self.encoder.start_encoding((self.from)(item)))
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.encoder.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.encoder.requiring_bytes_hint()
     }
 }
 
@@ -256,7 +256,7 @@ where
         Ok(())
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
+    fn requiring_bytes_hint(&self) -> Option<u64> {
         None
     }
 }
@@ -329,8 +329,8 @@ impl<E: Encode> Encode for Optional<E> {
         Ok(())
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.0.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.0.requiring_bytes_hint()
     }
 }
 

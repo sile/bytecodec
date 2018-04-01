@@ -35,13 +35,13 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert_eq!(self.remaining_bytes(), Some(0), ErrorKind::Full);
+        track_assert!(self.is_completed(), ErrorKind::Full);
         self.bytes = Some(item);
         self.offset = 0;
         Ok(())
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
+    fn requiring_bytes_hint(&self) -> Option<u64> {
         Some(
             self.bytes
                 .as_ref()
@@ -263,8 +263,8 @@ impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
         track!(self.0.start_encoding(Utf8Bytes(item)))
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.0.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.0.requiring_bytes_hint()
     }
 }
 impl<S> Default for Utf8Encoder<S> {

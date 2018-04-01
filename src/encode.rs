@@ -5,27 +5,46 @@ use std::ops::{Deref, DerefMut};
 use {Error, ErrorKind, Result};
 use combinator::{EncoderChain, MapErr, Optional, Repeat, StartEncodingFrom};
 
-// or `Encoder`
+/// This trait allows for encoding items into a byte sequence incrementally.
 pub trait Encode {
+    /// The type of items to be encoded.
     type Item;
 
-    // NOTE: 一バイトも書き込まれない場合には、エンコード終了を意味する
+    /// Encodes the current item and writes the encoded bytes to the given buffer as many as possible.
+    ///
+    /// If the encoded bytes are larger than the length of `buf`,
+    /// the encoder **must** consume all the bytes in the buffer.
+    /// The encoded bytes that could not be written is held by the encoder
+    /// until the next invocation of the `encode()` method.
+    ///
+    /// # Errors
+    ///
+    /// Encoders return the following kinds of errors as necessary:
+    /// - `ErrorKind::InvalidInput`: TODO
+    /// - `ErrorKind::UnexpectedEos`: TODO
+    /// - `ErrorKind::Other`: TODO
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()>;
 
+    /// Tries to start encoding the given item.
+    ///
+    /// Typically it means that the item is pushed to the queue of the encoder.
+    ///
+    /// If the encoding queue is empty and the item is valid, the encoder **should** accept it.
+    ///
+    /// # Errors
+    ///
+    /// - `ErrorKind::EncoderFull`: TODO
+    /// - `ErrorKind::InvalidInput`: TODO
+    /// - `ErrorKind::Other`: TODO
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
-    fn can_start(&self, _item: &Self::Item) -> bool {
-        self.is_empty()
-    }
+    fn requiring_bytes_hint(&self) -> Option<u64>;
 
-    fn remaining_bytes(&self) -> Option<u64>;
-
-    fn is_empty(&self) -> bool {
-        self.remaining_bytes() == Some(0)
-    }
-
+    /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
+    ///
+    /// The default implementation returns the result of `self.requiring_bytes_hint() == Some(0)`.
     fn is_completed(&self) -> bool {
-        self.is_empty()
+        self.requiring_bytes_hint() == Some(0)
     }
 }
 impl<E: ?Sized + Encode> Encode for Box<E> {
@@ -39,16 +58,8 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
         (**self).start_encoding(item)
     }
 
-    fn can_start(&self, item: &Self::Item) -> bool {
-        (**self).can_start(item)
-    }
-
-    fn remaining_bytes(&self) -> Option<u64> {
-        (**self).remaining_bytes()
-    }
-
-    fn is_empty(&self) -> bool {
-        (**self).is_empty()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        (**self).requiring_bytes_hint()
     }
 
     fn is_completed(&self) -> bool {
@@ -56,9 +67,11 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
     }
 }
 
-pub trait ExactSizeEncode: Encode {
-    // TODO: rename
-    fn remaining_bytes(&self) -> u64;
+pub trait ExactBytesEncode: Encode {
+    fn requiring_bytes(&self) -> u64 {
+        self.requiring_bytes_hint()
+            .expect("Must be a `Some(_)` value")
+    }
 }
 
 pub trait EncodeExt: Encode + Sized {
@@ -79,6 +92,7 @@ pub trait EncodeExt: Encode + Sized {
         MapErr::new(self, f)
     }
 
+    // TODO: map_from, try_map_from
     fn start_encoding_from<T, F>(self, f: F) -> StartEncodingFrom<Self, T, F>
     where
         F: Fn(T) -> Self::Item,
@@ -98,7 +112,7 @@ pub trait EncodeExt: Encode + Sized {
     }
 
     // padding
-
+    // max_bytes, length
     fn optional(self) -> Optional<Self> {
         Optional::new(self)
     }
@@ -109,6 +123,7 @@ impl<T: Encode> EncodeExt for T {}
 pub struct EncodeBuf<'a> {
     buf: &'a mut [u8],
     offset: usize,
+    // TODO: remaining_bytes
 }
 impl<'a> EncodeBuf<'a> {
     pub fn new(buf: &'a mut [u8]) -> Self {
@@ -121,6 +136,8 @@ impl<'a> EncodeBuf<'a> {
         self.offset += size;
         Ok(())
     }
+
+    // with_limit
 }
 impl<'a> AsRef<[u8]> for EncodeBuf<'a> {
     fn as_ref(&self) -> &[u8] {

@@ -236,8 +236,8 @@ where
         self.inner.b.start_encoding(t.0)
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.inner.b.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.b.requiring_bytes_hint()
     }
 }
 impl<E0, E1, T0> Encode for EncoderChain<E0, E1, (T0,)>
@@ -255,8 +255,8 @@ where
         self.inner.start_encoding(((t.0,), t.1))
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.inner.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
     }
 }
 impl<E0, E1, T0, T1> Encode for EncoderChain<E0, E1, (T0, T1)>
@@ -274,8 +274,8 @@ where
         self.inner.start_encoding(((t.0, t.1), t.2))
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.inner.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
     }
 }
 impl<E0, E1, T0, T1, T2> Encode for EncoderChain<E0, E1, (T0, T1, T2)>
@@ -293,8 +293,8 @@ where
         self.inner.start_encoding(((t.0, t.1, t.2), t.3))
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.inner.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
     }
 }
 impl<E0, E1, T0, T1, T2, T3> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3)>
@@ -312,8 +312,8 @@ where
         self.inner.start_encoding(((t.0, t.1, t.2, t.3), t.4))
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.inner.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
     }
 }
 impl<E0, E1, T0, T1, T2, T3, T4> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3, T4)>
@@ -331,8 +331,8 @@ where
         self.inner.start_encoding(((t.0, t.1, t.2, t.3, t.4), t.5))
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.inner.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
     }
 }
 impl<E0, E1, T0, T1, T2, T3, T4, T5> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3, T4, T5)>
@@ -351,8 +351,8 @@ where
             .start_encoding(((t.0, t.1, t.2, t.3, t.4, t.5), t.6))
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.inner.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
     }
 }
 impl<E0, E1, T0, T1, T2, T3, T4, T5, T6> Encode
@@ -372,8 +372,8 @@ where
             .start_encoding(((t.0, t.1, t.2, t.3, t.4, t.5, t.6), t.7))
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
-        self.inner.remaining_bytes()
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        self.inner.requiring_bytes_hint()
     }
 }
 
@@ -418,13 +418,13 @@ where
         Ok(())
     }
 
-    fn remaining_bytes(&self) -> Option<u64> {
+    fn requiring_bytes_hint(&self) -> Option<u64> {
         let mut size = Some(0);
         if self.i <= 0 {
-            size = size.and_then(|x| self.a.remaining_bytes().map(|y| x + y));
+            size = size.and_then(|x| self.a.requiring_bytes_hint().map(|y| x + y));
         }
         if self.i <= 1 {
-            size = size.and_then(|x| self.b.remaining_bytes().map(|y| x + y));
+            size = size.and_then(|x| self.b.requiring_bytes_hint().map(|y| x + y));
         }
         size
     }

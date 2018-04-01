@@ -40,8 +40,8 @@ macro_rules! impl_encode {
                 track!(self.0.start_encoding(b))
             }
 
-            fn remaining_bytes(&self) -> Option<u64> {
-                self.0.remaining_bytes()
+            fn requiring_bytes_hint(&self) -> Option<u64> {
+                self.0.requiring_bytes_hint()
             }
         }
     }

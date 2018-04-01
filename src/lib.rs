@@ -4,7 +4,7 @@ extern crate trackable;
 
 pub use chain::{StartDecoderChain, StartEncoderChain};
 pub use decode::{Decode, DecodeBuf, DecodeExt, DecodedValue};
-pub use encode::{Encode, EncodeBuf, EncodeExt, ExactSizeEncode};
+pub use encode::{Encode, EncodeBuf, EncodeExt, ExactBytesEncode};
 pub use error::{Error, ErrorKind};
 
 pub mod buf; // TODO: rename (io?)
