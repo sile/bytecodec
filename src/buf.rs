@@ -92,7 +92,8 @@ impl<'a> DecodeBuf<'a> {
 
     /// Returns `true` if it reaches the end of the sequence(EOS), otherwise `false`.
     ///
-    /// "EOS" means that once the current buffer is consumed, no more bytes is available for decoding items.
+    /// "EOS" means that once the current buffer is consumed,
+    /// no more bytes is available for decoding items.
     /// From an operational point of view, it means that the number of remaining bytes is `0`.
     ///
     /// # Examples
@@ -126,7 +127,8 @@ impl<'a> DecodeBuf<'a> {
     ///
     /// # Errors
     ///
-    /// If `size` exceeds the length of the buffer, it will return an `ErrorKind::InvalidInput` error.
+    /// If `size` exceeds the length of the buffer,
+    /// it will return an `ErrorKind::InvalidInput` error.
     ///
     /// # Examples
     ///
@@ -315,7 +317,8 @@ impl<'a> EncodeBuf<'a> {
     ///
     /// # Errors
     ///
-    /// If `size` exceeds the length of the buffer, it will return an `ErrorKind::InvalidInput` error.
+    /// If `size` exceeds the length of the buffer,
+    /// it will return an `ErrorKind::InvalidInput` error.
     ///
     /// # Examples
     ///

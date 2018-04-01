@@ -179,7 +179,7 @@ impl<E: Encode> IoEncoder<E> {
                 let mut buf = EncodeBuf::new(&mut self.buf[self.tail..]);
                 let old_buf_len = buf.len();
                 track!(self.inner.encode(&mut buf))?;
-                self.tail += (old_buf_len - buf.len());
+                self.tail += old_buf_len - buf.len();
             }
         }
     }

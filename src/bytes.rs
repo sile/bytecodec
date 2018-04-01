@@ -52,7 +52,8 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
             if self.offset == b.as_ref().len() {
                 true
             } else {
-                track_assert!(!buf.is_eos(), ErrorKind::UnexpectedEos; self.offset, b.as_ref().len());
+                track_assert!(!buf.is_eos(), ErrorKind::UnexpectedEos;
+                              self.offset, b.as_ref().len());
                 false
             }
         } else {
