@@ -119,6 +119,7 @@ pub trait EncodeExt: Encode + Sized {
         EncoderChain::new(self, other)
     }
 
+    // TODO: rename
     fn repeat<I>(self) -> Repeat<Self, I>
     where
         I: Iterator<Item = Self::Item>,

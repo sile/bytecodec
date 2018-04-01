@@ -5,12 +5,31 @@ use trackable::error::ErrorKindExt;
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
 
+/// `BytesEncoder` writes the given bytes into an output byte sequence.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::bytes::BytesEncoder;
+///
+/// let mut output = [0; 4];
+/// {
+///     let mut buf = EncodeBuf::new(&mut output);
+///     let mut encoder = BytesEncoder::with_item(b"foo").unwrap();
+///     encoder.encode(&mut buf).unwrap();
+///     assert!(encoder.is_completed());
+///     assert_eq!(buf.len(), 1);
+/// }
+/// assert_eq!(&output[..], b"foo\x00");
+/// ```
 #[derive(Debug)]
 pub struct BytesEncoder<B> {
     bytes: Option<B>,
     offset: usize,
 }
 impl<B> BytesEncoder<B> {
+    /// Makes a new `BytesEncoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
@@ -27,9 +46,20 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     type Item = B;
 
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        if let Some(ref mut b) = self.bytes {
+        let drop_item = if let Some(ref b) = self.bytes {
             let size = track!(buf.write(&b.as_ref()[self.offset..]).map_err(Error::from))?;
             self.offset += size;
+            if self.offset == b.as_ref().len() {
+                true
+            } else {
+                track_assert!(!buf.is_eos(), ErrorKind::UnexpectedEos; self.offset, b.as_ref().len());
+                false
+            }
+        } else {
+            false
+        };
+        if drop_item {
+            self.bytes = None;
         }
         Ok(())
     }
@@ -42,11 +72,14 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        Some(
-            self.bytes
-                .as_ref()
-                .map_or(0, |b| (b.as_ref().len() - self.offset) as u64),
-        )
+        let n = self.bytes
+            .as_ref()
+            .map_or(0, |b| b.as_ref().len() - self.offset);
+        Some(n as u64)
+    }
+
+    fn is_completed(&self) -> bool {
+        self.bytes.is_none()
     }
 }
 
@@ -247,11 +280,30 @@ impl<T: AsRef<str>> AsRef<[u8]> for Utf8Bytes<T> {
     }
 }
 
+/// `Utf8Encoder` writes the given Rust string into an output byte sequence.
+///
+/// # Examples
+///
+/// ```
+/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::bytes::Utf8Encoder;
+///
+/// let mut output = [0; 4];
+/// {
+///     let mut buf = EncodeBuf::new(&mut output);
+///     let mut encoder = Utf8Encoder::with_item("foo").unwrap();
+///     encoder.encode(&mut buf).unwrap();
+///     assert!(encoder.is_completed());
+///     assert_eq!(buf.len(), 1);
+/// }
+/// assert_eq!(&output[..], b"foo\x00");
+/// ```
 #[derive(Debug)]
 pub struct Utf8Encoder<S = String>(BytesEncoder<Utf8Bytes<S>>);
 impl<S> Utf8Encoder<S> {
+    /// Makes a new `Utf8Encoder` instance.
     pub fn new() -> Self {
-        Self::default()
+        Utf8Encoder(BytesEncoder::new())
     }
 }
 impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
@@ -267,6 +319,10 @@ impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.0.requiring_bytes_hint()
+    }
+
+    fn is_completed(&self) -> bool {
+        self.0.is_completed()
     }
 }
 impl<S> Default for Utf8Encoder<S> {
@@ -331,7 +387,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeBuf, ErrorKind};
+    use {Decode, DecodeBuf, Encode, EncodeBuf, EncodeExt, ErrorKind};
     use super::*;
 
     #[test]
@@ -348,5 +404,18 @@ mod test {
             decoder.decode(&mut input).err().map(|e| *e.kind()),
             Some(ErrorKind::DecoderTerminated)
         );
+    }
+
+    #[test]
+    fn utf8_encoder_works() {
+        let mut output = [0; 4];
+        {
+            let mut buf = EncodeBuf::new(&mut output);
+            let mut encoder = Utf8Encoder::with_item("foo").unwrap();
+            encoder.encode(&mut buf).unwrap();
+            assert!(encoder.is_completed());
+            assert_eq!(buf.len(), 1);
+        }
+        assert_eq!(&output[..], b"foo\x00");
     }
 }
