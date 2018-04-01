@@ -362,7 +362,7 @@ where
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
         {
             let items = track_assert_some!(self.items.as_mut(), ErrorKind::DecoderTerminated);
-            while !buf.is_eos() && !self.decoder.has_terminated() {
+            while !(buf.is_empty() && buf.is_eos()) && !self.decoder.has_terminated() {
                 if let Some(item) = track!(self.decoder.decode(buf))? {
                     items.extend(iter::once(item));
                 } else {

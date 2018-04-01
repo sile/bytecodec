@@ -1,8 +1,4 @@
-use std::cmp;
-use std::io::{self, Write};
-use std::ops::{Deref, DerefMut};
-
-use {Error, ErrorKind, Result};
+use {EncodeBuf, Error, Result};
 use combinator::{EncoderChain, MapErr, Optional, Repeat, StartEncodingFrom};
 
 /// This trait allows for encoding items into a byte sequence incrementally.
@@ -118,57 +114,3 @@ pub trait EncodeExt: Encode + Sized {
     }
 }
 impl<T: Encode> EncodeExt for T {}
-
-#[derive(Debug)]
-pub struct EncodeBuf<'a> {
-    buf: &'a mut [u8],
-    offset: usize,
-    // TODO: remaining_bytes
-}
-impl<'a> EncodeBuf<'a> {
-    pub fn new(buf: &'a mut [u8]) -> Self {
-        EncodeBuf { buf, offset: 0 }
-    }
-
-    pub fn consume(&mut self, size: usize) -> Result<()> {
-        track_assert!(self.offset + size <= self.len(), ErrorKind::InvalidInput;
-                      self.offset, size, self.len());
-        self.offset += size;
-        Ok(())
-    }
-
-    // with_limit
-}
-impl<'a> AsRef<[u8]> for EncodeBuf<'a> {
-    fn as_ref(&self) -> &[u8] {
-        &self.buf[self.offset..]
-    }
-}
-impl<'a> AsMut<[u8]> for EncodeBuf<'a> {
-    fn as_mut(&mut self) -> &mut [u8] {
-        &mut self.buf[self.offset..]
-    }
-}
-impl<'a> Deref for EncodeBuf<'a> {
-    type Target = [u8];
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
-impl<'a> DerefMut for EncodeBuf<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_mut()
-    }
-}
-impl<'a> Write for EncodeBuf<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let size = cmp::min(self.len(), buf.len());
-        (&mut self.as_mut()[..size]).copy_from_slice(&buf[..size]);
-        self.offset += size;
-        Ok(size)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}

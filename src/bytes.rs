@@ -197,11 +197,13 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
 /// let mut input = DecodeBuf::new(b"foo");
 /// let item = decoder.decode(&mut input).unwrap();
 /// assert_eq!(item, None);
+/// assert!(input.is_empty());
 /// assert!(!input.is_eos());
 ///
 /// let mut input = DecodeBuf::with_remaining_bytes(b"bar", 0);
 /// let item = decoder.decode(&mut input).unwrap();
 /// assert_eq!(item, Some(b"foobar".to_vec()));
+/// assert!(input.is_empty());
 /// assert!(input.is_eos());
 /// ```
 #[derive(Debug, Default)]

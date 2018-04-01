@@ -104,7 +104,7 @@ impl<D: Decode> BufDecoder<D> {
                         return Err(track!(Error::from(e)));
                     }
                     Ok(0) => {
-                        let mut buf = DecodeBuf::eos();
+                        let mut buf = DecodeBuf::new_as_eos(&[]);
                         self.item = track!(self.decoder.decode(&mut buf))?;
                         return Ok(true);
                     }
