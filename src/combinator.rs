@@ -331,7 +331,7 @@ where
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         while !buf.is_empty() && self.items.is_some() {
             track!(self.encoder.encode(buf))?;
-            if !self.encoder.is_completed() {
+            if self.encoder.is_completed() {
                 if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
                     track!(self.encoder.start_encoding(item))?;
                 } else {

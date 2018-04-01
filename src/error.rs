@@ -22,11 +22,13 @@ impl From<std::io::Error> for Error {
     }
 }
 
+/// Possible error kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(missing_docs)]
 pub enum ErrorKind {
     InvalidInput,
-    EncoderFull,
     UnexpectedEos,
+    EncoderFull,
     DecoderTerminated,
     Other,
 }
