@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::mem;
 use trackable::error::ErrorKindExt;
 
-use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, ExactBytesEncode, Result};
 
 /// `BytesEncoder` writes the given bytes into an output byte sequence.
 ///
@@ -72,14 +72,18 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        let n = self.bytes
-            .as_ref()
-            .map_or(0, |b| b.as_ref().len() - self.offset);
-        Some(n as u64)
+        Some(self.requiring_bytes())
     }
 
     fn is_completed(&self) -> bool {
         self.bytes.is_none()
+    }
+}
+impl<B: AsRef<[u8]>> ExactBytesEncode for BytesEncoder<B> {
+    fn requiring_bytes(&self) -> u64 {
+        self.bytes
+            .as_ref()
+            .map_or(0, |b| b.as_ref().len() - self.offset) as u64
     }
 }
 
@@ -323,6 +327,11 @@ impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
 
     fn is_completed(&self) -> bool {
         self.0.is_completed()
+    }
+}
+impl<S: AsRef<str>> ExactBytesEncode for Utf8Encoder<S> {
+    fn requiring_bytes(&self) -> u64 {
+        self.0.requiring_bytes()
     }
 }
 impl<S> Default for Utf8Encoder<S> {

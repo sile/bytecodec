@@ -1,7 +1,7 @@
 //! Encoders and decoders for numbers which have fixed length binary representation.
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, ExactBytesEncode, Result};
 use bytes::{BytesEncoder, CopyableBytesDecoder};
 
 macro_rules! impl_decode {
@@ -46,6 +46,11 @@ macro_rules! impl_encode {
 
             fn is_completed(&self) -> bool {
                 self.0.is_completed()
+            }
+        }
+        impl ExactBytesEncode for $ty {
+            fn requiring_bytes(&self) -> u64 {
+                self.0.requiring_bytes()
             }
         }
     }
