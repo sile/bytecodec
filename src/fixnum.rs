@@ -1035,6 +1035,7 @@ impl_decode!(U56beDecoder, u64);
 #[derive(Debug, Default)]
 pub struct U56leDecoder(CopyableBytesDecoder<[u8; 7]>);
 impl U56leDecoder {
+    /// Makes a new `U56leDecoder` instance.
     pub fn new() -> Self {
         Self::default()
     }
