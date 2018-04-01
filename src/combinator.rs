@@ -785,8 +785,7 @@ impl<D: Decode> Decode for SkipRemaining<D> {
             self.item = track!(self.decoder.decode(buf))?;
         }
         if self.item.is_some() {
-            let rest = buf.len();
-            track!(buf.consume(rest))?;
+            buf.consume_all();
             if buf.is_eos() {
                 return Ok(self.item.take());
             }

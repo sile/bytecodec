@@ -10,7 +10,7 @@ use {ErrorKind, Result};
 /// Decoders consume consecutive buffers and decode items.
 ///
 /// In addition, `DecodeBuf` optionally provides the number of bytes remaining in the sequence to decoders.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DecodeBuf<'a> {
     buf: &'a [u8],
     offset: usize,
@@ -152,6 +152,11 @@ impl<'a> DecodeBuf<'a> {
                       self.offset, size, self.buf.len());
         self.offset += size;
         Ok(())
+    }
+
+    /// Consumes all bytes in the buffer.
+    pub fn consume_all(&mut self) {
+        self.offset = self.buf.len();
     }
 
     /// Executes the given function with the limited length decoding buffer.
@@ -343,6 +348,11 @@ impl<'a> EncodeBuf<'a> {
                       self.offset, size, self.len());
         self.offset += size;
         Ok(())
+    }
+
+    /// Consumes all bytes in the buffer.
+    pub fn consume_all(&mut self) {
+        self.offset = self.buf.len();
     }
 
     /// Executes the given function with the limited length encoding buffer.

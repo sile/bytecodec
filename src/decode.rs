@@ -209,7 +209,7 @@ pub trait DecodeExt: Decode + Sized {
     /// assert_eq!(error.to_string(), "\
     /// UnexpectedEos (cause; assertion failed: `!buf.is_eos()`)
     /// HISTORY:
-    ///   [0] at src/bytes.rs:143
+    ///   [0] at src/bytes.rs:144
     ///   [1] at src/fixnum.rs:199
     ///   [2] at src/decode.rs:11 -- oops!
     ///   [3] at src/decode.rs:17\n");
