@@ -434,22 +434,18 @@ impl<D: Decode> Decode for Length<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        let old_buf_len = buf.len();
         let buf_len = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
         let expected_remaining_bytes = self.remaining_bytes - buf_len as u64;
         if let Some(remaining_bytes) = buf.remaining_bytes() {
             track_assert!(remaining_bytes >= expected_remaining_bytes, ErrorKind::UnexpectedEos;
                           remaining_bytes, expected_remaining_bytes);
         }
-        let (item, consumed_len) = {
-            let mut actual_buf =
-                DecodeBuf::with_remaining_bytes(&buf[..buf_len], expected_remaining_bytes);
-            let item = track!(self.decoder.decode(&mut actual_buf))?;
-            let consumed_len = buf_len - actual_buf.len();
-            (item, consumed_len)
-        };
+        let item = buf.with_limit_and_remaining_bytes(buf_len, expected_remaining_bytes, |buf| {
+            track!(self.decoder.decode(buf))
+        })?;
 
-        self.remaining_bytes -= consumed_len as u64;
-        track!(buf.consume(consumed_len))?;
+        self.remaining_bytes -= (old_buf_len - buf.len()) as u64;
         if item.is_some() {
             track_assert_eq!(
                 self.remaining_bytes,
@@ -654,21 +650,10 @@ impl<D: Decode> Decode for MaxBytes<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        let old_buf_len = buf.len();
         let actual_buf_len = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
-        let (item, consumed_len) = {
-            let mut actual_buf = if let Some(remaining_bytes) = buf.remaining_bytes() {
-                let actual_remaining_bytes = remaining_bytes + (buf.len() - actual_buf_len) as u64;
-                DecodeBuf::with_remaining_bytes(&buf[..actual_buf_len], actual_remaining_bytes)
-            } else {
-                DecodeBuf::new(&buf[..actual_buf_len])
-            };
-            let item = track!(self.decoder.decode(&mut actual_buf))?;
-            let consumed_len = actual_buf_len - actual_buf.len();
-            (item, consumed_len)
-        };
-
-        self.consumed_bytes += consumed_len as u64;
-        track!(buf.consume(consumed_len))?;
+        let item = buf.with_limit(actual_buf_len, |buf| track!(self.decoder.decode(buf)))?;
+        self.consumed_bytes = (old_buf_len - buf.len()) as u64;
         if self.consumed_bytes == self.max_bytes {
             track_assert!(item.is_some(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
                           self.max_bytes);

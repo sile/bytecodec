@@ -585,6 +585,71 @@ impl<'a> DecodeBuf<'a> {
         self.offset += size;
         Ok(())
     }
+
+    /// Executes the given function with the limited length decoding buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::io::Read;
+    /// use bytecodec::DecodeBuf;
+    ///
+    /// let mut buf = DecodeBuf::new(b"foobar");
+    /// let s = buf.with_limit(3, |buf| {
+    ///     let mut s = String::new();
+    ///     buf.read_to_string(&mut s).unwrap();
+    ///     s
+    ///  });
+    ///
+    /// assert_eq!(s, "foo");
+    /// assert_eq!(buf.as_ref(), b"bar");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// if `limit` exceeds the length of the buffer, the calling thread will panic.
+    pub fn with_limit<F, T>(&mut self, limit: usize, f: F) -> T
+    where
+        F: FnOnce(&mut Self) -> T,
+    {
+        let (result, consumed_len) = {
+            let mut buf = if let Some(remaining_bytes) = self.remaining_bytes() {
+                let remaining_bytes = remaining_bytes + (self.len() - limit) as u64;
+                DecodeBuf::with_remaining_bytes(&self.buf[self.offset..][..limit], remaining_bytes)
+            } else {
+                DecodeBuf::new(&self.buf[self.offset..][..limit])
+            };
+            let result = f(&mut buf);
+            (result, limit - buf.len())
+        };
+        self.offset += consumed_len;
+        result
+    }
+
+    /// Executes the given function with the limited length decoding buffer
+    /// that have the specified remaining bytes information.
+    ///
+    /// # Panics
+    ///
+    /// if `limit` exceeds the length of the buffer, the calling thread will panic.
+    pub fn with_limit_and_remaining_bytes<F, T>(
+        &mut self,
+        limit: usize,
+        remaining_bytes: u64,
+        f: F,
+    ) -> T
+    where
+        F: FnOnce(&mut Self) -> T,
+    {
+        let (result, consumed_len) = {
+            let mut buf =
+                DecodeBuf::with_remaining_bytes(&self.buf[self.offset..][..limit], remaining_bytes);
+            let result = f(&mut buf);
+            (result, limit - buf.len())
+        };
+        self.offset += consumed_len;
+        result
+    }
 }
 impl<'a> AsRef<[u8]> for DecodeBuf<'a> {
     fn as_ref(&self) -> &[u8] {
