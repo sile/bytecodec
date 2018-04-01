@@ -330,9 +330,8 @@ where
 
     fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
         while !buf.is_empty() && self.items.is_some() {
-            let old_buf_len = buf.len();
             track!(self.encoder.encode(buf))?;
-            if old_buf_len == buf.len() {
+            if !self.encoder.is_completed() {
                 if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
                     track!(self.encoder.start_encoding(item))?;
                 } else {
@@ -344,13 +343,21 @@ where
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert!(self.items.is_none(), ErrorKind::EncoderFull);
+        track_assert!(self.is_completed(), ErrorKind::EncoderFull);
         self.items = Some(item);
         Ok(())
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
-        None
+        if self.is_completed() {
+            Some(0)
+        } else {
+            None
+        }
+    }
+
+    fn is_completed(&self) -> bool {
+        self.items.is_none()
     }
 }
 

@@ -42,18 +42,22 @@ pub trait Encode {
     ///   - Other errors has occurred
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
+    /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
+    fn is_completed(&self) -> bool;
+
     /// Returns the number of bytes required to encode all the items in the encoder.
     ///
     /// If the encoder does not known the value, it will return `None`.
     ///
     /// If there is no items to be encoded, the encoder **should** return `Ok(0)`.
-    fn requiring_bytes_hint(&self) -> Option<u64>;
-
-    /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
     ///
-    /// The default implementation returns the result of `self.requiring_bytes_hint() == Some(0)`.
-    fn is_completed(&self) -> bool {
-        self.requiring_bytes_hint() == Some(0)
+    /// The default implementation returns `Some(0)` if the encoder has no items, otherwise `None`.
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        if self.is_completed() {
+            Some(0)
+        } else {
+            None
+        }
     }
 }
 impl<E: ?Sized + Encode> Encode for Box<E> {

@@ -240,6 +240,10 @@ impl Encode for StartEncoderChain {
         track_panic!(ErrorKind::Other)
     }
 
+    fn is_completed(&self) -> bool {
+        true
+    }
+
     fn requiring_bytes_hint(&self) -> Option<u64> {
         Some(0)
     }
