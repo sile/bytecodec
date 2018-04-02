@@ -989,6 +989,76 @@ impl<E: Encode> Encode for Padding<E> {
     }
 }
 
+/// Combinator for adding prefix items.
+///
+/// This is created by calling `EncodeExt::with_prefix` method.
+#[derive(Debug)]
+pub struct WithPrefix<E0, E1, F> {
+    body_encoder: E0,
+    prefix_encoder: E1,
+    with_prefix: F,
+}
+impl<E0, E1, F> WithPrefix<E0, E1, F> {
+    pub(crate) fn new(body_encoder: E0, prefix_encoder: E1, with_prefix: F) -> Self {
+        WithPrefix {
+            body_encoder,
+            prefix_encoder,
+            with_prefix,
+        }
+    }
+}
+impl<E0, E1, F> Encode for WithPrefix<E0, E1, F>
+where
+    E0: Encode,
+    E1: Encode,
+    F: Fn(&E0) -> E1::Item,
+{
+    type Item = E0::Item;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        if !self.prefix_encoder.is_idle() {
+            track!(self.prefix_encoder.encode(buf))?;
+        }
+        if self.prefix_encoder.is_idle() {
+            track!(self.body_encoder.encode(buf))?;
+        }
+        Ok(())
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track_assert!(self.is_idle(), ErrorKind::EncoderFull);
+        track!(self.body_encoder.start_encoding(item))?;
+        let prefix_item = (self.with_prefix)(&self.body_encoder);
+        track!(self.prefix_encoder.start_encoding(prefix_item))?;
+        Ok(())
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        let a = self.prefix_encoder.requiring_bytes_hint();
+        let b = self.body_encoder.requiring_bytes_hint();
+        match (a, b) {
+            (Some(a), Some(b)) => Some(a + b),
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (None, None) => None,
+        }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.prefix_encoder.is_idle() && self.body_encoder.is_idle()
+    }
+}
+impl<E0, E1, F> ExactBytesEncode for WithPrefix<E0, E1, F>
+where
+    E0: ExactBytesEncode,
+    E1: ExactBytesEncode,
+    F: Fn(&E0) -> E1::Item,
+{
+    fn requiring_bytes(&self) -> u64 {
+        self.prefix_encoder.requiring_bytes() + self.body_encoder.requiring_bytes()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use {Decode, DecodeBuf, DecodeExt, Encode, EncodeBuf, EncodeExt, ErrorKind};

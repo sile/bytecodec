@@ -2,7 +2,7 @@ use std;
 
 use {EncodeBuf, Error, Result};
 use combinator::{EncoderChain, Length, MapErr, MapFrom, MaxBytes, Optional, Padding, Repeat,
-                 TryMapFrom};
+                 TryMapFrom, WithPrefix};
 
 /// This trait allows for encoding items into a byte sequence incrementally.
 pub trait Encode {
@@ -384,6 +384,34 @@ pub trait EncodeExt: Encode + Sized {
         I: Iterator<Item = Self::Item>,
     {
         Repeat::new(self)
+    }
+
+    /// Creates an encoder that has a prefixed item encoded by `E`.
+    ///
+    /// # Examples
+    ///
+    /// Encodes a length prefixed UTF-8 string:
+    ///
+    /// ```
+    /// use bytecodec::{Encode, EncodeBuf, EncodeExt, ExactBytesEncode};
+    /// use bytecodec::bytes::Utf8Encoder;
+    /// use bytecodec::fixnum::U8Encoder;
+    ///
+    /// let mut output = [0; 4];
+    /// {
+    ///     let mut encoder =
+    ///         Utf8Encoder::new().with_prefix(U8Encoder::new(), |body| body.requiring_bytes() as u8);
+    ///     encoder.start_encoding("foo").unwrap();
+    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+    /// }
+    /// assert_eq!(output.as_ref(), [3, b'f', b'o', b'o']);
+    /// ```
+    fn with_prefix<E, F>(self, prefix: E, f: F) -> WithPrefix<Self, E, F>
+    where
+        F: Fn(&Self) -> E::Item,
+        E: Encode,
+    {
+        WithPrefix::new(self, prefix, f)
     }
 }
 impl<T: Encode> EncodeExt for T {}
