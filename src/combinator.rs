@@ -618,11 +618,7 @@ impl<E: Encode> Encode for Length<E> {
         let original_buf_len = buf.len();
         let limit = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
         let eos = limit as u64 == self.remaining_bytes;
-        if eos {
-            buf.with_limit_and_eos(limit, |buf| track!(self.codec.encode(buf)))?;
-        } else {
-            buf.with_limit(limit, |buf| track!(self.codec.encode(buf)))?;
-        }
+        buf.with_limit_and_eos(limit, eos, |buf| track!(self.codec.encode(buf)))?;
 
         self.remaining_bytes -= (original_buf_len - buf.len()) as u64;
         if self.codec.is_idle() {

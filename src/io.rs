@@ -74,7 +74,7 @@ impl<D: Decode> IoDecoder<D> {
                     }
                     Ok(0) => {
                         if !self.inner.is_idle() {
-                            let mut buf = DecodeBuf::new_as_eos(&[]);
+                            let mut buf = DecodeBuf::with_eos(&[], true);
                             item = track!(self.inner.decode(&mut buf))?;
                         }
                         return Ok((true, item));

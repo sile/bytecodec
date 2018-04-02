@@ -138,7 +138,7 @@ pub trait EncodeExt: Encode + Sized {
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// # fn main() {
-    /// let mut buf = EncodeBuf::new_as_eos(&mut [][..]); // Empty and EOS buffer
+    /// let mut buf = EncodeBuf::with_eos(&mut [][..], true); // Empty and EOS buffer
     ///
     /// let encoder = U8Encoder::with_item(7).unwrap();
     /// let mut encoder = encoder.map_err(|e| track!(e, "oops!")); // or track_err!(encoder, "oops!")

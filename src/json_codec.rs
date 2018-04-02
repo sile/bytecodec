@@ -29,7 +29,7 @@ use monolithic::{MonolithicDecode, MonolithicDecoder, MonolithicEncode, Monolith
 ///
 /// decoder.decode(&mut DecodeBuf::new(b"[1, 2")).unwrap();
 /// let json = decoder
-///    .decode(&mut DecodeBuf::new_as_eos(b", 3]"))
+///    .decode(&mut DecodeBuf::with_eos(b", 3]", true))
 ///    .unwrap()
 ///    .unwrap();
 ///
@@ -176,7 +176,7 @@ mod test {
 
         decoder.decode(&mut DecodeBuf::new(b"[1, 2")).unwrap();
         let json = decoder
-            .decode(&mut DecodeBuf::new_as_eos(b", 3]"))
+            .decode(&mut DecodeBuf::with_eos(b", 3]", true))
             .unwrap()
             .unwrap();
 

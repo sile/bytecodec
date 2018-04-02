@@ -36,18 +36,25 @@ impl<'a> DecodeBuf<'a> {
         }
     }
 
-    /// Makes a new `DecodeBuf` instance that indicates the end of the input byte sequence.
+    /// Makes a new `DecodeBuf` instance with the given EOS indication.
     ///
     /// ```
     /// use bytecodec::DecodeBuf;
     ///
-    /// let buf = DecodeBuf::new_as_eos(b"foo");
-    /// assert_eq!(buf.as_ref(), b"foo");
+    /// let buf = DecodeBuf::with_eos(b"foo", true); // EOS
     /// assert_eq!(buf.remaining_bytes(), Some(0));
     /// assert!(buf.is_eos());
+    ///
+    /// let buf = DecodeBuf::with_eos(b"foo", false); // Not EOS
+    /// assert_eq!(buf.remaining_bytes(), None);
+    /// assert!(!buf.is_eos());
     /// ```
-    pub fn new_as_eos(buf: &'a [u8]) -> Self {
-        Self::with_remaining_bytes(buf, 0)
+    pub fn with_eos(buf: &'a [u8], eos: bool) -> Self {
+        DecodeBuf {
+            buf,
+            offset: 0,
+            remaining_bytes: if eos { Some(0) } else { None },
+        }
     }
 
     /// Makes a new `DecodeBuf` instance with the given number of remaining bytes.
@@ -274,21 +281,24 @@ impl<'a> EncodeBuf<'a> {
         }
     }
 
-    /// Makes a new `EncodeBuf` instance that indicates the end of the output byte sequence.
+    /// Makes a new `EncodeBuf` instance with the given EOS indication.
     ///
     /// ```
     /// use bytecodec::EncodeBuf;
     ///
     /// let mut inner = [0; 3];
-    /// let buf = EncodeBuf::new_as_eos(&mut inner[..]);
-    /// assert_eq!(buf.len(), 3);
+    /// let buf = EncodeBuf::with_eos(&mut inner[..], true);
     /// assert!(buf.is_eos());
+    ///
+    /// let mut inner = [0; 3];
+    /// let buf = EncodeBuf::with_eos(&mut inner[..], false);
+    /// assert!(!buf.is_eos());
     /// ```
-    pub fn new_as_eos(buf: &'a mut [u8]) -> Self {
+    pub fn with_eos(buf: &'a mut [u8], eos: bool) -> Self {
         EncodeBuf {
             buf,
             offset: 0,
-            eos: true,
+            eos,
         }
     }
 
@@ -309,7 +319,7 @@ impl<'a> EncodeBuf<'a> {
     ///
     /// // EOS
     /// let mut inner = [0; 3];
-    /// let buf = EncodeBuf::new_as_eos(&mut inner[..]);
+    /// let buf = EncodeBuf::with_eos(&mut inner[..], true);
     /// assert!(buf.is_eos());
     /// ```
     pub fn is_eos(&self) -> bool {
@@ -391,7 +401,7 @@ impl<'a> EncodeBuf<'a> {
         }
     }
 
-    /// Executes the given function with the limited length encoding buffer that marked as EOS.
+    /// Executes the given function with the limited length encoding buffer and the EOS indication.
     ///
     /// # Examples
     ///
@@ -401,7 +411,7 @@ impl<'a> EncodeBuf<'a> {
     ///
     /// let mut inner = [0; 10];
     /// let mut buf = EncodeBuf::new(&mut inner);
-    /// let size = buf.with_limit_and_eos(3, |buf| {
+    /// let size = buf.with_limit_and_eos(3, true, |buf| {
     ///     assert!(buf.is_eos());
     ///     buf.write(b"foobar").unwrap()
     /// });
@@ -413,12 +423,12 @@ impl<'a> EncodeBuf<'a> {
     /// # Panics
     ///
     /// if `limit` exceeds the length of the buffer, the calling thread will panic.
-    pub fn with_limit_and_eos<F, T>(&mut self, limit: usize, f: F) -> T
+    pub fn with_limit_and_eos<F, T>(&mut self, limit: usize, eos: bool, f: F) -> T
     where
         F: FnOnce(&mut EncodeBuf) -> T,
     {
         let (result, consumed_len) = {
-            let mut buf = EncodeBuf::new_as_eos(&mut self.buf[self.offset..][..limit]);
+            let mut buf = EncodeBuf::with_eos(&mut self.buf[self.offset..][..limit], eos);
             let result = f(&mut buf);
             (result, limit - buf.len())
         };
