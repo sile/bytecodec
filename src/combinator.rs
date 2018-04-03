@@ -11,7 +11,7 @@ pub use chain::{DecoderChain, EncoderChain};
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, ExactBytesEncode, Result};
 use bytes::BytesEncoder;
-use io::IoEncoder;
+use io::encode_to_writer;
 
 /// Combinator for converting decoded items to other values.
 ///
@@ -521,14 +521,14 @@ where
 /// This is created by calling `{DecodeExt, EncodeExt}::length` method.
 #[derive(Debug)]
 pub struct Length<C> {
-    codec: C,
+    inner: C,
     expected_bytes: u64,
     remaining_bytes: u64,
 }
 impl<C> Length<C> {
-    pub(crate) fn new(codec: C, expected_bytes: u64) -> Self {
+    pub(crate) fn new(inner: C, expected_bytes: u64) -> Self {
         Length {
-            codec,
+            inner,
             expected_bytes,
             remaining_bytes: expected_bytes,
         }
@@ -543,7 +543,7 @@ impl<C> Length<C> {
     ///
     /// # Errors
     ///
-    /// If the codec is in the middle of decoding an item, it willl return an `ErrorKind::Other` error.
+    /// If it is in the middle of decoding an item, it willl return an `ErrorKind::Other` error.
     pub fn set_expected_bytes(&mut self, bytes: u64) -> Result<()> {
         track_assert_eq!(
             self.remaining_bytes,
@@ -552,12 +552,23 @@ impl<C> Length<C> {
             "An item is being decoded"
         );
         self.expected_bytes = bytes;
+        self.remaining_bytes = bytes;
         Ok(())
     }
 
     /// Returns the number of remaining bytes required to decode the next item.
     pub fn remaining_bytes(&self) -> u64 {
         self.remaining_bytes
+    }
+
+    /// Returns a reference to the inner encoder or decoder.
+    pub fn inner_ref(&self) -> &C {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder or decoder.
+    pub fn inner_mut(&mut self) -> &mut C {
+        &mut self.inner
     }
 }
 impl<D: Decode> Decode for Length<D> {
@@ -572,7 +583,7 @@ impl<D: Decode> Decode for Length<D> {
                           remaining_bytes, expected_remaining_bytes);
         }
         let item = buf.with_limit_and_remaining_bytes(buf_len, expected_remaining_bytes, |buf| {
-            track!(self.codec.decode(buf))
+            track!(self.inner.decode(buf))
         })?;
 
         self.remaining_bytes -= (old_buf_len - buf.len()) as u64;
@@ -581,7 +592,7 @@ impl<D: Decode> Decode for Length<D> {
                 self.remaining_bytes,
                 0,
                 ErrorKind::Other,
-                "Codec consumes too few bytes"
+                "Decoder consumes too few bytes"
             );
             self.remaining_bytes = self.expected_bytes
         }
@@ -590,14 +601,14 @@ impl<D: Decode> Decode for Length<D> {
 
     fn has_terminated(&self) -> bool {
         if self.remaining_bytes == self.expected_bytes {
-            self.codec.has_terminated()
+            self.inner.has_terminated()
         } else {
             false
         }
     }
 
     fn is_idle(&self) -> bool {
-        self.remaining_bytes == self.expected_bytes
+        self.remaining_bytes == self.expected_bytes && self.inner.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -620,10 +631,10 @@ impl<E: Encode> Encode for Length<E> {
         let original_buf_len = buf.len();
         let limit = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
         let eos = limit as u64 == self.remaining_bytes;
-        buf.with_limit_and_eos(limit, eos, |buf| track!(self.codec.encode(buf)))?;
+        buf.with_limit_and_eos(limit, eos, |buf| track!(self.inner.encode(buf)))?;
 
         self.remaining_bytes -= (original_buf_len - buf.len()) as u64;
-        if self.codec.is_idle() {
+        if self.inner.is_idle() {
             track_assert_eq!(
                 self.remaining_bytes,
                 0,
@@ -641,7 +652,7 @@ impl<E: Encode> Encode for Length<E> {
             self.expected_bytes,
             ErrorKind::EncoderFull
         );
-        track!(self.codec.start_encoding(item))
+        track!(self.inner.start_encoding(item))
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -1081,13 +1092,8 @@ impl<E: Encode> Encode for PreEncode<E> {
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track!(self.encoder.start_encoding(item))?;
         let mut buf = Vec::new();
-        {
-            let mut encoder = IoEncoder::new(&mut self.encoder);
-            track!(encoder.encode(&mut buf))?;
-        }
-        track_assert!(self.encoder.is_idle(), ErrorKind::Other);
+        track!(encode_to_writer(&mut self.encoder, item, &mut buf))?;
         track!(self.pre_encoded.start_encoding(buf))?;
         Ok(())
     }
