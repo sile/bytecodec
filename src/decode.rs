@@ -148,6 +148,10 @@ impl<T> Decode for DecodedValue<T> {
 
 /// An extension of `Decode` trait.
 pub trait DecodeExt: Decode + Sized {
+    fn by_ref(&mut self) -> &mut Self {
+        self
+    }
+
     /// Creates a decoder that converts decoded values by calling the given function.
     ///
     /// # Examples

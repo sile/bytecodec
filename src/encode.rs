@@ -142,6 +142,10 @@ pub trait EncodeExt: Encode + Sized {
         Ok(this)
     }
 
+    fn by_ref(&mut self) -> &mut Self {
+        self
+    }
+
     /// Creates an encoder for modifying encoding errors produced by `self`.
     ///
     /// # Examples
