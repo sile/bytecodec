@@ -62,6 +62,25 @@ pub trait Decode {
         }
     }
 }
+impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+        (**self).decode(buf)
+    }
+
+    fn has_terminated(&self) -> bool {
+        (**self).has_terminated()
+    }
+
+    fn is_idle(&self) -> bool {
+        (**self).is_idle()
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        (**self).requiring_bytes_hint()
+    }
+}
 impl<D: ?Sized + Decode> Decode for Box<D> {
     type Item = D::Item;
 

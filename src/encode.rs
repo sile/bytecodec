@@ -1,8 +1,8 @@
 use std;
 
 use {EncodeBuf, Error, Result};
-use combinator::{EncoderChain, Length, MapErr, MapFrom, MaxBytes, Optional, Padding, Repeat,
-                 TryMapFrom, WithPrefix};
+use combinator::{EncoderChain, Length, MapErr, MapFrom, MaxBytes, Optional, Padding, PreEncode,
+                 Repeat, TryMapFrom, WithPrefix};
 
 /// This trait allows for encoding items into a byte sequence incrementally.
 pub trait Encode {
@@ -58,6 +58,25 @@ pub trait Encode {
         } else {
             None
         }
+    }
+}
+impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
+    type Item = E::Item;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        (**self).encode(buf)
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        (**self).start_encoding(item)
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        (**self).requiring_bytes_hint()
+    }
+
+    fn is_idle(&self) -> bool {
+        (**self).is_idle()
     }
 }
 impl<E: ?Sized + Encode> Encode for Box<E> {
@@ -412,6 +431,10 @@ pub trait EncodeExt: Encode + Sized {
         E: Encode,
     {
         WithPrefix::new(self, prefix, f)
+    }
+
+    fn pre_encode(self) -> PreEncode<Self> {
+        PreEncode::new(self)
     }
 }
 impl<T: Encode> EncodeExt for T {}
