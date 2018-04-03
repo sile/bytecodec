@@ -433,6 +433,29 @@ pub trait EncodeExt: Encode + Sized {
         WithPrefix::new(self, prefix, f)
     }
 
+    /// Creates an encoder that pre-encodes items when `start_encoding` method is called.
+    ///
+    /// Although the number of memory copies increases, pre-encoding will enable to acquire the exact size of encoded items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Encode, EncodeBuf, EncodeExt, ExactBytesEncode};
+    /// use bytecodec::fixnum::U8Encoder;
+    ///
+    /// let mut output = [0; 4];
+    /// {
+    ///     let mut encoder =
+    ///         U8Encoder::new()
+    ///             .repeat()
+    ///             .pre_encode()
+    ///             .with_prefix(U8Encoder::new(), |body| body.requiring_bytes() as u8);
+    ///
+    ///     encoder.start_encoding(0..3).unwrap();
+    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
+    /// }
+    /// assert_eq!(output.as_ref(), [3, 0, 1, 2]);
+    /// ```
     fn pre_encode(self) -> PreEncode<Self> {
         PreEncode::new(self)
     }

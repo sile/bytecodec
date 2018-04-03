@@ -10,6 +10,8 @@ use std::marker::PhantomData;
 pub use chain::{DecoderChain, EncoderChain};
 
 use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, ExactBytesEncode, Result};
+use bytes::BytesEncoder;
+use io::IoEncoder;
 
 /// Combinator for converting decoded items to other values.
 ///
@@ -1052,6 +1054,55 @@ where
 {
     fn requiring_bytes(&self) -> u64 {
         self.prefix_encoder.requiring_bytes() + self.body_encoder.requiring_bytes()
+    }
+}
+
+/// Combinator for pre-encoding items when `start_encoding` method is called.
+///
+/// This is created by calling `EncodeExt::pre_encode` method.
+#[derive(Debug)]
+pub struct PreEncode<E> {
+    encoder: E,
+    pre_encoded: BytesEncoder<Vec<u8>>,
+}
+impl<E> PreEncode<E> {
+    pub(crate) fn new(encoder: E) -> Self {
+        PreEncode {
+            encoder,
+            pre_encoded: BytesEncoder::new(),
+        }
+    }
+}
+impl<E: Encode> Encode for PreEncode<E> {
+    type Item = E::Item;
+
+    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+        track!(self.pre_encoded.encode(buf))
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track!(self.encoder.start_encoding(item))?;
+        let mut buf = Vec::new();
+        {
+            let mut encoder = IoEncoder::new(&mut self.encoder);
+            track!(encoder.encode(&mut buf))?;
+        }
+        track_assert!(self.encoder.is_idle(), ErrorKind::Other);
+        track!(self.pre_encoded.start_encoding(buf))?;
+        Ok(())
+    }
+
+    fn requiring_bytes_hint(&self) -> Option<u64> {
+        Some(self.requiring_bytes())
+    }
+
+    fn is_idle(&self) -> bool {
+        self.pre_encoded.is_idle()
+    }
+}
+impl<E: Encode> ExactBytesEncode for PreEncode<E> {
+    fn requiring_bytes(&self) -> u64 {
+        self.pre_encoded.requiring_bytes()
     }
 }
 
