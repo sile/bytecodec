@@ -21,9 +21,9 @@ impl Eos {
         self.0 == Some(0)
     }
 
-    /// Returns `true` if the length of the target stream is known, otherwise `false`.
-    pub fn is_finite(&self) -> bool {
-        self.0.is_some()
+    /// Returns `true` if the length of the target stream is unknown, otherwise `false`.
+    pub fn is_known(&self) -> bool {
+        self.0.is_none()
     }
 
     /// Returns the number of bytes remaining in the target stream.
@@ -31,5 +31,11 @@ impl Eos {
     /// If it is unknown, `None` will be returned.
     pub fn remaining_bytes(&self) -> Option<u64> {
         self.0
+    }
+
+    /// Returns a new `Eos` instance that has moved backward from
+    /// the end of the target stream by the specified number of bytes.
+    pub fn back(&self, bytes: u64) -> Self {
+        Eos(self.0.map(|n| n + bytes))
     }
 }

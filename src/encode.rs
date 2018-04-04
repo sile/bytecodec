@@ -1,6 +1,6 @@
 use std;
 
-use {Error, ErrorKind, Result};
+use {Eos, Error, ErrorKind, Result};
 use combinator::{EncoderChain, Length, MapErr, MapFrom, MaxBytes, Optional, Padding, PreEncode,
                  Repeat, TryMapFrom, WithPrefix};
 
@@ -42,21 +42,21 @@ pub trait Encode {
     ///   - The output byte sequence has reached the end in the middle of an encoding process
     /// - `ErrorKind::Other`:
     ///   - Other errors has occurred
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize>;
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize>;
 
     /// TODO:
     fn encode_all(&mut self, buf: &mut [u8]) -> Result<usize> {
         let mut offset = 0;
         while !self.is_idle() {
             track_assert!(offset <= buf.len(), ErrorKind::UnexpectedEos);
-            let size = self.encode(&mut buf[offset..], true)?;
+            let size = self.encode(&mut buf[offset..], Eos::new(true))?;
             offset += size;
         }
         Ok(offset)
     }
 
     /// TODO: doc
-    fn encode_as_many_as_possible(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode_as_many_as_possible(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let mut offset = 0;
         while !self.is_idle() && offset <= buf.len() {
             let size = self.encode(&mut buf[offset..], eos)?;
@@ -86,7 +86,7 @@ pub trait Encode {
 impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         (**self).encode(buf, eos)
     }
 
@@ -105,7 +105,7 @@ impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
 impl<E: ?Sized + Encode> Encode for Box<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         (**self).encode(buf, eos)
     }
 
@@ -183,14 +183,15 @@ pub trait EncodeExt: Encode + Sized {
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// # fn main() {
-    /// let mut buf = []; // EOS
+    /// let mut buf = [];
     ///
     /// let encoder = U8Encoder::with_item(7).unwrap();
     /// let mut encoder = encoder.map_err(|e| track!(e, "oops!")); // or track_err!(encoder, "oops!")
     /// let error = track!(encoder.encode_all(&mut buf)).err().unwrap();
     ///
     /// assert_eq!(error.to_string(), "\
-    /// UnexpectedEos (cause; assertion failed: `!eos`; buf.len()=0, size=0, self.offset=0, b.as_ref().len()=1)
+    /// UnexpectedEos (cause; assertion failed: `!eos.is_eos()`; \
+    ///                buf.len()=0, size=0, self.offset=0, b.as_ref().len()=1)
     /// HISTORY:
     ///   [0] at src/bytes.rs:54
     ///   [1] at src/fixnum.rs:115
@@ -325,12 +326,12 @@ pub trait EncodeExt: Encode + Sized {
     /// use bytecodec::{Encode, EncodeExt, ErrorKind};
     /// use bytecodec::bytes::Utf8Encoder;
     ///
-    /// let mut output = [0; 3];
+    /// let mut output = [0; 4];
     /// let mut encoder = Utf8Encoder::new().max_bytes(3);
     ///
     /// encoder.start_encoding("foo").unwrap(); // OK
     /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output.as_ref(), b"foo");
+    /// assert_eq!(output.as_ref(), b"foo\x00");
     ///
     /// encoder.start_encoding("hello").unwrap(); // Error
     /// let error = encoder.encode_all(&mut output).err().unwrap();

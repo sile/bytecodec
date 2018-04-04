@@ -4,7 +4,7 @@ use std::io::Read;
 use std::mem;
 use trackable::error::ErrorKindExt;
 
-use {Decode, DecodeBuf, Encode, Error, ErrorKind, ExactBytesEncode, Result};
+use {Decode, DecodeBuf, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
 
 /// `BytesEncoder` writes the given bytes into an output byte sequence.
 ///
@@ -42,7 +42,7 @@ impl<B> Default for BytesEncoder<B> {
 impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     type Item = B;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let mut size = 0;
         let drop_item = if let Some(ref b) = self.bytes {
             size = cmp::min(buf.len(), b.as_ref().len() - self.offset);
@@ -51,7 +51,7 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
             if self.offset == b.as_ref().len() {
                 true
             } else {
-                track_assert!(!eos, ErrorKind::UnexpectedEos;
+                track_assert!(!eos.is_eos(), ErrorKind::UnexpectedEos;
                               buf.len(), size, self.offset, b.as_ref().len());
                 false
             }
@@ -321,7 +321,7 @@ impl<S> Utf8Encoder<S> {
 impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
     type Item = S;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         track!(self.0.encode(buf, eos))
     }
 

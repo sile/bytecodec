@@ -1,7 +1,7 @@
 //! Monolithic encoder and decoder.
 use std::io::{self, Read, Write};
 
-use {Decode, DecodeBuf, Encode, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, Eos, ErrorKind, Result};
 use bytes::BytesEncoder;
 
 /// This trait allows for decoding items monolithically from a source byte stream.
@@ -115,7 +115,7 @@ impl<E: MonolithicEncode> MonolithicEncoder<E> {
 impl<E: MonolithicEncode> Encode for MonolithicEncoder<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, mut buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, mut buf: &mut [u8], eos: Eos) -> Result<usize> {
         if let Some(item) = self.item.take() {
             let mut extra = Vec::new();
             {

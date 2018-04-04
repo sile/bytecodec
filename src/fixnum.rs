@@ -1,7 +1,7 @@
 //! Encoders and decoders for numbers which have fixed length binary representation.
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-use {Decode, DecodeBuf, Encode, ErrorKind, ExactBytesEncode, Result};
+use {Decode, DecodeBuf, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 use bytes::{BytesEncoder, CopyableBytesDecoder};
 
 macro_rules! impl_decode {
@@ -34,7 +34,7 @@ macro_rules! impl_encode {
         impl Encode for $ty {
             type Item = $item;
 
-            fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+            fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
                 track!(self.0.encode(buf, eos))
             }
 

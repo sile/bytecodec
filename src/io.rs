@@ -2,7 +2,7 @@
 #![allow(missing_docs)] // TODO: delete
 use std::io::{self, Read, Write};
 
-use {Decode, DecodeBuf, Encode, Error, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, Eos, Error, ErrorKind, Result};
 
 /// An extension of `Decode` trait to aid decodings involving I/O.
 pub trait IoDecodeExt: Decode {
@@ -222,7 +222,7 @@ impl WriteBuf {
 
     pub fn fill<E: Encode>(&mut self, mut encoder: E) -> Result<()> {
         let eos = false; // TODO
-        let size = track!(encoder.encode(&mut self.buf[self.tail..], eos))?;
+        let size = track!(encoder.encode(&mut self.buf[self.tail..], Eos::new(eos)))?;
         self.tail += size;
         Ok(())
     }

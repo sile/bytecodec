@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 
 pub use chain::{DecoderChain, EncoderChain};
 
-use {Decode, DecodeBuf, Encode, Error, ErrorKind, ExactBytesEncode, Result};
+use {Decode, DecodeBuf, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
 use bytes::BytesEncoder;
 use io::encode_to_writer;
 
@@ -111,7 +111,7 @@ where
 {
     type Item = C::Item;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         self.codec
             .encode(buf, eos)
             .map_err(|e| (self.map_err)(e).into())
@@ -239,7 +239,7 @@ where
 {
     type Item = T;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         track!(self.encoder.encode(buf, eos))
     }
 
@@ -292,7 +292,7 @@ where
 {
     type Item = T;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         track!(self.encoder.encode(buf, eos))
     }
 
@@ -343,7 +343,7 @@ where
 {
     type Item = I;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         while self.encoder.is_idle() {
             if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
                 track!(self.encoder.start_encoding(item))?;
@@ -435,7 +435,7 @@ impl<E> Optional<E> {
 impl<E: Encode> Encode for Optional<E> {
     type Item = Option<E::Item>;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         track!(self.0.encode(buf, eos))
     }
 
@@ -621,12 +621,16 @@ impl<D: Decode> Decode for Length<D> {
 impl<E: Encode> Encode for Length<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         if (buf.len() as u64) < self.remaining_bytes {
-            track_assert!(!eos, ErrorKind::UnexpectedEos);
+            track_assert!(!eos.is_eos(), ErrorKind::UnexpectedEos);
         }
 
-        let limit = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
+        let (limit, eos) = if (buf.len() as u64) < self.remaining_bytes {
+            (buf.len(), eos)
+        } else {
+            (self.remaining_bytes as usize, Eos::new(true))
+        };
         let size = track!(self.inner.encode(&mut buf[..limit], eos))?;
         self.remaining_bytes -= size as u64;
         if self.inner.is_idle() {
@@ -873,9 +877,9 @@ impl<D: Decode> Decode for MaxBytes<D> {
 impl<E: Encode> Encode for MaxBytes<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let limit = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
-        let eos = eos && (limit as u64) != self.max_remaining_bytes();
+        let eos = eos.back((buf.len() - limit) as u64);
         let size = track!(self.codec.encode(&mut buf[..limit], eos))?;
         self.consumed_bytes += size as u64;
         if self.consumed_bytes == self.max_bytes {
@@ -969,14 +973,14 @@ impl<E> Padding<E> {
 impl<E: Encode> Encode for Padding<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         if !self.encoder.is_idle() {
             self.encoder.encode(buf, eos)
         } else {
             for b in buf.iter_mut() {
                 *b = self.padding_byte;
             }
-            self.eos_reached = eos;
+            self.eos_reached = eos.is_eos();
             Ok(buf.len())
         }
     }
@@ -1022,7 +1026,7 @@ where
 {
     type Item = E0::Item;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         if !self.prefix_encoder.is_idle() {
             track!(self.prefix_encoder.encode(buf, eos))
         } else {
@@ -1083,7 +1087,7 @@ impl<E> PreEncode<E> {
 impl<E: Encode> Encode for PreEncode<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         track!(self.pre_encoded.encode(buf, eos))
     }
 
@@ -1188,12 +1192,12 @@ mod test {
 
     #[test]
     fn encoder_max_bytes_works() {
-        let mut output = [0; 3];
+        let mut output = [0; 4];
         let mut encoder = Utf8Encoder::new().max_bytes(3);
 
         encoder.start_encoding("foo").unwrap(); // OK
         encoder.encode_all(&mut output).unwrap();
-        assert_eq!(output.as_ref(), b"foo");
+        assert_eq!(output.as_ref(), b"foo\x00");
 
         encoder.start_encoding("hello").unwrap(); // Error
         let error = encoder.encode_all(&mut output).err().unwrap();
