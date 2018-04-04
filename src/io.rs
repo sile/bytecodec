@@ -1,36 +1,66 @@
 //! I/O (i.e., `Read` and `Write` traits) related module.
 use std::io::{self, Read, Write};
 
-use {Decode, DecodeBuf, DecodeExt, Encode, EncodeBuf, Error, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
 
-/// Decodes an item from `reader` by using `decoder`.
-pub fn decode_from_reader<D, R>(mut decoder: D, mut reader: R) -> Result<D::Item>
-where
-    D: Decode,
-    R: Read,
-{
-    let mut buf = [0; 1024];
-    let mut buf = ReadBuf::new(&mut buf[..]);
-    loop {
-        let n = decoder.requiring_bytes_hint().unwrap_or(1);
-        let stream_state = track!(buf.fill(reader.by_ref().take(n)))?;
-        if stream_state.would_block() {
-            track!(stream_state.to_io_result().map_err(Error::from))?;
+/// An extension of `Decode` trait to aid decodings involving I/O.
+pub trait IoDecodeExt: Decode {
+    /// Decodes an item from the given read buffer.
+    fn decode_from_read_buf<B>(&mut self, buf: &mut ReadBuf<B>) -> Result<Option<Self::Item>>
+    where
+        B: AsRef<[u8]>,
+    {
+        let mut decode_buf = DecodeBuf::with_eos(&buf.inner.as_ref()[buf.head..buf.tail], buf.eos);
+        let item = track!(self.decode(&mut decode_buf))?;
+        buf.head = buf.tail - decode_buf.len();
+        if buf.head == buf.tail {
+            buf.head = 0;
+            buf.tail = 0;
         }
-
-        let old_buf_len = buf.len();
-        // TODO: let item = track!(buf.consume(decoder.by_ref().eos(stream_state.is_eos())));
-        let item = if stream_state.is_eos() {
-            track!(buf.consume(decoder.by_ref().length(old_buf_len as u64)))?
-        } else {
-            track!(buf.consume(&mut decoder))?
-        };
-        if let Some(item) = item {
-            track_assert_eq!(buf.len(), 0, ErrorKind::Other);
-            return Ok(item);
-        }
-        track_assert_ne!(buf.len(), old_buf_len, ErrorKind::Other);
+        Ok(item)
     }
+
+    /// Decodes an item from the given reader.
+    ///
+    /// This returns `Ok(None)` only if the reader has reached EOS and there is no item being processed.
+    fn blocking_decode_from_reader<R: Read>(
+        &mut self,
+        mut reader: R,
+    ) -> Result<Option<Self::Item>> {
+        let mut buf = [0; 1024];
+        let mut buf = ReadBuf::new(&mut buf[..]);
+        loop {
+            let n = self.requiring_bytes_hint().unwrap_or(1);
+            if n != 0 {
+                let stream_state = track!(buf.read_from(reader.by_ref().take(n)))?;
+                if stream_state.would_block() {
+                    track!(stream_state.to_io_result().map_err(Error::from))?;
+                }
+            }
+
+            let old_buf_len = buf.len();
+            let item = track!(self.decode_from_read_buf(&mut buf))?;
+            if let Some(item) = item {
+                track_assert_eq!(buf.len(), 0, ErrorKind::Other);
+                return Ok(Some(item));
+            } else if buf.is_empty() && buf.is_eos() {
+                track_assert!(self.is_idle(), ErrorKind::UnexpectedEos);
+                return Ok(None);
+            }
+            track_assert_ne!(buf.len(), old_buf_len, ErrorKind::Other);
+        }
+    }
+}
+
+/// An extension of `Encode` trait to aid encodings involving I/O.
+pub trait IoEncodeExt: Encode {
+    /// Encodes the items in the encoder to the given writer buffer.
+    fn encode_to_write_buf(&mut self, buf: &mut WriteBuf) -> Result<()>;
+
+    /// Encodes the items in the encoder to the given writer.
+    ///
+    /// This returns `Ok(())` only if the encoder completes to encode (and write) all of the items.
+    fn blocking_encode_to_writer<W: Write>(&mut self, writer: W) -> Result<()>;
 }
 
 /// Encodes `item` by using `encoder` and writes the encoded bytes to `writer`.
@@ -92,6 +122,7 @@ pub struct ReadBuf<B> {
     inner: B,
     head: usize,
     tail: usize,
+    eos: bool,
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
     /// Makes a new `ReadBuf` instance.
@@ -100,6 +131,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
             inner,
             head: 0,
             tail: 0,
+            eos: false,
         }
     }
 
@@ -118,14 +150,16 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
         self.tail == self.inner.as_ref().len()
     }
 
-    /// Fills the buffer by reading bytes from `reader`.
-    ///
-    /// This returns `Ok(true)` if the read operation would block.
-    pub fn fill<R: Read>(&mut self, mut reader: R) -> Result<StreamState> {
+    pub fn is_eos(&self) -> bool {
+        self.eos
+    }
+
+    pub fn read_from<R: Read>(&mut self, mut reader: R) -> Result<StreamState> {
         let mut state = StreamState::Normal;
         if !self.is_full() {
             match reader.read(&mut self.inner.as_mut()[self.tail..]) {
                 Err(e) => {
+                    self.eos = false;
                     if e.kind() == io::ErrorKind::WouldBlock {
                         state = StreamState::WouldBlock;
                     } else {
@@ -134,35 +168,28 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
                 }
                 Ok(0) => {
                     state = StreamState::Eos;
+                    self.eos = true;
                 }
                 Ok(size) => {
                     self.tail += size;
+                    self.eos = false;
                 }
             }
         }
         Ok(state)
     }
 
-    /// Consumes the buffer by using `decoder`.
-    pub fn consume<D: Decode>(&mut self, mut decoder: D) -> Result<Option<D::Item>> {
-        let mut buf = DecodeBuf::new(&self.inner.as_ref()[self.head..self.tail]);
-        let item = track!(decoder.decode(&mut buf))?;
-        self.head = self.tail - buf.len();
-        if self.head == self.tail {
-            self.head = 0;
-            self.tail = 0;
-        }
-        Ok(item)
-    }
-
+    /// Returns a reference to the inner bytes of the buffer.
     pub fn inner_ref(&self) -> &B {
         &self.inner
     }
 
+    /// Returns a mutable reference to the inner bytes of the buffer.
     pub fn inner_mut(&mut self) -> &mut B {
         &mut self.inner
     }
 
+    /// Takes ownership of `ReadBuf` and returns the inner bytes of the buffer.
     pub fn into_inner(self) -> B {
         self.inner
     }
