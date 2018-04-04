@@ -41,9 +41,6 @@ pub trait Decode {
     /// **must** return an `ErrorKind::DecoderTerminated` error.
     fn has_terminated(&self) -> bool;
 
-    /// Returns `true` if the decoder does not have an item that being decoded, otherwise `false`.
-    fn is_idle(&self) -> bool;
-
     /// Returns the lower bound of the number of bytes needed to decode the next item.
     ///
     /// If the decoder does not know the value, it will return `None`
@@ -75,10 +72,6 @@ impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
         (**self).has_terminated()
     }
 
-    fn is_idle(&self) -> bool {
-        (**self).is_idle()
-    }
-
     fn requiring_bytes_hint(&self) -> Option<u64> {
         (**self).requiring_bytes_hint()
     }
@@ -92,10 +85,6 @@ impl<D: ?Sized + Decode> Decode for Box<D> {
 
     fn has_terminated(&self) -> bool {
         (**self).has_terminated()
-    }
-
-    fn is_idle(&self) -> bool {
-        (**self).is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -136,10 +125,6 @@ impl<T> Decode for DecodedValue<T> {
     }
 
     fn has_terminated(&self) -> bool {
-        self.0.is_none()
-    }
-
-    fn is_idle(&self) -> bool {
         self.0.is_none()
     }
 

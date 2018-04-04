@@ -50,36 +50,36 @@ pub trait IoDecodeExt: Decode {
         // }
     }
 
-    /// Decodes an item from the given reader.
-    ///
-    /// This returns `Ok(None)` only if the reader has reached EOS and there is no item being processed.
-    fn blocking_decode_from_reader<R: Read>(
-        &mut self,
-        mut reader: R,
-    ) -> Result<Option<Self::Item>> {
-        let mut buf = [0; 1024];
-        let mut buf = ReadBuf::new(&mut buf[..]);
-        loop {
-            let n = self.requiring_bytes_hint().unwrap_or(1);
-            if n != 0 {
-                let stream_state = track!(buf.read_from(reader.by_ref().take(n)))?;
-                if stream_state.would_block() {
-                    track!(stream_state.to_io_result().map_err(Error::from))?;
-                }
-            }
+    // /// Decodes an item from the given reader.
+    // ///
+    // /// This returns `Ok(None)` only if the reader has reached EOS and there is no item being processed.
+    // fn blocking_decode_from_reader<R: Read>(
+    //     &mut self,
+    //     mut reader: R,
+    // ) -> Result<Option<Self::Item>> {
+    //     let mut buf = [0; 1024];
+    //     let mut buf = ReadBuf::new(&mut buf[..]);
+    //     loop {
+    //         let n = self.requiring_bytes_hint().unwrap_or(1);
+    //         if n != 0 {
+    //             let stream_state = track!(buf.read_from(reader.by_ref().take(n)))?;
+    //             if stream_state.would_block() {
+    //                 track!(stream_state.to_io_result().map_err(Error::from))?;
+    //             }
+    //         }
 
-            let old_buf_len = buf.len();
-            let item = track!(self.decode_from_read_buf(&mut buf))?;
-            if let Some(item) = item {
-                track_assert_eq!(buf.len(), 0, ErrorKind::Other);
-                return Ok(Some(item));
-            } else if buf.is_empty() && buf.is_eos() {
-                track_assert!(self.is_idle(), ErrorKind::UnexpectedEos);
-                return Ok(None);
-            }
-            track_assert_ne!(buf.len(), old_buf_len, ErrorKind::Other);
-        }
-    }
+    //         let old_buf_len = buf.len();
+    //         let item = track!(self.decode_from_read_buf(&mut buf))?;
+    //         if let Some(item) = item {
+    //             track_assert_eq!(buf.len(), 0, ErrorKind::Other);
+    //             return Ok(Some(item));
+    //         } else if buf.is_empty() && buf.is_eos() {
+    //             track_assert!(self.is_idle(), ErrorKind::UnexpectedEos);
+    //             return Ok(None);
+    //         }
+    //         track_assert_ne!(buf.len(), old_buf_len, ErrorKind::Other);
+    //     }
+    // }
 }
 
 /// An extension of `Encode` trait to aid encodings involving I/O.

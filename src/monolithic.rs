@@ -66,10 +66,6 @@ impl<D: MonolithicDecode> Decode for MonolithicDecoder<D> {
     fn has_terminated(&self) -> bool {
         false
     }
-
-    fn is_idle(&self) -> bool {
-        self.buf.is_empty()
-    }
 }
 
 /// This trait allows for encoding items monolithically to a destination byte stream.

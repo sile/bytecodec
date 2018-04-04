@@ -47,10 +47,6 @@ where
         self.decoder.has_terminated()
     }
 
-    fn is_idle(&self) -> bool {
-        self.decoder.is_idle()
-    }
-
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.decoder.requiring_bytes_hint()
     }
@@ -94,10 +90,6 @@ where
 
     fn has_terminated(&self) -> bool {
         self.codec.has_terminated()
-    }
-
-    fn is_idle(&self) -> bool {
-        self.codec.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -197,10 +189,6 @@ where
         } else {
             self.decoder0.has_terminated()
         }
-    }
-
-    fn is_idle(&self) -> bool {
-        self.decoder1.is_none() && self.decoder0.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -409,10 +397,6 @@ impl<D: Decode> Decode for Omit<D> {
         }
     }
 
-    fn is_idle(&self) -> bool {
-        self.0.as_ref().map_or(true, |d| d.is_idle())
-    }
-
     fn requiring_bytes_hint(&self) -> Option<u64> {
         if let Some(ref d) = self.0 {
             d.requiring_bytes_hint()
@@ -499,10 +483,6 @@ where
 
     fn has_terminated(&self) -> bool {
         self.decoder.has_terminated()
-    }
-
-    fn is_idle(&self) -> bool {
-        self.items.is_none()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -594,10 +574,6 @@ impl<D: Decode> Decode for Length<D> {
         } else {
             false
         }
-    }
-
-    fn is_idle(&self) -> bool {
-        self.remaining_bytes == self.expected_bytes && self.inner.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -694,10 +670,6 @@ impl<D: Decode> Decode for Take<D> {
         self.decoder.has_terminated() || self.decoded_items == self.limit
     }
 
-    fn is_idle(&self) -> bool {
-        self.decoded_items == 0 || self.decoded_items == self.limit
-    }
-
     fn requiring_bytes_hint(&self) -> Option<u64> {
         if self.has_terminated() {
             Some(0)
@@ -747,10 +719,6 @@ where
         self.decoder.has_terminated()
     }
 
-    fn is_idle(&self) -> bool {
-        self.decoder.is_idle()
-    }
-
     fn requiring_bytes_hint(&self) -> Option<u64> {
         self.decoder.requiring_bytes_hint()
     }
@@ -798,10 +766,6 @@ impl<D: Decode> Decode for SkipRemaining<D> {
         } else {
             false
         }
-    }
-
-    fn is_idle(&self) -> bool {
-        self.item.is_none() && self.decoder.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -856,10 +820,6 @@ impl<D: Decode> Decode for MaxBytes<D> {
 
     fn has_terminated(&self) -> bool {
         self.codec.has_terminated()
-    }
-
-    fn is_idle(&self) -> bool {
-        self.codec.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -931,10 +891,6 @@ where
 
     fn has_terminated(&self) -> bool {
         self.decoder.has_terminated()
-    }
-
-    fn is_idle(&self) -> bool {
-        self.decoder.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {

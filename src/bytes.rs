@@ -137,17 +137,16 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
             self.offset = 0;
             Ok((size, Some(self.bytes)))
         } else {
-            track_assert!(!eos.is_eos(), ErrorKind::UnexpectedEos);
+            if self.offset != 0 {
+                // TODO: 他の個所にも似たようなチェックを入れる
+                track_assert!(!eos.is_eos(), ErrorKind::UnexpectedEos);
+            }
             Ok((size, None))
         }
     }
 
     fn has_terminated(&self) -> bool {
         false
-    }
-
-    fn is_idle(&self) -> bool {
-        self.offset == 0
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -210,10 +209,6 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
         self.bytes.is_none()
     }
 
-    fn is_idle(&self) -> bool {
-        self.offset == 0 || self.bytes.is_none()
-    }
-
     fn requiring_bytes_hint(&self) -> Option<u64> {
         let n = self.bytes
             .as_ref()
@@ -271,10 +266,6 @@ impl Decode for RemainingBytesDecoder {
 
     fn has_terminated(&self) -> bool {
         false
-    }
-
-    fn is_idle(&self) -> bool {
-        self.0.is_empty()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
@@ -391,10 +382,6 @@ where
 
     fn has_terminated(&self) -> bool {
         self.0.has_terminated()
-    }
-
-    fn is_idle(&self) -> bool {
-        self.0.is_idle()
     }
 
     fn requiring_bytes_hint(&self) -> Option<u64> {
