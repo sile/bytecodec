@@ -1,7 +1,7 @@
 //! Encoders and decoders for numbers which have fixed length binary representation.
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-use {Decode, DecodeBuf, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
+use {Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 use bytes::{BytesEncoder, CopyableBytesDecoder};
 
 macro_rules! impl_decode {
@@ -9,9 +9,9 @@ macro_rules! impl_decode {
         impl Decode for $ty {
             type Item = $item;
 
-            fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-                let item = track!(self.0.decode(buf))?;
-                Ok(item.map(Self::decode_item))
+            fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+                let (size, item) = track!(self.0.decode(buf, eos))?;
+                Ok((size, item.map(Self::decode_item)))
             }
 
             fn has_terminated(&self) -> bool {

@@ -2,7 +2,7 @@
 #![allow(missing_docs)] // TODO: delete
 use std::io::{self, Read, Write};
 
-use {Decode, DecodeBuf, Encode, Eos, Error, ErrorKind, Result};
+use {Decode, Encode, Eos, Error, ErrorKind, Result};
 
 /// An extension of `Decode` trait to aid decodings involving I/O.
 pub trait IoDecodeExt: Decode {
@@ -11,14 +11,43 @@ pub trait IoDecodeExt: Decode {
     where
         B: AsRef<[u8]>,
     {
-        let mut decode_buf = DecodeBuf::with_eos(&buf.inner.as_ref()[buf.head..buf.tail], buf.eos);
-        let item = track!(self.decode(&mut decode_buf))?;
-        buf.head = buf.tail - decode_buf.len();
+        let (size, item) =
+            track!(self.decode(&buf.inner.as_ref()[buf.head..buf.tail], Eos::new(buf.eos)))?;
+        buf.head += size;
         if buf.head == buf.tail {
             buf.head = 0;
             buf.tail = 0;
         }
         Ok(item)
+    }
+
+    /// Decodes an item from the given reader.
+    ///
+    /// This method reads only minimal bytes required to decode an item.
+    ///
+    /// Note that this is a blocking method.
+    fn decode_exact<R: Read>(&mut self, _reader: R) -> Result<Self::Item> {
+        unimplemented!()
+        // let mut buf = [0; 1024];
+        // loop {
+        //     let mut size = self.requiring_bytes_hint().unwrap_or(1);
+        //     let eos = if size != 0 {
+        //         size = track!(reader.read(&mut buf[..size]).map_err(Error::from))?;
+        //         Eos::new(size == 0)
+        //     } else {
+        //         Eos::new(false)
+        //     };
+
+        //     let mut offset = 0;
+        //     while offset <= size {
+        //         let (consumed, item) = track!(self.decode(&buf[offset..size], eos))?;
+        //         offset += consumed;
+        //         if let Some(item) = item {
+        //             track_assert_eq!(offset, size, ErrorKind::Other);
+        //             return Ok(item);
+        //         }
+        //     }
+        // }
     }
 
     /// Decodes an item from the given reader.

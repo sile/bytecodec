@@ -27,6 +27,7 @@ pub trait Encode {
     /// Encodes the current item and writes the encoded bytes to the given buffer as many as possible.
     ///
     /// TODO: update doc
+    /// NOTE: 結果サイズが0かどうか、ではなくてis_idleを使って次の呼び出し有無は判定する
     ///
     /// If the encoded bytes are larger than the length of `buf`,
     /// the encoder **must** consume all the bytes in the buffer.

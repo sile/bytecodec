@@ -3,12 +3,11 @@
 //! These are mainly created via the methods provided by `EncodeExt` or `DecodeExt` traits.
 use std;
 use std::cmp;
-use std::iter;
 use std::marker::PhantomData;
 
 pub use chain::{DecoderChain, EncoderChain};
 
-use {Decode, DecodeBuf, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
+use {Decode, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
 use bytes::BytesEncoder;
 use io::encode_to_writer;
 
@@ -40,8 +39,8 @@ where
 {
     type Item = T;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        track!(self.decoder.decode(buf)).map(|r| r.map(&self.map))
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        track!(self.decoder.decode(buf, eos)).map(|(n, r)| (n, r.map(&self.map)))
     }
 
     fn has_terminated(&self) -> bool {
@@ -87,8 +86,10 @@ where
 {
     type Item = D::Item;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        self.codec.decode(buf).map_err(|e| (self.map_err)(e).into())
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        self.codec
+            .decode(buf, eos)
+            .map_err(|e| (self.map_err)(e).into())
     }
 
     fn has_terminated(&self) -> bool {
@@ -174,22 +175,20 @@ where
 {
     type Item = D1::Item;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let mut item = None;
-        loop {
-            if let Some(ref mut d) = self.decoder1 {
-                item = track!(d.decode(buf))?;
-                break;
-            } else if let Some(d) = track!(self.decoder0.decode(buf))?.map(&self.and_then) {
-                self.decoder1 = Some(d);
-            } else {
-                break;
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        if let Some(result) = self.decoder1.as_mut().map(|d| track!(d.decode(buf, eos))) {
+            let (size, item) = result?;
+            if item.is_some() {
+                self.decoder1 = None;
             }
+            Ok((size, item))
+        } else {
+            let (size, item) = track!(self.decoder0.decode(buf, eos))?;
+            if let Some(d) = item.map(&self.and_then) {
+                self.decoder1 = Some(d);
+            }
+            Ok((size, None))
         }
-        if item.is_some() {
-            self.decoder1 = None;
-        }
-        Ok(item)
     }
 
     fn has_terminated(&self) -> bool {
@@ -391,15 +390,14 @@ impl<D> Omit<D> {
 impl<D: Decode> Decode for Omit<D> {
     type Item = Option<D::Item>;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         if let Some(ref mut d) = self.0 {
-            if let Some(item) = track!(d.decode(buf))? {
-                Ok(Some(Some(item)))
-            } else {
-                Ok(None)
+            match track!(d.decode(buf, eos))? {
+                (size, Some(item)) => Ok((size, Some(Some(item)))),
+                (size, None) => Ok((size, None)),
             }
         } else {
-            Ok(Some(None))
+            Ok((0, Some(None)))
         }
     }
 
@@ -485,21 +483,18 @@ where
 {
     type Item = T;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         if self.items.is_none() {
             self.items = Some(T::default());
         }
-        {
-            let items = self.items.as_mut().expect("Never fails");
-            while !(buf.is_empty() && buf.is_eos() || self.decoder.has_terminated()) {
-                if let Some(item) = track!(self.decoder.decode(buf))? {
-                    items.extend(iter::once(item));
-                } else {
-                    return Ok(None);
-                }
-            }
+        if (buf.is_empty() && eos.is_eos()) || self.decoder.has_terminated() {
+            return Ok((0, self.items.take()));
         }
-        Ok(self.items.take())
+
+        let items = self.items.as_mut().expect("Never fails");
+        let (size, item) = track!(self.decoder.decode(buf, eos))?;
+        items.extend(item);
+        Ok((size, None))
     }
 
     fn has_terminated(&self) -> bool {
@@ -573,19 +568,14 @@ impl<C> Length<C> {
 impl<D: Decode> Decode for Length<D> {
     type Item = D::Item;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let old_buf_len = buf.len();
-        let buf_len = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
-        let expected_remaining_bytes = self.remaining_bytes - buf_len as u64;
-        if let Some(remaining_bytes) = buf.remaining_bytes() {
-            track_assert!(remaining_bytes >= expected_remaining_bytes, ErrorKind::UnexpectedEos;
-                          remaining_bytes, expected_remaining_bytes);
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        let limit = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
+        let expected_eos = Eos::with_remaining_bytes(self.remaining_bytes - limit as u64);
+        if !eos.is_unknown() {
+            track_assert!(eos >= expected_eos, ErrorKind::UnexpectedEos; eos, expected_eos);
         }
-        let item = buf.with_limit_and_remaining_bytes(buf_len, expected_remaining_bytes, |buf| {
-            track!(self.inner.decode(buf))
-        })?;
-
-        self.remaining_bytes -= (old_buf_len - buf.len()) as u64;
+        let (size, item) = track!(self.inner.decode(&buf[..limit], expected_eos))?;
+        self.remaining_bytes -= size as u64;
         if item.is_some() {
             track_assert_eq!(
                 self.remaining_bytes,
@@ -595,7 +585,7 @@ impl<D: Decode> Decode for Length<D> {
             );
             self.remaining_bytes = self.expected_bytes
         }
-        Ok(item)
+        Ok((size, item))
     }
 
     fn has_terminated(&self) -> bool {
@@ -689,13 +679,14 @@ impl<D> Take<D> {
 impl<D: Decode> Decode for Take<D> {
     type Item = D::Item;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         track_assert_ne!(self.decoded_items, self.limit, ErrorKind::DecoderTerminated);
-        if let Some(item) = track!(self.decoder.decode(buf))? {
-            self.decoded_items += 1;
-            Ok(Some(item))
-        } else {
-            Ok(None)
+        match track!(self.decoder.decode(buf, eos))? {
+            (size, Some(item)) => {
+                self.decoded_items += 1;
+                Ok((size, Some(item)))
+            }
+            (size, None) => Ok((size, None)),
         }
     }
 
@@ -742,12 +733,13 @@ where
 {
     type Item = T;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        if let Some(item) = track!(self.decoder.decode(buf))? {
-            let item = track!((self.try_map)(item).map_err(Error::from))?;
-            Ok(Some(item))
-        } else {
-            Ok(None)
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        match track!(self.decoder.decode(buf, eos))? {
+            (size, Some(item)) => {
+                let item = track!((self.try_map)(item).map_err(Error::from))?;
+                Ok((size, Some(item)))
+            }
+            (size, None) => Ok((size, None)),
         }
     }
 
@@ -782,23 +774,22 @@ impl<D: Decode> SkipRemaining<D> {
 impl<D: Decode> Decode for SkipRemaining<D> {
     type Item = D::Item;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         track_assert!(
-            buf.remaining_bytes().is_some(),
+            !eos.is_unknown(),
             ErrorKind::InvalidInput,
             "Cannot skip infinity byte stream"
         );
 
         if self.item.is_none() {
-            self.item = track!(self.decoder.decode(buf))?;
+            let (size, item) = track!(self.decoder.decode(buf, eos))?;
+            self.item = item;
+            Ok((size, None))
+        } else if eos.is_eos() {
+            Ok((buf.len(), self.item.take()))
+        } else {
+            Ok((buf.len(), None))
         }
-        if self.item.is_some() {
-            buf.consume_all();
-            if buf.is_eos() {
-                return Ok(self.item.take());
-            }
-        }
-        Ok(None)
     }
 
     fn has_terminated(&self) -> bool {
@@ -847,11 +838,12 @@ impl<C> MaxBytes<C> {
 impl<D: Decode> Decode for MaxBytes<D> {
     type Item = D::Item;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let old_buf_len = buf.len();
-        let actual_buf_len = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
-        let item = buf.with_limit(actual_buf_len, |buf| track!(self.codec.decode(buf)))?;
-        self.consumed_bytes = (old_buf_len - buf.len()) as u64;
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        let limit = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
+        let eos = eos.back((buf.len() - limit) as u64);
+        let (size, item) = track!(self.codec.decode(&buf[..limit], eos))?;
+
+        self.consumed_bytes += size as u64;
         if self.consumed_bytes == self.max_bytes {
             track_assert!(item.is_some(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
                           self.max_bytes);
@@ -859,7 +851,7 @@ impl<D: Decode> Decode for MaxBytes<D> {
         if item.is_some() {
             self.consumed_bytes = 0;
         }
-        Ok(item)
+        Ok((size, item))
     }
 
     fn has_terminated(&self) -> bool {
@@ -929,13 +921,12 @@ where
 {
     type Item = D::Item;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        if let Some(item) = track!(self.decoder.decode(buf))? {
-            track_assert!((self.assert)(&item), ErrorKind::InvalidInput);
-            Ok(Some(item))
-        } else {
-            Ok(None)
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        let (size, item) = track!(self.decoder.decode(buf, eos))?;
+        if let Some(ref item) = item {
+            track_assert!((self.assert)(item), ErrorKind::InvalidInput);
         }
+        Ok((size, item))
     }
 
     fn has_terminated(&self) -> bool {
@@ -1114,7 +1105,7 @@ impl<E: Encode> ExactBytesEncode for PreEncode<E> {
 
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeBuf, DecodeExt, Encode, EncodeExt, ErrorKind};
+    use {Decode, DecodeExt, Encode, EncodeExt, ErrorKind};
     use bytes::{Utf8Decoder, Utf8Encoder};
     use fixnum::{U8Decoder, U8Encoder};
 

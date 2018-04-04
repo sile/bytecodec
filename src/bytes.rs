@@ -1,10 +1,9 @@
 //! Encoders and decoders for reading/writing byte sequences.
 use std::cmp;
-use std::io::Read;
 use std::mem;
 use trackable::error::ErrorKindExt;
 
-use {Decode, DecodeBuf, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
+use {Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 
 /// `BytesEncoder` writes the given bytes into an output byte sequence.
 ///
@@ -129,19 +128,17 @@ impl<B> CopyableBytesDecoder<B> {
 impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
     type Item = B;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        let size = track!(
-            buf.read(&mut self.bytes.as_mut()[self.offset..])
-                .map_err(Error::from)
-        )?;
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        let size = cmp::min(buf.len(), self.bytes.as_ref().len() - self.offset);
+        (&mut self.bytes.as_mut()[self.offset..][..size]).copy_from_slice(&buf[..size]);
         self.offset += size;
 
         if self.offset == self.bytes.as_mut().len() {
             self.offset = 0;
-            Ok(Some(self.bytes))
+            Ok((size, Some(self.bytes)))
         } else {
-            track_assert!(!buf.is_eos(), ErrorKind::UnexpectedEos);
-            Ok(None)
+            track_assert!(!eos.is_eos(), ErrorKind::UnexpectedEos);
+            Ok((size, None))
         }
     }
 
@@ -193,22 +190,19 @@ impl<B> BytesDecoder<B> {
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
     type Item = B;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        if let Some(ref mut bytes) = self.bytes {
-            let size = track!(
-                buf.read(&mut bytes.as_mut()[self.offset..])
-                    .map_err(Error::from)
-            )?;
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        let size = {
+            let mut bytes = track_assert_some!(self.bytes.as_mut(), ErrorKind::DecoderTerminated);
+            let size = cmp::min(buf.len(), bytes.as_ref().len() - self.offset);
+            (&mut bytes.as_mut()[self.offset..][..size]).copy_from_slice(&buf[..size]);
             self.offset += size;
-        } else {
-            track_panic!(ErrorKind::DecoderTerminated);
-        }
-
+            size
+        };
         if Some(self.offset) == self.bytes.as_ref().map(|b| b.as_ref().len()) {
-            Ok(self.bytes.take())
+            Ok((size, self.bytes.take()))
         } else {
-            track_assert!(!buf.is_eos(), ErrorKind::UnexpectedEos);
-            Ok(None)
+            track_assert!(!eos.is_eos(), ErrorKind::UnexpectedEos);
+            Ok((size, None))
         }
     }
 
@@ -262,16 +256,16 @@ impl RemainingBytesDecoder {
 impl Decode for RemainingBytesDecoder {
     type Item = Vec<u8>;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        if let Some(additional) = buf.remaining_bytes() {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        if let Some(additional) = eos.remaining_bytes() {
             self.0.reserve_exact(buf.len() + additional as usize);
         }
 
-        track!(buf.read_to_end(&mut self.0).map_err(Error::from))?;
-        if buf.is_eos() {
-            Ok(Some(mem::replace(&mut self.0, Vec::new())))
+        self.0.extend_from_slice(buf);
+        if eos.is_eos() {
+            Ok((buf.len(), Some(mem::replace(&mut self.0, Vec::new()))))
         } else {
-            Ok(None)
+            Ok((buf.len(), None))
         }
     }
 
@@ -384,12 +378,14 @@ where
 {
     type Item = String;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        if let Some(bytes) = track!(self.0.decode(buf))? {
-            let s = track!(String::from_utf8(bytes).map_err(|e| ErrorKind::InvalidInput.cause(e)))?;
-            Ok(Some(s))
-        } else {
-            Ok(None)
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        match track!(self.0.decode(buf, eos))? {
+            (size, Some(bytes)) => {
+                let s =
+                    track!(String::from_utf8(bytes).map_err(|e| ErrorKind::InvalidInput.cause(e)))?;
+                Ok((size, Some(s)))
+            }
+            (size, None) => Ok((size, None)),
         }
     }
 
@@ -408,7 +404,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeBuf, Encode, EncodeExt, ErrorKind};
+    use {Decode, Encode, EncodeExt, ErrorKind};
     use super::*;
 
     #[test]

@@ -17,12 +17,13 @@ impl Eos {
     }
 
     /// Returns `true` if the target stream has reached to the end, otherwise `false`.
+    // TODO: is_reached?
     pub fn is_eos(&self) -> bool {
         self.0 == Some(0)
     }
 
     /// Returns `true` if the length of the target stream is unknown, otherwise `false`.
-    pub fn is_known(&self) -> bool {
+    pub fn is_unknown(&self) -> bool {
         self.0.is_none()
     }
 

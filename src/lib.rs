@@ -42,7 +42,6 @@ extern crate serde_json;
 #[macro_use]
 extern crate trackable;
 
-pub use buf::DecodeBuf;
 pub use chain::{StartDecoderChain, StartEncoderChain};
 pub use decode::{Decode, DecodeExt, DecodedValue};
 pub use encode::{Encode, EncodeExt, ExactBytesEncode};
@@ -59,7 +58,6 @@ pub mod json_codec;
 pub mod io;
 pub mod monolithic;
 
-mod buf;
 mod chain;
 mod decode;
 mod encode;

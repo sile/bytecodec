@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use {Decode, DecodeBuf, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
+use {Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 
 /// An object for starting a chain of decoders.
 ///
@@ -48,8 +48,8 @@ where
 {
     type Item = (D::Item,);
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.0.b.decode(buf)?.map(|i| (i,)))
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        self.0.b.decode(buf, eos).map(|(n, i)| (n, i.map(|i| (i,))))
     }
 
     fn has_terminated(&self) -> bool {
@@ -71,8 +71,10 @@ where
 {
     type Item = (T0, D1::Item);
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, i)))
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        self.0
+            .decode(buf, eos)
+            .map(|(n, x)| (n, x.map(|(t, i)| (t.0, i))))
     }
 
     fn has_terminated(&self) -> bool {
@@ -94,8 +96,10 @@ where
 {
     type Item = (T0, T1, D1::Item);
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, t.1, i)))
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        self.0
+            .decode(buf, eos)
+            .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, i))))
     }
 
     fn has_terminated(&self) -> bool {
@@ -117,8 +121,10 @@ where
 {
     type Item = (T0, T1, T2, D1::Item);
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, t.1, t.2, i)))
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        self.0
+            .decode(buf, eos)
+            .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, i))))
     }
 
     fn has_terminated(&self) -> bool {
@@ -140,8 +146,10 @@ where
 {
     type Item = (T0, T1, T2, T3, D1::Item);
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.0.decode(buf)?.map(|(t, i)| (t.0, t.1, t.2, t.3, i)))
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        self.0
+            .decode(buf, eos)
+            .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, i))))
     }
 
     fn has_terminated(&self) -> bool {
@@ -163,10 +171,10 @@ where
 {
     type Item = (T0, T1, T2, T3, T4, D1::Item);
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.0
-            .decode(buf)?
-            .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, i)))
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        self.0
+            .decode(buf, eos)
+            .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, i))))
     }
 
     fn has_terminated(&self) -> bool {
@@ -188,10 +196,10 @@ where
 {
     type Item = (T0, T1, T2, T3, T4, T5, D1::Item);
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.0
-            .decode(buf)?
-            .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, i)))
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        self.0
+            .decode(buf, eos)
+            .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, i))))
     }
 
     fn has_terminated(&self) -> bool {
@@ -214,10 +222,10 @@ where
 {
     type Item = (T0, T1, T2, T3, T4, T5, T6, D1::Item);
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        Ok(self.0
-            .decode(buf)?
-            .map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, t.6, i)))
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        self.0
+            .decode(buf, eos)
+            .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, t.6, i))))
     }
 
     fn has_terminated(&self) -> bool {
@@ -510,18 +518,18 @@ where
 {
     type Item = (A::Item, B::Item);
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         if self.a.item.is_none() {
-            track!(self.a.decode(buf))?;
-            if self.a.item.is_none() {
-                return Ok(None);
-            }
-        }
-        if let Some(b) = track!(self.b.decode(buf))? {
-            let a = self.a.item.take().expect("Never fails");
-            Ok(Some((a, b)))
+            let (size, item) = track!(self.a.decode(buf, eos))?;
+            self.a.item = item;
+            Ok((size, None))
         } else {
-            Ok(None)
+            let (size, item) = track!(self.b.decode(buf, eos))?;
+            let item = item.map(|b| {
+                let a = self.a.item.take().expect("Never fails");
+                (a, b)
+            });
+            Ok((size, item))
         }
     }
 
@@ -611,11 +619,14 @@ impl<T, I> Buffered<T, I> {
 impl<T: Decode> Decode for Buffered<T, T::Item> {
     type Item = T::Item;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         if self.item.is_none() {
-            self.item = track!(self.decoder.decode(buf))?;
+            let (size, item) = track!(self.decoder.decode(buf, eos))?;
+            self.item = item;
+            Ok((size, None))
+        } else {
+            Ok((0, None))
         }
-        Ok(None)
     }
 
     fn has_terminated(&self) -> bool {
@@ -641,7 +652,7 @@ impl<T: Decode> Decode for Buffered<T, T::Item> {
 
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeBuf, DecodeExt, StartDecoderChain};
+    use {Decode, DecodeExt, StartDecoderChain};
     use fixnum::U8Decoder;
 
     #[test]
@@ -652,7 +663,7 @@ mod test {
             .chain(U8Decoder::new());
 
         assert_eq!(
-            track_try_unwrap!(decoder.decode(&mut DecodeBuf::new(b"foo"))),
+            track_try_unwrap!(decoder.decode(b"foo")),
             Some((b'f', b'o', b'o'))
         );
     }

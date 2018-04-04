@@ -1,6 +1,6 @@
 use std;
 
-use {DecodeBuf, Error, ErrorKind, Result};
+use {Eos, Error, ErrorKind, Result};
 use combinator::{AndThen, Assert, Collect, DecoderChain, Length, Map, MapErr, MaxBytes, Omit,
                  SkipRemaining, Take, TryMap};
 
@@ -33,9 +33,7 @@ pub trait Decode {
     ///   - Invalid parameters were given to decoders
     /// - `ErrorKind::Error`:
     ///   - Other errors
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>>;
-
-    //fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)>;
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)>;
 
     /// Returns `true` if the decoder cannot decode items anymore, otherwise `false`.
     ///
@@ -69,8 +67,8 @@ pub trait Decode {
 impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
     type Item = D::Item;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        (**self).decode(buf)
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        (**self).decode(buf, eos)
     }
 
     fn has_terminated(&self) -> bool {
@@ -88,8 +86,8 @@ impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
 impl<D: ?Sized + Decode> Decode for Box<D> {
     type Item = D::Item;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        (**self).decode(buf)
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        (**self).decode(buf, eos)
     }
 
     fn has_terminated(&self) -> bool {
@@ -132,9 +130,9 @@ impl<T> DecodedValue<T> {
 impl<T> Decode for DecodedValue<T> {
     type Item = T;
 
-    fn decode(&mut self, _buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
+    fn decode(&mut self, _buf: &[u8], _eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         let item = track_assert_some!(self.0.take(), ErrorKind::DecoderTerminated);
-        Ok(Some(item))
+        Ok((0, Some(item)))
     }
 
     fn has_terminated(&self) -> bool {
