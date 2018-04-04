@@ -42,10 +42,11 @@ extern crate serde_json;
 #[macro_use]
 extern crate trackable;
 
-pub use buf::{DecodeBuf, EncodeBuf};
+pub use buf::DecodeBuf;
 pub use chain::{StartDecoderChain, StartEncoderChain};
 pub use decode::{Decode, DecodeExt, DecodedValue};
 pub use encode::{Encode, EncodeExt, ExactBytesEncode};
+pub use eos::Eos;
 pub use error::{Error, ErrorKind};
 
 #[cfg(feature = "bincode_codec")]
@@ -62,6 +63,7 @@ mod buf;
 mod chain;
 mod decode;
 mod encode;
+mod eos;
 mod error;
 
 /// This crate specific `Result` type.

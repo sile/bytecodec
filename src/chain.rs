@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, ExactBytesEncode, Result};
+use {Decode, DecodeBuf, Encode, ErrorKind, ExactBytesEncode, Result};
 
 /// An object for starting a chain of decoders.
 ///
@@ -238,7 +238,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeBuf, EncodeExt, StartEncoderChain};
+/// use bytecodec::{Encode, EncodeExt, StartEncoderChain};
 /// use bytecodec::bytes::Utf8Encoder;
 /// use bytecodec::fixnum::U8Encoder;
 ///
@@ -247,10 +247,8 @@ where
 ///     .chain(U8Encoder::new())
 ///     .chain(Utf8Encoder::new())
 ///     .map_from(|s: String| (s.len() as u8, s));
-/// {
-///     encoder.start_encoding("foo".to_owned()).unwrap();
-///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-/// }
+/// encoder.start_encoding("foo".to_owned()).unwrap();
+/// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output.as_ref(), b"\x03foo");
 /// ```
 #[derive(Debug)]
@@ -264,7 +262,7 @@ impl StartEncoderChain {
 impl Encode for StartEncoderChain {
     type Item = ();
 
-    fn encode(&mut self, _buf: &mut EncodeBuf) -> Result<()> {
+    fn encode(&mut self, _buf: &mut [u8], _eos: bool) -> Result<usize> {
         track_panic!(ErrorKind::Other)
     }
 
@@ -304,8 +302,8 @@ where
 {
     type Item = (E::Item,);
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.inner.b.encode(buf)
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        self.inner.b.encode(buf, eos)
     }
 
     fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
@@ -327,8 +325,8 @@ where
 {
     type Item = (T0, E1::Item);
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.inner.encode(buf)
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        self.inner.encode(buf, eos)
     }
 
     fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
@@ -350,8 +348,8 @@ where
 {
     type Item = (T0, T1, E1::Item);
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.inner.encode(buf)
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        self.inner.encode(buf, eos)
     }
 
     fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
@@ -373,8 +371,8 @@ where
 {
     type Item = (T0, T1, T2, E1::Item);
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.inner.encode(buf)
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        self.inner.encode(buf, eos)
     }
 
     fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
@@ -396,8 +394,8 @@ where
 {
     type Item = (T0, T1, T2, T3, E1::Item);
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.inner.encode(buf)
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        self.inner.encode(buf, eos)
     }
 
     fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
@@ -419,8 +417,8 @@ where
 {
     type Item = (T0, T1, T2, T3, T4, E1::Item);
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.inner.encode(buf)
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        self.inner.encode(buf, eos)
     }
 
     fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
@@ -442,8 +440,8 @@ where
 {
     type Item = (T0, T1, T2, T3, T4, T5, E1::Item);
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.inner.encode(buf)
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        self.inner.encode(buf, eos)
     }
 
     fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
@@ -467,8 +465,8 @@ where
 {
     type Item = (T0, T1, T2, T3, T4, T5, T6, E1::Item);
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.inner.encode(buf)
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        self.inner.encode(buf, eos)
     }
 
     fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
@@ -561,15 +559,12 @@ where
 {
     type Item = (A::Item, B::Item);
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        while !buf.is_empty() && !self.is_idle() {
-            if !self.a.is_idle() {
-                track!(self.a.encode(buf))?;
-            } else {
-                track!(self.b.encode(buf))?;
-            }
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        if !self.a.is_idle() {
+            track!(self.a.encode(buf, eos))
+        } else {
+            track!(self.b.encode(buf, eos))
         }
-        Ok(())
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {

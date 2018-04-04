@@ -1,26 +1,23 @@
 //! Encoders and decoders for reading/writing byte sequences.
-use std::io::{Read, Write};
+use std::cmp;
+use std::io::Read;
 use std::mem;
 use trackable::error::ErrorKindExt;
 
-use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, ExactBytesEncode, Result};
+use {Decode, DecodeBuf, Encode, Error, ErrorKind, ExactBytesEncode, Result};
 
 /// `BytesEncoder` writes the given bytes into an output byte sequence.
 ///
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::bytes::BytesEncoder;
 ///
 /// let mut output = [0; 4];
-/// {
-///     let mut buf = EncodeBuf::new(&mut output);
-///     let mut encoder = BytesEncoder::with_item(b"foo").unwrap();
-///     encoder.encode(&mut buf).unwrap();
-///     assert!(encoder.is_idle());
-///     assert_eq!(buf.len(), 1);
-/// }
+/// let mut encoder = BytesEncoder::with_item(b"foo").unwrap();
+/// encoder.encode_all(&mut output).unwrap();
+/// assert!(encoder.is_idle());
 /// assert_eq!(&output[..], b"foo\x00");
 /// ```
 #[derive(Debug)]
@@ -45,15 +42,17 @@ impl<B> Default for BytesEncoder<B> {
 impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     type Item = B;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        let mut size = 0;
         let drop_item = if let Some(ref b) = self.bytes {
-            let size = track!(buf.write(&b.as_ref()[self.offset..]).map_err(Error::from))?;
+            size = cmp::min(buf.len(), b.as_ref().len() - self.offset);
+            (&mut buf[..size]).copy_from_slice(&b.as_ref()[self.offset..][..size]);
             self.offset += size;
             if self.offset == b.as_ref().len() {
                 true
             } else {
-                track_assert!(!buf.is_eos(), ErrorKind::UnexpectedEos;
-                              self.offset, b.as_ref().len());
+                track_assert!(!eos, ErrorKind::UnexpectedEos;
+                              buf.len(), size, self.offset, b.as_ref().len());
                 false
             }
         } else {
@@ -62,7 +61,7 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
         if drop_item {
             self.bytes = None;
         }
-        Ok(())
+        Ok(size)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -302,17 +301,13 @@ impl<T: AsRef<str>> AsRef<[u8]> for Utf8Bytes<T> {
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+/// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::bytes::Utf8Encoder;
 ///
 /// let mut output = [0; 4];
-/// {
-///     let mut buf = EncodeBuf::new(&mut output);
-///     let mut encoder = Utf8Encoder::with_item("foo").unwrap();
-///     encoder.encode(&mut buf).unwrap();
-///     assert!(encoder.is_idle());
-///     assert_eq!(buf.len(), 1);
-/// }
+/// let mut encoder = Utf8Encoder::with_item("foo").unwrap();
+/// encoder.encode_all(&mut output).unwrap();
+/// assert!(encoder.is_idle());
 /// assert_eq!(&output[..], b"foo\x00");
 /// ```
 #[derive(Debug)]
@@ -326,8 +321,8 @@ impl<S> Utf8Encoder<S> {
 impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
     type Item = S;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        track!(self.0.encode(buf))
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        track!(self.0.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -413,7 +408,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeBuf, Encode, EncodeBuf, EncodeExt, ErrorKind};
+    use {Decode, DecodeBuf, Encode, EncodeExt, ErrorKind};
     use super::*;
 
     #[test]
@@ -434,14 +429,11 @@ mod test {
 
     #[test]
     fn utf8_encoder_works() {
-        let mut output = [0; 4];
-        {
-            let mut buf = EncodeBuf::new(&mut output);
-            let mut encoder = Utf8Encoder::with_item("foo").unwrap();
-            encoder.encode(&mut buf).unwrap();
-            assert!(encoder.is_idle());
-            assert_eq!(buf.len(), 1);
-        }
-        assert_eq!(&output[..], b"foo\x00");
+        let mut buf = [0; 4];
+        let mut encoder = Utf8Encoder::with_item("foo").unwrap();
+        let size = encoder.encode_all(&mut buf).unwrap();
+        assert!(encoder.is_idle());
+        assert_eq!(size, 3);
+        assert_eq!(&buf[..], b"foo\x00");
     }
 }

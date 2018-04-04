@@ -1,6 +1,6 @@
 use std;
 
-use {EncodeBuf, Error, Result};
+use {Error, ErrorKind, Result};
 use combinator::{EncoderChain, Length, MapErr, MapFrom, MaxBytes, Optional, Padding, PreEncode,
                  Repeat, TryMapFrom, WithPrefix};
 
@@ -8,24 +8,6 @@ use combinator::{EncoderChain, Length, MapErr, MapFrom, MaxBytes, Optional, Padd
 pub trait Encode {
     /// The type of items to be encoded.
     type Item;
-
-    /// Encodes the current item and writes the encoded bytes to the given buffer as many as possible.
-    ///
-    /// If the encoded bytes are larger than the length of `buf`,
-    /// the encoder **must** consume all the bytes in the buffer.
-    /// The encoded bytes that could not be written is held by the encoder
-    /// until the next invocation of the `encode()` method.
-    ///
-    /// # Errors
-    ///
-    /// Encoders return the following kinds of errors as necessary:
-    /// - `ErrorKind::InvalidInput`:
-    ///   - An item that the encoder could not encode was passed
-    /// - `ErrorKind::UnexpectedEos`:
-    ///   - The output byte sequence has reached the end in the middle of an encoding process
-    /// - `ErrorKind::Other`:
-    ///   - Other errors has occurred
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()>;
 
     /// Tries to start encoding the given item.
     ///
@@ -41,6 +23,47 @@ pub trait Encode {
     /// - `ErrorKind::Other`:
     ///   - Other errors has occurred
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
+
+    /// Encodes the current item and writes the encoded bytes to the given buffer as many as possible.
+    ///
+    /// TODO: update doc
+    ///
+    /// If the encoded bytes are larger than the length of `buf`,
+    /// the encoder **must** consume all the bytes in the buffer.
+    /// The encoded bytes that could not be written is held by the encoder
+    /// until the next invocation of the `encode()` method.
+    ///
+    /// # Errors
+    ///
+    /// Encoders return the following kinds of errors as necessary:
+    /// - `ErrorKind::InvalidInput`:
+    ///   - An item that the encoder could not encode was passed
+    /// - `ErrorKind::UnexpectedEos`:
+    ///   - The output byte sequence has reached the end in the middle of an encoding process
+    /// - `ErrorKind::Other`:
+    ///   - Other errors has occurred
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize>;
+
+    /// TODO:
+    fn encode_all(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let mut offset = 0;
+        while !self.is_idle() {
+            track_assert!(offset <= buf.len(), ErrorKind::UnexpectedEos);
+            let size = self.encode(&mut buf[offset..], true)?;
+            offset += size;
+        }
+        Ok(offset)
+    }
+
+    /// TODO: doc
+    fn encode_as_many_as_possible(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        let mut offset = 0;
+        while !self.is_idle() && offset <= buf.len() {
+            let size = self.encode(&mut buf[offset..], eos)?;
+            offset += size;
+        }
+        Ok(offset)
+    }
 
     /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
     fn is_idle(&self) -> bool;
@@ -63,8 +86,8 @@ pub trait Encode {
 impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        (**self).encode(buf)
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        (**self).encode(buf, eos)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -82,8 +105,8 @@ impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
 impl<E: ?Sized + Encode> Encode for Box<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        (**self).encode(buf)
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        (**self).encode(buf, eos)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -122,14 +145,12 @@ pub trait EncodeExt: Encode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+    /// use bytecodec::{Encode, EncodeExt};
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// let mut output = [0; 1];
     /// let mut encoder = U8Encoder::with_item(7).unwrap();
-    /// {
-    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-    /// }
+    /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output, [7]);
     /// assert!(encoder.is_idle());
     /// ```
@@ -142,6 +163,7 @@ pub trait EncodeExt: Encode + Sized {
         Ok(this)
     }
 
+    /// Returns a mutable reference to the encoder.
     fn by_ref(&mut self) -> &mut Self {
         self
     }
@@ -157,21 +179,21 @@ pub trait EncodeExt: Encode + Sized {
     /// #[macro_use]
     /// extern crate trackable;
     ///
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+    /// use bytecodec::{Encode, EncodeExt};
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// # fn main() {
-    /// let mut buf = EncodeBuf::with_eos(&mut [][..], true); // Empty and EOS buffer
+    /// let mut buf = []; // EOS
     ///
     /// let encoder = U8Encoder::with_item(7).unwrap();
     /// let mut encoder = encoder.map_err(|e| track!(e, "oops!")); // or track_err!(encoder, "oops!")
-    /// let error = track!(encoder.encode(&mut buf)).err().unwrap();
+    /// let error = track!(encoder.encode_all(&mut buf)).err().unwrap();
     ///
     /// assert_eq!(error.to_string(), "\
-    /// UnexpectedEos (cause; assertion failed: `!buf.is_eos()`; self.offset=0, b.as_ref().len()=1)
+    /// UnexpectedEos (cause; assertion failed: `!eos`; buf.len()=0, size=0, self.offset=0, b.as_ref().len()=1)
     /// HISTORY:
-    ///   [0] at src/bytes.rs:55
-    ///   [1] at src/fixnum.rs:117
+    ///   [0] at src/bytes.rs:54
+    ///   [1] at src/fixnum.rs:115
     ///   [2] at src/encode.rs:13 -- oops!
     ///   [3] at src/encode.rs:14\n");
     /// # }
@@ -190,16 +212,14 @@ pub trait EncodeExt: Encode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+    /// use bytecodec::{Encode, EncodeExt};
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// let mut output = [0; 1];
     /// let mut encoder = U8Encoder::new().map_from(|s: String| s.len() as u8);
-    /// {
-    ///     let item = "Hello World!".to_owned();
-    ///     encoder.start_encoding(item).unwrap();
-    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-    /// }
+    /// let item = "Hello World!".to_owned();
+    /// encoder.start_encoding(item).unwrap();
+    /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output, [12]);
     /// ```
     fn map_from<T, F>(self, f: F) -> MapFrom<Self, T, F>
@@ -219,7 +239,7 @@ pub trait EncodeExt: Encode + Sized {
     /// #[macro_use]
     /// extern crate trackable;
     ///
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt, ErrorKind, Result};
+    /// use bytecodec::{Encode, EncodeExt, ErrorKind, Result};
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// # fn main() {
@@ -228,11 +248,9 @@ pub trait EncodeExt: Encode + Sized {
     ///     track_assert!(s.len() <= 0xFF, ErrorKind::InvalidInput);
     ///     Ok(s.len() as u8)
     /// });
-    /// {
-    ///     let item = "Hello World!".to_owned();
-    ///     encoder.start_encoding(item).unwrap();
-    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-    /// }
+    /// let item = "Hello World!".to_owned();
+    /// encoder.start_encoding(item).unwrap();
+    /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output, [12]);
     /// # }
     /// ```
@@ -253,7 +271,7 @@ pub trait EncodeExt: Encode + Sized {
     /// Encodes a length-prefixed UTF-8 string:
     ///
     /// ```
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt, StartEncoderChain};
+    /// use bytecodec::{Encode, EncodeExt, StartEncoderChain};
     /// use bytecodec::bytes::Utf8Encoder;
     /// use bytecodec::fixnum::U8Encoder;
     ///
@@ -262,10 +280,8 @@ pub trait EncodeExt: Encode + Sized {
     ///     .chain(U8Encoder::new())
     ///     .chain(Utf8Encoder::new())
     ///     .map_from(|s: String| (s.len() as u8, s));
-    /// {
-    ///     encoder.start_encoding("foo".to_owned()).unwrap();
-    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-    /// }
+    /// encoder.start_encoding("foo".to_owned()).unwrap();
+    /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output.as_ref(), b"\x03foo");
     /// ```
     fn chain<E: Encode>(self, other: E) -> EncoderChain<Self, E, Self::Item> {
@@ -281,23 +297,20 @@ pub trait EncodeExt: Encode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt};
+    /// use bytecodec::{Encode, EncodeExt};
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// let mut output = [0; 1];
     /// let mut encoder = U8Encoder::new().optional();
-    /// {
-    ///     let mut buf = EncodeBuf::new(&mut output);
-    ///     assert_eq!(buf.len(), 1);
     ///
-    ///     encoder.start_encoding(None).unwrap();
-    ///     encoder.encode(&mut buf).unwrap();
-    ///     assert_eq!(buf.len(), 1);
+    /// encoder.start_encoding(None).unwrap();
+    /// let size = encoder.encode_all(&mut output).unwrap();
+    /// assert_eq!(size, 0);
     ///
-    ///     encoder.start_encoding(Some(9)).unwrap();
-    ///     encoder.encode(&mut buf).unwrap();
-    ///     assert_eq!(buf.len(), 0);
-    /// }
+    /// encoder.start_encoding(Some(9)).unwrap();
+    /// let size = encoder.encode_all(&mut output).unwrap();
+    /// assert_eq!(size, 1);
+    ///
     /// assert_eq!(output, [9]);
     /// ```
     fn optional(self) -> Optional<Self> {
@@ -309,23 +322,19 @@ pub trait EncodeExt: Encode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt, ErrorKind};
+    /// use bytecodec::{Encode, EncodeExt, ErrorKind};
     /// use bytecodec::bytes::Utf8Encoder;
     ///
     /// let mut output = [0; 3];
     /// let mut encoder = Utf8Encoder::new().max_bytes(3);
     ///
-    /// {
-    ///     encoder.start_encoding("foo").unwrap(); // OK
-    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-    /// }
+    /// encoder.start_encoding("foo").unwrap(); // OK
+    /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output.as_ref(), b"foo");
     ///
-    /// {
-    ///     encoder.start_encoding("hello").unwrap(); // Error
-    ///     let error = encoder.encode(&mut EncodeBuf::new(&mut output)).err().unwrap();
-    ///     assert_eq!(*error.kind(), ErrorKind::InvalidInput);
-    /// }
+    /// encoder.start_encoding("hello").unwrap(); // Error
+    /// let error = encoder.encode_all(&mut output).err().unwrap();
+    /// assert_eq!(*error.kind(), ErrorKind::InvalidInput);
     /// ```
     fn max_bytes(self, n: u64) -> MaxBytes<Self> {
         MaxBytes::new(self, n)
@@ -336,30 +345,24 @@ pub trait EncodeExt: Encode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt, ErrorKind};
+    /// use bytecodec::{Encode, EncodeExt, ErrorKind};
     /// use bytecodec::bytes::Utf8Encoder;
     ///
     /// let mut output = [0; 4];
-    /// {
-    ///     let mut encoder = Utf8Encoder::new().length(3);
-    ///     encoder.start_encoding("hey").unwrap(); // OK
-    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-    /// }
+    /// let mut encoder = Utf8Encoder::new().length(3);
+    /// encoder.start_encoding("hey").unwrap(); // OK
+    /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output.as_ref(), b"hey\x00");
     ///
-    /// {
-    ///     let mut encoder = Utf8Encoder::new().length(3);
-    ///     encoder.start_encoding("hello").unwrap(); // Error (too long)
-    ///     let error = encoder.encode(&mut EncodeBuf::new(&mut output)).err().unwrap();
-    ///     assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
-    /// }
+    /// let mut encoder = Utf8Encoder::new().length(3);
+    /// encoder.start_encoding("hello").unwrap(); // Error (too long)
+    /// let error = encoder.encode_all(&mut output).err().unwrap();
+    /// assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
     ///
-    /// {
-    ///     let mut encoder = Utf8Encoder::new().length(3);
-    ///     encoder.start_encoding("hi").unwrap(); // Error (too short)
-    ///     let error = encoder.encode(&mut EncodeBuf::new(&mut output)).err().unwrap();
-    ///     assert_eq!(*error.kind(), ErrorKind::InvalidInput);
-    /// }
+    /// let mut encoder = Utf8Encoder::new().length(3);
+    /// encoder.start_encoding("hi").unwrap(); // Error (too short)
+    /// let error = encoder.encode_all(&mut output).err().unwrap();
+    /// assert_eq!(*error.kind(), ErrorKind::InvalidInput);
     /// ```
     fn length(self, n: u64) -> Length<Self> {
         Length::new(self, n)
@@ -371,15 +374,13 @@ pub trait EncodeExt: Encode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt, ErrorKind};
+    /// use bytecodec::{Encode, EncodeExt, ErrorKind};
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// let mut output = [0; 4];
-    /// {
-    ///     let mut encoder = U8Encoder::new().padding(9).length(3);
-    ///     encoder.start_encoding(3).unwrap();
-    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-    /// }
+    /// let mut encoder = U8Encoder::new().padding(9).length(3);
+    /// encoder.start_encoding(3).unwrap();
+    /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output.as_ref(), [3, 9, 9, 0]);
     /// ```
     fn padding(self, padding_byte: u8) -> Padding<Self> {
@@ -391,15 +392,13 @@ pub trait EncodeExt: Encode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt, ErrorKind};
+    /// use bytecodec::{Encode, EncodeExt, ErrorKind};
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// let mut output = [0; 4];
-    /// {
-    ///     let mut encoder = U8Encoder::new().repeat();
-    ///     encoder.start_encoding(0..4).unwrap();
-    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-    /// }
+    /// let mut encoder = U8Encoder::new().repeat();
+    /// encoder.start_encoding(0..4).unwrap();
+    /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output.as_ref(), [0, 1, 2, 3]);
     /// ```
     fn repeat<I>(self) -> Repeat<Self, I>
@@ -416,17 +415,15 @@ pub trait EncodeExt: Encode + Sized {
     /// Encodes a length prefixed UTF-8 string:
     ///
     /// ```
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt, ExactBytesEncode};
+    /// use bytecodec::{Encode, EncodeExt, ExactBytesEncode};
     /// use bytecodec::bytes::Utf8Encoder;
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// let mut output = [0; 4];
-    /// {
-    ///     let mut encoder =
-    ///         Utf8Encoder::new().with_prefix(U8Encoder::new(), |body| body.requiring_bytes() as u8);
-    ///     encoder.start_encoding("foo").unwrap();
-    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-    /// }
+    /// let mut encoder =
+    ///     Utf8Encoder::new().with_prefix(U8Encoder::new(), |body| body.requiring_bytes() as u8);
+    /// encoder.start_encoding("foo").unwrap();
+    /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output.as_ref(), [3, b'f', b'o', b'o']);
     /// ```
     fn with_prefix<E, F>(self, prefix: E, f: F) -> WithPrefix<Self, E, F>
@@ -439,25 +436,24 @@ pub trait EncodeExt: Encode + Sized {
 
     /// Creates an encoder that pre-encodes items when `start_encoding` method is called.
     ///
-    /// Although the number of memory copies increases, pre-encoding will enable to acquire the exact size of encoded items.
+    /// Although the number of memory copies increases,
+    /// pre-encoding will enable to acquire the exact size of encoded items.
     ///
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Encode, EncodeBuf, EncodeExt, ExactBytesEncode};
+    /// use bytecodec::{Encode, EncodeExt, ExactBytesEncode};
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// let mut output = [0; 4];
-    /// {
-    ///     let mut encoder =
-    ///         U8Encoder::new()
-    ///             .repeat()
-    ///             .pre_encode()
-    ///             .with_prefix(U8Encoder::new(), |body| body.requiring_bytes() as u8);
+    /// let mut encoder =
+    ///     U8Encoder::new()
+    ///         .repeat()
+    ///         .pre_encode()
+    ///         .with_prefix(U8Encoder::new(), |body| body.requiring_bytes() as u8);
     ///
-    ///     encoder.start_encoding(0..3).unwrap();
-    ///     encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-    /// }
+    /// encoder.start_encoding(0..3).unwrap();
+    /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output.as_ref(), [3, 0, 1, 2]);
     /// ```
     fn pre_encode(self) -> PreEncode<Self> {

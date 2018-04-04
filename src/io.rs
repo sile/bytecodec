@@ -1,7 +1,8 @@
 //! I/O (i.e., `Read` and `Write` traits) related module.
+#![allow(missing_docs)] // TODO: delete
 use std::io::{self, Read, Write};
 
-use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, Result};
+use {Decode, DecodeBuf, Encode, Error, ErrorKind, Result};
 
 /// An extension of `Decode` trait to aid decodings involving I/O.
 pub trait IoDecodeExt: Decode {
@@ -220,10 +221,9 @@ impl WriteBuf {
     }
 
     pub fn fill<E: Encode>(&mut self, mut encoder: E) -> Result<()> {
-        let capacity = self.buf.len();
-        let mut buf = EncodeBuf::new(&mut self.buf[self.tail..]);
-        track!(encoder.encode(&mut buf))?;
-        self.tail = capacity - buf.len();
+        let eos = false; // TODO
+        let size = track!(encoder.encode(&mut self.buf[self.tail..], eos))?;
+        self.tail += size;
         Ok(())
     }
 

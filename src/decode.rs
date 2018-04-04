@@ -11,6 +11,8 @@ pub trait Decode {
 
     /// Consumes the given buffer (a part of a byte sequence), and decodes an item from it.
     ///
+    /// TODO: update doc
+    ///
     /// If an item is successfully decoded, the decoder will return `Ok(Some(..))`.
     ///
     /// If the buffer does not contain enough bytes to decode the next item,
@@ -32,6 +34,8 @@ pub trait Decode {
     /// - `ErrorKind::Error`:
     ///   - Other errors
     fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>>;
+
+    //fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)>;
 
     /// Returns `true` if the decoder cannot decode items anymore, otherwise `false`.
     ///
@@ -148,6 +152,7 @@ impl<T> Decode for DecodedValue<T> {
 
 /// An extension of `Decode` trait.
 pub trait DecodeExt: Decode + Sized {
+    /// Returns a mutable reference to the decoder.
     fn by_ref(&mut self) -> &mut Self {
         self
     }
@@ -232,8 +237,8 @@ pub trait DecodeExt: Decode + Sized {
     /// assert_eq!(error.to_string(), "\
     /// UnexpectedEos (cause; assertion failed: `!buf.is_eos()`)
     /// HISTORY:
-    ///   [0] at src/bytes.rs:144
-    ///   [1] at src/fixnum.rs:199
+    ///   [0] at src/bytes.rs:143
+    ///   [1] at src/fixnum.rs:195
     ///   [2] at src/decode.rs:11 -- oops!
     ///   [3] at src/decode.rs:17\n");
     /// # }

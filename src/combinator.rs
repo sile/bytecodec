@@ -3,13 +3,12 @@
 //! These are mainly created via the methods provided by `EncodeExt` or `DecodeExt` traits.
 use std;
 use std::cmp;
-use std::io::Write;
 use std::iter;
 use std::marker::PhantomData;
 
 pub use chain::{DecoderChain, EncoderChain};
 
-use {Decode, DecodeBuf, Encode, EncodeBuf, Error, ErrorKind, ExactBytesEncode, Result};
+use {Decode, DecodeBuf, Encode, Error, ErrorKind, ExactBytesEncode, Result};
 use bytes::BytesEncoder;
 use io::encode_to_writer;
 
@@ -112,8 +111,10 @@ where
 {
     type Item = C::Item;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        self.codec.encode(buf).map_err(|e| (self.map_err)(e).into())
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        self.codec
+            .encode(buf, eos)
+            .map_err(|e| (self.map_err)(e).into())
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -238,8 +239,8 @@ where
 {
     type Item = T;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        track!(self.encoder.encode(buf))
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        track!(self.encoder.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -291,8 +292,8 @@ where
 {
     type Item = T;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        track!(self.encoder.encode(buf))
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        track!(self.encoder.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -342,18 +343,16 @@ where
 {
     type Item = I;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        while !buf.is_empty() && self.items.is_some() {
-            track!(self.encoder.encode(buf))?;
-            if self.encoder.is_idle() {
-                if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
-                    track!(self.encoder.start_encoding(item))?;
-                } else {
-                    self.items = None;
-                }
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        while self.encoder.is_idle() {
+            if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
+                track!(self.encoder.start_encoding(item))?;
+            } else {
+                self.items = None;
+                break;
             }
         }
-        Ok(())
+        track!(self.encoder.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -436,8 +435,8 @@ impl<E> Optional<E> {
 impl<E: Encode> Encode for Optional<E> {
     type Item = Option<E::Item>;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        track!(self.0.encode(buf))
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        track!(self.0.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -622,28 +621,23 @@ impl<D: Decode> Decode for Length<D> {
 impl<E: Encode> Encode for Length<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        if buf.is_eos() {
-            track_assert!(buf.len() as u64 >= self.remaining_bytes, ErrorKind::UnexpectedEos;
-                          buf.len(), self.remaining_bytes);
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        if (buf.len() as u64) < self.remaining_bytes {
+            track_assert!(!eos, ErrorKind::UnexpectedEos);
         }
 
-        let original_buf_len = buf.len();
         let limit = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
-        let eos = limit as u64 == self.remaining_bytes;
-        buf.with_limit_and_eos(limit, eos, |buf| track!(self.inner.encode(buf)))?;
-
-        self.remaining_bytes -= (original_buf_len - buf.len()) as u64;
+        let size = track!(self.inner.encode(&mut buf[..limit], eos))?;
+        self.remaining_bytes -= size as u64;
         if self.inner.is_idle() {
             track_assert_eq!(
                 self.remaining_bytes,
                 0,
-                ErrorKind::InvalidInput,
+                ErrorKind::InvalidInput, // TODO: TooLittleConsumption
                 "Too small item"
             );
-            self.remaining_bytes = self.expected_bytes;
         }
-        Ok(())
+        Ok(size)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -652,6 +646,7 @@ impl<E: Encode> Encode for Length<E> {
             self.expected_bytes,
             ErrorKind::EncoderFull
         );
+        self.remaining_bytes = self.expected_bytes;
         track!(self.inner.start_encoding(item))
     }
 
@@ -660,7 +655,7 @@ impl<E: Encode> Encode for Length<E> {
     }
 
     fn is_idle(&self) -> bool {
-        self.remaining_bytes == self.expected_bytes
+        self.remaining_bytes == 0
     }
 }
 impl<E: Encode> ExactBytesEncode for Length<E> {
@@ -878,11 +873,11 @@ impl<D: Decode> Decode for MaxBytes<D> {
 impl<E: Encode> Encode for MaxBytes<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        let old_buf_len = buf.len();
-        let actual_buf_len = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
-        buf.with_limit(actual_buf_len, |buf| track!(self.codec.encode(buf)))?;
-        self.consumed_bytes = (old_buf_len - buf.len()) as u64;
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        let limit = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
+        let eos = eos && (limit as u64) != self.max_remaining_bytes();
+        let size = track!(self.codec.encode(&mut buf[..limit], eos))?;
+        self.consumed_bytes += size as u64;
         if self.consumed_bytes == self.max_bytes {
             track_assert!(self.is_idle(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
                           self.max_bytes);
@@ -890,7 +885,7 @@ impl<E: Encode> Encode for MaxBytes<E> {
         if self.is_idle() {
             self.consumed_bytes = 0;
         }
-        Ok(())
+        Ok(size)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -974,13 +969,16 @@ impl<E> Padding<E> {
 impl<E: Encode> Encode for Padding<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
         if !self.encoder.is_idle() {
-            self.encoder.encode(buf)?
+            self.encoder.encode(buf, eos)
+        } else {
+            for b in buf.iter_mut() {
+                *b = self.padding_byte;
+            }
+            self.eos_reached = eos;
+            Ok(buf.len())
         }
-        while 0 != buf.write(&[self.padding_byte][..]).expect("Never fails") {}
-        self.eos_reached = buf.is_eos();
-        Ok(())
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -1024,14 +1022,12 @@ where
 {
     type Item = E0::Item;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
         if !self.prefix_encoder.is_idle() {
-            track!(self.prefix_encoder.encode(buf))?;
+            track!(self.prefix_encoder.encode(buf, eos))
+        } else {
+            track!(self.body_encoder.encode(buf, eos))
         }
-        if self.prefix_encoder.is_idle() {
-            track!(self.body_encoder.encode(buf))?;
-        }
-        Ok(())
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -1087,8 +1083,8 @@ impl<E> PreEncode<E> {
 impl<E: Encode> Encode for PreEncode<E> {
     type Item = E::Item;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        track!(self.pre_encoded.encode(buf))
+    fn encode(&mut self, buf: &mut [u8], eos: bool) -> Result<usize> {
+        track!(self.pre_encoded.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -1114,7 +1110,7 @@ impl<E: Encode> ExactBytesEncode for PreEncode<E> {
 
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeBuf, DecodeExt, Encode, EncodeBuf, EncodeExt, ErrorKind};
+    use {Decode, DecodeBuf, DecodeExt, Encode, EncodeExt, ErrorKind};
     use bytes::{Utf8Decoder, Utf8Encoder};
     use fixnum::{U8Decoder, U8Encoder};
 
@@ -1154,50 +1150,53 @@ mod test {
     #[test]
     fn encoder_length_works() {
         let mut output = [0; 4];
-        {
-            let mut encoder = Utf8Encoder::new().length(3);
-            encoder.start_encoding("hey").unwrap(); // OK
-            encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-        }
+        let mut encoder = Utf8Encoder::new().length(3);
+        encoder.start_encoding("hey").unwrap(); // OK
+        track_try_unwrap!(encoder.encode_all(&mut output));
         assert_eq!(output.as_ref(), b"hey\x00");
 
-        {
-            let mut encoder = Utf8Encoder::new().length(3);
-            encoder.start_encoding("hello").unwrap(); // Error (too long)
-            let error = encoder
-                .encode(&mut EncodeBuf::new(&mut output))
-                .err()
-                .unwrap();
-            assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
-        }
+        let mut output = [0; 4];
+        let mut encoder = Utf8Encoder::new().length(3);
+        encoder.start_encoding("hello").unwrap(); // Error (too long)
+        let error = encoder.encode_all(&mut output).err().expect("too long");
+        assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
 
-        {
-            let mut encoder = Utf8Encoder::new().length(3);
-            encoder.start_encoding("hi").unwrap(); // Error (too short)
-            let error = encoder.encode(&mut EncodeBuf::new(&mut output)).err();
-            assert_eq!(error.map(|e| *e.kind()), Some(ErrorKind::InvalidInput));
-        }
+        let mut output = [0; 4];
+        let mut encoder = Utf8Encoder::new().length(3);
+        encoder.start_encoding("hi").unwrap(); // Error (too short)
+        let error = encoder.encode_all(&mut output).err().expect("too short");
+        assert_eq!(*error.kind(), ErrorKind::InvalidInput);
     }
 
     #[test]
     fn padding_works() {
         let mut output = [0; 4];
-        {
-            let mut encoder = U8Encoder::new().padding(9).length(3);
-            encoder.start_encoding(3).unwrap();
-            encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-        }
+        let mut encoder = U8Encoder::new().padding(9).length(3);
+        encoder.start_encoding(3).unwrap();
+        track_try_unwrap!(encoder.encode_all(&mut output[..]));
         assert_eq!(output.as_ref(), [3, 9, 9, 0]);
     }
 
     #[test]
     fn repeat_works() {
         let mut output = [0; 4];
-        {
-            let mut encoder = U8Encoder::new().repeat();
-            encoder.start_encoding(0..4).unwrap();
-            encoder.encode(&mut EncodeBuf::new(&mut output)).unwrap();
-        }
+        let mut encoder = U8Encoder::new().repeat();
+        encoder.start_encoding(0..4).unwrap();
+        track_try_unwrap!(encoder.encode_all(&mut output));
         assert_eq!(output.as_ref(), [0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn encoder_max_bytes_works() {
+        let mut output = [0; 3];
+        let mut encoder = Utf8Encoder::new().max_bytes(3);
+
+        encoder.start_encoding("foo").unwrap(); // OK
+        encoder.encode_all(&mut output).unwrap();
+        assert_eq!(output.as_ref(), b"foo");
+
+        encoder.start_encoding("hello").unwrap(); // Error
+        let error = encoder.encode_all(&mut output).err().unwrap();
+        assert_eq!(*error.kind(), ErrorKind::InvalidInput);
     }
 }
