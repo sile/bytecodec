@@ -549,7 +549,7 @@ impl<D: Decode> Decode for Length<D> {
         let limit = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
         let required = self.remaining_bytes - limit as u64;
         let expected_eos = Eos::with_remaining_bytes(ByteCount::Finite(required));
-        if let Some(remaining) = eos.remaining_bytes().to_finite() {
+        if let Some(remaining) = eos.remaining_bytes().to_u64() {
             track_assert!(remaining >= required, ErrorKind::UnexpectedEos; remaining, required);
         }
         let (size, item) = track!(self.inner.decode(&buf[..limit], expected_eos))?;
@@ -988,7 +988,13 @@ where
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        self.prefix_encoder.requiring_bytes() + self.body_encoder.requiring_bytes()
+        let x = self.prefix_encoder.requiring_bytes();
+        let y = self.body_encoder.requiring_bytes();
+        match (x, y) {
+            (ByteCount::Finite(x), ByteCount::Finite(y)) => ByteCount::Finite(x + y),
+            (ByteCount::Infinite, _) | (_, ByteCount::Infinite) => ByteCount::Infinite,
+            (ByteCount::Unknown, _) | (_, ByteCount::Unknown) => ByteCount::Unknown,
+        }
     }
 
     fn is_idle(&self) -> bool {

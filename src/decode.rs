@@ -86,6 +86,7 @@ impl<D: ?Sized + Decode> Decode for Box<D> {
     }
 }
 
+// TODO: move to value module
 /// `DecodedValue` represents a decoded item.
 ///
 /// It does not consume any bytes, and returns the given item when `decode()` was first called.

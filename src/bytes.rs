@@ -254,7 +254,7 @@ impl Decode for RemainingBytesDecoder {
     type Item = Vec<u8>;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        if let Some(remaining) = eos.remaining_bytes().to_finite() {
+        if let Some(remaining) = eos.remaining_bytes().to_u64() {
             self.0.reserve_exact(buf.len() + remaining as usize);
         }
 

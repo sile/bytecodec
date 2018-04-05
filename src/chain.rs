@@ -552,7 +552,13 @@ where
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        self.a.requiring_bytes() + self.b.requiring_bytes()
+        let a = self.a.requiring_bytes();
+        let b = self.b.requiring_bytes();
+        match (a, b) {
+            (ByteCount::Finite(a), ByteCount::Finite(b)) => ByteCount::Finite(a + b),
+            (ByteCount::Infinite, _) | (_, ByteCount::Infinite) => ByteCount::Infinite,
+            (ByteCount::Unknown, _) | (_, ByteCount::Unknown) => ByteCount::Unknown,
+        }
     }
 
     fn is_idle(&self) -> bool {

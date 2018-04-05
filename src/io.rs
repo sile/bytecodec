@@ -1,8 +1,9 @@
 //! I/O (i.e., `Read` and `Write` traits) related module.
 #![allow(missing_docs)] // TODO: delete
+use std::cmp;
 use std::io::{self, Read, Write};
 
-use {Decode, Encode, Eos, Error, ErrorKind, Result};
+use {ByteCount, Decode, Encode, Eos, Error, ErrorKind, Result};
 
 /// An extension of `Decode` trait to aid decodings involving I/O.
 ///
@@ -31,10 +32,11 @@ pub trait IoDecodeExt: Decode {
     fn decode_exact<R: Read>(&mut self, mut reader: R) -> Result<Self::Item> {
         let mut buf = [0; 1024];
         loop {
-            let mut size = self.requiring_bytes()
-                .min(buf.len() as u64)
-                .to_finite()
-                .unwrap_or(1) as usize;
+            let mut size = match self.requiring_bytes() {
+                ByteCount::Finite(n) => cmp::min(n, buf.len() as u64) as usize,
+                ByteCount::Infinite => buf.len(),
+                ByteCount::Unknown => 1,
+            };
             let eos = if size != 0 {
                 size = track!(reader.read(&mut buf[..size]).map_err(Error::from))?;
                 Eos::new(size == 0)

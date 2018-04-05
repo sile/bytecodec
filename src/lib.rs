@@ -42,10 +42,11 @@ extern crate serde_json;
 #[macro_use]
 extern crate trackable;
 
+pub use byte_count::ByteCount;
 pub use chain::{StartDecoderChain, StartEncoderChain};
 pub use decode::{Decode, DecodeExt, DecodedValue};
 pub use encode::{Encode, EncodeExt, ExactBytesEncode};
-pub use eos::{ByteCount, Eos};
+pub use eos::Eos;
 pub use error::{Error, ErrorKind};
 
 #[cfg(feature = "bincode_codec")]
@@ -58,6 +59,7 @@ pub mod json_codec;
 pub mod io;
 pub mod monolithic;
 
+mod byte_count;
 mod chain;
 mod decode;
 mod encode;
