@@ -3,7 +3,7 @@ use std::cmp;
 use std::mem;
 use trackable::error::ErrorKindExt;
 
-use {Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
+use {ByteCount, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 
 /// `BytesEncoder` writes the given bytes into an output byte sequence.
 ///
@@ -50,7 +50,7 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
             if self.offset == b.as_ref().len() {
                 true
             } else {
-                track_assert!(!eos.is_eos(), ErrorKind::UnexpectedEos;
+                track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos;
                               buf.len(), size, self.offset, b.as_ref().len());
                 false
             }
@@ -70,8 +70,8 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
         Ok(())
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        Some(self.requiring_bytes())
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Finite(self.exact_requiring_bytes())
     }
 
     fn is_idle(&self) -> bool {
@@ -79,7 +79,7 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     }
 }
 impl<B: AsRef<[u8]>> ExactBytesEncode for BytesEncoder<B> {
-    fn requiring_bytes(&self) -> u64 {
+    fn exact_requiring_bytes(&self) -> u64 {
         self.bytes
             .as_ref()
             .map_or(0, |b| b.as_ref().len() - self.offset) as u64
@@ -136,11 +136,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
         if self.offset == self.bytes.as_mut().len() {
             self.offset = 0;
             Ok((size, Some(self.bytes)))
+        } else if eos.is_reached() {
+            track_assert_eq!(self.offset, 0, ErrorKind::UnexpectedEos);
+            Ok((size, None))
         } else {
-            if self.offset != 0 {
-                // TODO: 他の個所にも似たようなチェックを入れる
-                track_assert!(!eos.is_eos(), ErrorKind::UnexpectedEos);
-            }
             Ok((size, None))
         }
     }
@@ -149,8 +148,8 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
         false
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        Some((self.bytes.as_ref().len() - self.offset) as u64)
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Finite((self.bytes.as_ref().len() - self.offset) as u64)
     }
 }
 
@@ -177,13 +176,19 @@ pub struct BytesDecoder<B> {
     bytes: Option<B>,
     offset: usize,
 }
-impl<B> BytesDecoder<B> {
+impl<B: AsRef<[u8]> + AsMut<[u8]>> BytesDecoder<B> {
     /// Makes a new `BytesDecoder` instance for filling the given byte slice.
     pub fn new(bytes: B) -> Self {
         BytesDecoder {
             bytes: Some(bytes),
             offset: 0,
         }
+    }
+
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.bytes
+            .as_ref()
+            .map_or(0, |b| b.as_ref().len() - self.offset) as u64
     }
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
@@ -197,10 +202,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
             self.offset += size;
             size
         };
-        if Some(self.offset) == self.bytes.as_ref().map(|b| b.as_ref().len()) {
+        if self.exact_requiring_bytes() == 0 {
             Ok((size, self.bytes.take()))
         } else {
-            track_assert!(!eos.is_eos(), ErrorKind::UnexpectedEos);
+            track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos);
             Ok((size, None))
         }
     }
@@ -209,11 +214,8 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
         self.bytes.is_none()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        let n = self.bytes
-            .as_ref()
-            .map_or(0, |b| b.as_ref().len() - self.offset);
-        Some(n as u64)
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Finite(self.exact_requiring_bytes())
     }
 }
 
@@ -252,12 +254,12 @@ impl Decode for RemainingBytesDecoder {
     type Item = Vec<u8>;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        if let Some(additional) = eos.remaining_bytes() {
-            self.0.reserve_exact(buf.len() + additional as usize);
+        if let Some(remaining) = eos.remaining_bytes().to_finite() {
+            self.0.reserve_exact(buf.len() + remaining as usize);
         }
 
         self.0.extend_from_slice(buf);
-        if eos.is_eos() {
+        if eos.is_reached() {
             Ok((buf.len(), Some(mem::replace(&mut self.0, Vec::new()))))
         } else {
             Ok((buf.len(), None))
@@ -268,8 +270,8 @@ impl Decode for RemainingBytesDecoder {
         false
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        None
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Infinite
     }
 }
 
@@ -314,8 +316,8 @@ impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
         track!(self.0.start_encoding(Utf8Bytes(item)))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -323,8 +325,8 @@ impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
     }
 }
 impl<S: AsRef<str>> ExactBytesEncode for Utf8Encoder<S> {
-    fn requiring_bytes(&self) -> u64 {
-        self.0.requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.0.exact_requiring_bytes()
     }
 }
 impl<S> Default for Utf8Encoder<S> {
@@ -370,13 +372,13 @@ where
     type Item = String;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        match track!(self.0.decode(buf, eos))? {
-            (size, Some(bytes)) => {
-                let s =
-                    track!(String::from_utf8(bytes).map_err(|e| ErrorKind::InvalidInput.cause(e)))?;
+        let (size, item) = track!(self.0.decode(buf, eos))?;
+        match item {
+            Some(b) => {
+                let s = track!(String::from_utf8(b).map_err(|e| ErrorKind::InvalidInput.cause(e)))?;
                 Ok((size, Some(s)))
             }
-            (size, None) => Ok((size, None)),
+            None => Ok((size, None)),
         }
     }
 
@@ -384,39 +386,39 @@ where
         self.0.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 }
 
 #[cfg(test)]
 mod test {
-    use {Decode, Encode, EncodeExt, ErrorKind};
+    use {Encode, EncodeExt, ErrorKind};
+    use io::{IoDecodeExt, IoEncodeExt};
     use super::*;
 
     #[test]
     fn bytes_decoder_works() {
         let mut decoder = BytesDecoder::new([0; 3]);
-        assert_eq!(decoder.requiring_bytes_hint(), Some(3));
+        assert_eq!(decoder.requiring_bytes().to_finite(), Some(3));
 
-        let mut input = DecodeBuf::new(b"foobar");
-        let item = decoder.decode(&mut input).unwrap();
-        assert_eq!(item.as_ref(), Some(b"foo"));
-        assert_eq!(decoder.requiring_bytes_hint(), Some(0));
+        let mut input = b"foobar".as_ref();
+        let item = decoder.decode_exact(&mut input).unwrap();
+        assert_eq!(item.as_ref(), b"foo");
+        assert_eq!(decoder.requiring_bytes().to_finite(), Some(0));
 
         assert_eq!(
-            decoder.decode(&mut input).err().map(|e| *e.kind()),
+            decoder.decode_exact(&mut input).err().map(|e| *e.kind()),
             Some(ErrorKind::DecoderTerminated)
         );
     }
 
     #[test]
     fn utf8_encoder_works() {
-        let mut buf = [0; 4];
+        let mut buf = Vec::new();
         let mut encoder = Utf8Encoder::with_item("foo").unwrap();
-        let size = encoder.encode_all(&mut buf).unwrap();
+        encoder.encode_all(&mut buf).unwrap();
         assert!(encoder.is_idle());
-        assert_eq!(size, 3);
-        assert_eq!(&buf[..], b"foo\x00");
+        assert_eq!(buf, b"foo");
     }
 }

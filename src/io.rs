@@ -5,14 +5,16 @@ use std::io::{self, Read, Write};
 use {Decode, Encode, Eos, Error, ErrorKind, Result};
 
 /// An extension of `Decode` trait to aid decodings involving I/O.
+///
+/// TODO: rename to DecodeExt(?)
 pub trait IoDecodeExt: Decode {
-    /// Decodes an item from the given read buffer.
+    /// Tries to decode an item from the given read buffer.
     fn decode_from_read_buf<B>(&mut self, buf: &mut ReadBuf<B>) -> Result<Option<Self::Item>>
     where
         B: AsRef<[u8]>,
     {
-        let (size, item) =
-            track!(self.decode(&buf.inner.as_ref()[buf.head..buf.tail], Eos::new(buf.eos)))?;
+        let eos = Eos::new(buf.stream_state.is_eos());
+        let (size, item) = track!(self.decode(&buf.inner.as_ref()[buf.head..buf.tail], eos))?;
         buf.head += size;
         if buf.head == buf.tail {
             buf.head = 0;
@@ -26,103 +28,71 @@ pub trait IoDecodeExt: Decode {
     /// This method reads only minimal bytes required to decode an item.
     ///
     /// Note that this is a blocking method.
-    fn decode_exact<R: Read>(&mut self, _reader: R) -> Result<Self::Item> {
-        unimplemented!()
-        // let mut buf = [0; 1024];
-        // loop {
-        //     let mut size = self.requiring_bytes_hint().unwrap_or(1);
-        //     let eos = if size != 0 {
-        //         size = track!(reader.read(&mut buf[..size]).map_err(Error::from))?;
-        //         Eos::new(size == 0)
-        //     } else {
-        //         Eos::new(false)
-        //     };
+    fn decode_exact<R: Read>(&mut self, mut reader: R) -> Result<Self::Item> {
+        let mut buf = [0; 1024];
+        loop {
+            let mut size = self.requiring_bytes()
+                .min(buf.len() as u64)
+                .to_finite()
+                .unwrap_or(1) as usize;
+            let eos = if size != 0 {
+                size = track!(reader.read(&mut buf[..size]).map_err(Error::from))?;
+                Eos::new(size == 0)
+            } else {
+                Eos::new(false)
+            };
 
-        //     let mut offset = 0;
-        //     while offset <= size {
-        //         let (consumed, item) = track!(self.decode(&buf[offset..size], eos))?;
-        //         offset += consumed;
-        //         if let Some(item) = item {
-        //             track_assert_eq!(offset, size, ErrorKind::Other);
-        //             return Ok(item);
-        //         }
-        //     }
-        // }
+            let (consumed, item) = track!(self.decode(&buf[..size], eos))?;
+            track_assert_eq!(consumed, size, ErrorKind::Other; item.is_some(), eos);
+            if let Some(item) = item {
+                return Ok(item);
+            }
+        }
     }
-
-    // /// Decodes an item from the given reader.
-    // ///
-    // /// This returns `Ok(None)` only if the reader has reached EOS and there is no item being processed.
-    // fn blocking_decode_from_reader<R: Read>(
-    //     &mut self,
-    //     mut reader: R,
-    // ) -> Result<Option<Self::Item>> {
-    //     let mut buf = [0; 1024];
-    //     let mut buf = ReadBuf::new(&mut buf[..]);
-    //     loop {
-    //         let n = self.requiring_bytes_hint().unwrap_or(1);
-    //         if n != 0 {
-    //             let stream_state = track!(buf.read_from(reader.by_ref().take(n)))?;
-    //             if stream_state.would_block() {
-    //                 track!(stream_state.to_io_result().map_err(Error::from))?;
-    //             }
-    //         }
-
-    //         let old_buf_len = buf.len();
-    //         let item = track!(self.decode_from_read_buf(&mut buf))?;
-    //         if let Some(item) = item {
-    //             track_assert_eq!(buf.len(), 0, ErrorKind::Other);
-    //             return Ok(Some(item));
-    //         } else if buf.is_empty() && buf.is_eos() {
-    //             track_assert!(self.is_idle(), ErrorKind::UnexpectedEos);
-    //             return Ok(None);
-    //         }
-    //         track_assert_ne!(buf.len(), old_buf_len, ErrorKind::Other);
-    //     }
-    // }
 }
+impl<T: Decode> IoDecodeExt for T {}
 
 /// An extension of `Encode` trait to aid encodings involving I/O.
 pub trait IoEncodeExt: Encode {
-    /// Encodes the items in the encoder to the given writer buffer.
-    fn encode_to_write_buf(&mut self, buf: &mut WriteBuf) -> Result<()>;
-
-    /// Encodes the items in the encoder to the given writer.
-    ///
-    /// This returns `Ok(())` only if the encoder completes to encode (and write) all of the items.
-    fn blocking_encode_to_writer<W: Write>(&mut self, writer: W) -> Result<()>;
-}
-
-/// Encodes `item` by using `encoder` and writes the encoded bytes to `writer`.
-pub fn encode_to_writer<E, W>(mut encoder: E, item: E::Item, mut writer: W) -> Result<()>
-where
-    E: Encode,
-    W: Write,
-{
-    track!(encoder.start_encoding(item))?;
-    let mut buf = WriteBuf::new(1024);
-    while !encoder.is_idle() {
-        track!(buf.fill(&mut encoder))?;
-        if track!(buf.consume(&mut writer))? {
-            let e = io::Error::from(io::ErrorKind::WouldBlock);
-            return Err(track!(Error::from(e)));
-        }
+    fn encode_to_write_buf<B>(&mut self, buf: &mut WriteBuf<B>) -> Result<()>
+    where
+        B: AsMut<[u8]>,
+    {
+        let eos = Eos::new(buf.stream_state.is_eos());
+        let size = track!(self.encode(&mut buf.inner.as_mut()[buf.tail..], eos))?;
+        buf.tail += size;
+        Ok(())
     }
-    Ok(())
-}
 
-/// State of I/O stream.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    // TODO:
+    fn encode_all<W: Write>(&mut self, mut writer: W) -> Result<()> {
+        let mut buf = [0; 1024];
+        while !self.is_idle() {
+            let size = track!(self.encode(&mut buf[..], Eos::new(false)))?;
+            track!(writer.write_all(&buf[..size]).map_err(Error::from))?;
+            track_assert_ne!(size, 0, ErrorKind::Other);
+        }
+        Ok(())
+    }
+}
+impl<T: Encode> IoEncodeExt for T {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub enum StreamState {
     Normal,
     Eos,
     WouldBlock,
+    Error,
 }
 impl StreamState {
     /// Returns `true` if the state is `Normal`, otherwise `false`.
     pub fn is_normal(&self) -> bool {
         *self == StreamState::Normal
+    }
+
+    pub fn is_error(&self) -> bool {
+        *self == StreamState::Error
     }
 
     /// Returns `true` if the state is `Eos`, otherwise `false`.
@@ -134,16 +104,6 @@ impl StreamState {
     pub fn would_block(&self) -> bool {
         *self == StreamState::WouldBlock
     }
-
-    /// Converts to the corresponding I/O result.
-    pub fn to_io_result(&self) -> io::Result<()> {
-        let kind = match *self {
-            StreamState::WouldBlock => io::ErrorKind::WouldBlock,
-            StreamState::Eos => io::ErrorKind::UnexpectedEof,
-            StreamState::Normal => return Ok(()),
-        };
-        Err(io::Error::from(kind))
-    }
 }
 
 /// Read buffer.
@@ -152,7 +112,7 @@ pub struct ReadBuf<B> {
     inner: B,
     head: usize,
     tail: usize,
-    eos: bool,
+    stream_state: StreamState,
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
     /// Makes a new `ReadBuf` instance.
@@ -161,7 +121,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
             inner,
             head: 0,
             tail: 0,
-            eos: false,
+            stream_state: StreamState::Normal,
         }
     }
 
@@ -180,33 +140,37 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
         self.tail == self.inner.as_ref().len()
     }
 
-    pub fn is_eos(&self) -> bool {
-        self.eos
+    pub fn stream_state(&self) -> StreamState {
+        self.stream_state
     }
 
-    pub fn read_from<R: Read>(&mut self, mut reader: R) -> Result<StreamState> {
-        let mut state = StreamState::Normal;
-        if !self.is_full() {
+    pub fn stream_state_mut(&mut self) -> &mut StreamState {
+        &mut self.stream_state
+    }
+
+    pub fn fill<R: Read>(&mut self, mut reader: R) -> Result<()> {
+        while !self.is_full() {
             match reader.read(&mut self.inner.as_mut()[self.tail..]) {
                 Err(e) => {
-                    self.eos = false;
                     if e.kind() == io::ErrorKind::WouldBlock {
-                        state = StreamState::WouldBlock;
+                        self.stream_state = StreamState::WouldBlock;
+                        break;
                     } else {
+                        self.stream_state = StreamState::Error;
                         return Err(track!(Error::from(e)));
                     }
                 }
                 Ok(0) => {
-                    state = StreamState::Eos;
-                    self.eos = true;
+                    self.stream_state = StreamState::Eos;
+                    break;
                 }
                 Ok(size) => {
+                    self.stream_state = StreamState::Normal;
                     self.tail += size;
-                    self.eos = false;
                 }
             }
         }
-        Ok(state)
+        Ok(())
     }
 
     /// Returns a reference to the inner bytes of the buffer.
@@ -227,18 +191,24 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
 
 /// Write buffer.
 #[derive(Debug)]
-pub struct WriteBuf {
-    buf: Vec<u8>,
+pub struct WriteBuf<B> {
+    inner: B,
     head: usize,
     tail: usize,
+    stream_state: StreamState,
 }
-impl WriteBuf {
-    pub fn new(size: usize) -> Self {
+impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
+    pub fn new(inner: B) -> Self {
         WriteBuf {
-            buf: vec![0; size],
+            inner,
             head: 0,
             tail: 0,
+            stream_state: StreamState::Normal,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.tail - self.head
     }
 
     pub fn is_empty(&self) -> bool {
@@ -246,30 +216,35 @@ impl WriteBuf {
     }
 
     pub fn is_full(&self) -> bool {
-        self.tail == self.buf.len()
+        self.tail == self.inner.as_ref().len()
     }
 
-    pub fn fill<E: Encode>(&mut self, mut encoder: E) -> Result<()> {
-        let eos = false; // TODO
-        let size = track!(encoder.encode(&mut self.buf[self.tail..], Eos::new(eos)))?;
-        self.tail += size;
-        Ok(())
+    pub fn stream_state(&self) -> StreamState {
+        self.stream_state
     }
 
-    pub fn consume<W: Write>(&mut self, mut writer: W) -> Result<bool> {
+    pub fn stream_state_mut(&mut self) -> &mut StreamState {
+        &mut self.stream_state
+    }
+
+    pub fn flush<W: Write>(&mut self, mut writer: W) -> Result<()> {
         while !self.is_empty() {
-            match writer.write(&self.buf[self.head..self.tail]) {
+            match writer.write(&mut self.inner.as_mut()[self.head..self.tail]) {
                 Err(e) => {
                     if e.kind() == io::ErrorKind::WouldBlock {
-                        return Ok(true);
+                        self.stream_state = StreamState::WouldBlock;
+                        break;
                     } else {
+                        self.stream_state = StreamState::Error;
                         return Err(track!(Error::from(e)));
                     }
                 }
                 Ok(0) => {
-                    track_panic!(ErrorKind::UnexpectedEos);
+                    self.stream_state = StreamState::Eos;
+                    break;
                 }
                 Ok(size) => {
+                    self.stream_state = StreamState::Normal;
                     self.head += size;
                     if self.head == self.tail {
                         self.head = 0;
@@ -278,6 +253,21 @@ impl WriteBuf {
                 }
             }
         }
-        Ok(false)
+        Ok(())
+    }
+
+    /// Returns a reference to the inner bytes of the buffer.
+    pub fn inner_ref(&self) -> &B {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner bytes of the buffer.
+    pub fn inner_mut(&mut self) -> &mut B {
+        &mut self.inner
+    }
+
+    /// Takes ownership of `ReadBuf` and returns the inner bytes of the buffer.
+    pub fn into_inner(self) -> B {
+        self.inner
     }
 }

@@ -1,8 +1,8 @@
 use std;
 
-use {Eos, Error, ErrorKind, Result};
+use {ByteCount, Eos, Error, ErrorKind, Result};
 use combinator::{AndThen, Assert, Collect, DecoderChain, Length, Map, MapErr, MaxBytes, Omit,
-                 SkipRemaining, Take, TryMap};
+                 SkipRemaining, Slice, Take, TryMap};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {
@@ -38,7 +38,7 @@ pub trait Decode {
     /// Returns `true` if the decoder cannot decode items anymore, otherwise `false`.
     ///
     /// If it returns `true`, the next invocation of `decode` method
-    /// **must** return an `ErrorKind::DecoderTerminated` error.
+    /// **must** return an `ErrorKind::DecoderTerminated` error, and vice versa.
     fn has_terminated(&self) -> bool;
 
     /// Returns the lower bound of the number of bytes needed to decode the next item.
@@ -53,13 +53,7 @@ pub trait Decode {
     ///   - All decodable items have been decoded, and the decoder cannot do any further works
     ///
     /// The default implementation returns `Some(0)` if the decoder has terminated, otherwise `None`.
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        if self.has_terminated() {
-            Some(0)
-        } else {
-            None
-        }
-    }
+    fn requiring_bytes(&self) -> ByteCount;
 }
 impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
     type Item = D::Item;
@@ -72,8 +66,8 @@ impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
         (**self).has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        (**self).requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        (**self).requiring_bytes()
     }
 }
 impl<D: ?Sized + Decode> Decode for Box<D> {
@@ -87,8 +81,8 @@ impl<D: ?Sized + Decode> Decode for Box<D> {
         (**self).has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        (**self).requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        (**self).requiring_bytes()
     }
 }
 
@@ -128,18 +122,15 @@ impl<T> Decode for DecodedValue<T> {
         self.0.is_none()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        Some(0)
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Finite(0)
     }
 }
 
 /// An extension of `Decode` trait.
+///
+/// TODO: BuildDecoderExt (?)
 pub trait DecodeExt: Decode + Sized {
-    /// Returns a mutable reference to the decoder.
-    fn by_ref(&mut self) -> &mut Self {
-        self
-    }
-
     /// Creates a decoder that converts decoded values by calling the given function.
     ///
     /// # Examples
@@ -438,6 +429,11 @@ pub trait DecodeExt: Decode + Sized {
         F: for<'a> Fn(&'a Self::Item) -> bool,
     {
         Assert::new(self, f)
+    }
+
+    /// TODO: doc
+    fn slice(self, bytes: u64) -> Slice<Self> {
+        Slice::new(self, bytes)
     }
 }
 impl<T: Decode> DecodeExt for T {}

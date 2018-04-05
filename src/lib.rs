@@ -45,7 +45,7 @@ extern crate trackable;
 pub use chain::{StartDecoderChain, StartEncoderChain};
 pub use decode::{Decode, DecodeExt, DecodedValue};
 pub use encode::{Encode, EncodeExt, ExactBytesEncode};
-pub use eos::Eos;
+pub use eos::{ByteCount, Eos};
 pub use error::{Error, ErrorKind};
 
 #[cfg(feature = "bincode_codec")]

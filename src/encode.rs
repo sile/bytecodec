@@ -1,8 +1,8 @@
 use std;
 
-use {Eos, Error, ErrorKind, Result};
+use {ByteCount, Eos, Error, Result};
 use combinator::{EncoderChain, Length, MapErr, MapFrom, MaxBytes, Optional, Padding, PreEncode,
-                 Repeat, TryMapFrom, WithPrefix};
+                 Repeat, Slice, TryMapFrom, WithPrefix};
 
 /// This trait allows for encoding items into a byte sequence incrementally.
 pub trait Encode {
@@ -45,27 +45,6 @@ pub trait Encode {
     ///   - Other errors has occurred
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize>;
 
-    /// TODO:
-    fn encode_all(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let mut offset = 0;
-        while !self.is_idle() {
-            track_assert!(offset <= buf.len(), ErrorKind::UnexpectedEos);
-            let size = self.encode(&mut buf[offset..], Eos::new(true))?;
-            offset += size;
-        }
-        Ok(offset)
-    }
-
-    /// TODO: doc
-    fn encode_as_many_as_possible(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let mut offset = 0;
-        while !self.is_idle() && offset <= buf.len() {
-            let size = self.encode(&mut buf[offset..], eos)?;
-            offset += size;
-        }
-        Ok(offset)
-    }
-
     /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
     fn is_idle(&self) -> bool;
 
@@ -76,13 +55,8 @@ pub trait Encode {
     /// If there is no items to be encoded, the encoder **should** return `Ok(0)`.
     ///
     /// The default implementation returns `Some(0)` if the encoder is idle, otherwise `None`.
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        if self.is_idle() {
-            Some(0)
-        } else {
-            None
-        }
-    }
+    /// TODO: remove default implementation
+    fn requiring_bytes(&self) -> ByteCount;
 }
 impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
     type Item = E::Item;
@@ -95,8 +69,8 @@ impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
         (**self).start_encoding(item)
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        (**self).requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        (**self).requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -114,8 +88,8 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
         (**self).start_encoding(item)
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        (**self).requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        (**self).requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -127,15 +101,12 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
 ///
 /// By implementing this trait, the user of those encoders can implement length-prefixed protocols easily.
 pub trait ExactBytesEncode: Encode {
-    /// Returns the number of bytes required to encode all the items in the encoder.
-    fn requiring_bytes(&self) -> u64 {
-        self.requiring_bytes_hint()
-            .expect("Must be a `Some(_)` value")
-    }
+    /// Returns the exact number of bytes required to encode all the items in the encoder.
+    fn exact_requiring_bytes(&self) -> u64;
 }
 impl<E: ?Sized + ExactBytesEncode> ExactBytesEncode for Box<E> {
-    fn requiring_bytes(&self) -> u64 {
-        (**self).requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        (**self).exact_requiring_bytes()
     }
 }
 
@@ -162,11 +133,6 @@ pub trait EncodeExt: Encode + Sized {
         let mut this = Self::default();
         track!(this.start_encoding(item))?;
         Ok(this)
-    }
-
-    /// Returns a mutable reference to the encoder.
-    fn by_ref(&mut self) -> &mut Self {
-        self
     }
 
     /// Creates an encoder for modifying encoding errors produced by `self`.
@@ -460,6 +426,11 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     fn pre_encode(self) -> PreEncode<Self> {
         PreEncode::new(self)
+    }
+
+    /// TODO: doc
+    fn slice(self, bytes: u64) -> Slice<Self> {
+        Slice::new(self, bytes)
     }
 }
 impl<T: Encode> EncodeExt for T {}

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use {Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
+use {ByteCount, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 
 /// An object for starting a chain of decoders.
 ///
@@ -56,8 +56,8 @@ where
         self.0.b.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.b.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.b.requiring_bytes()
     }
 }
 impl<D0, D1, T0> Decode for DecoderChain<D0, D1, (T0,)>
@@ -77,8 +77,8 @@ where
         self.0.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 }
 impl<D0, D1, T0, T1> Decode for DecoderChain<D0, D1, (T0, T1)>
@@ -98,8 +98,8 @@ where
         self.0.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 }
 impl<D0, D1, T0, T1, T2> Decode for DecoderChain<D0, D1, (T0, T1, T2)>
@@ -119,8 +119,8 @@ where
         self.0.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 }
 impl<D0, D1, T0, T1, T2, T3> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3)>
@@ -140,8 +140,8 @@ where
         self.0.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 }
 impl<D0, D1, T0, T1, T2, T3, T4> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3, T4)>
@@ -161,8 +161,8 @@ where
         self.0.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 }
 impl<D0, D1, T0, T1, T2, T3, T4, T5> Decode for DecoderChain<D0, D1, (T0, T1, T2, T3, T4, T5)>
@@ -182,8 +182,8 @@ where
         self.0.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 }
 impl<D0, D1, T0, T1, T2, T3, T4, T5, T6> Decode
@@ -204,8 +204,8 @@ where
         self.0.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 }
 
@@ -250,11 +250,15 @@ impl Encode for StartEncoderChain {
         true
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        Some(0)
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Finite(0)
     }
 }
-impl ExactBytesEncode for StartEncoderChain {}
+impl ExactBytesEncode for StartEncoderChain {
+    fn exact_requiring_bytes(&self) -> u64 {
+        0
+    }
+}
 
 /// Combinator for connecting encoders to a chain.
 ///
@@ -286,8 +290,8 @@ where
         self.inner.b.start_encoding(t.0)
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.b.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.b.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -309,8 +313,8 @@ where
         self.inner.start_encoding(((t.0,), t.1))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -332,8 +336,8 @@ where
         self.inner.start_encoding(((t.0, t.1), t.2))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -355,8 +359,8 @@ where
         self.inner.start_encoding(((t.0, t.1, t.2), t.3))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -378,8 +382,8 @@ where
         self.inner.start_encoding(((t.0, t.1, t.2, t.3), t.4))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -401,8 +405,8 @@ where
         self.inner.start_encoding(((t.0, t.1, t.2, t.3, t.4), t.5))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -425,8 +429,8 @@ where
             .start_encoding(((t.0, t.1, t.2, t.3, t.4, t.5), t.6))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -450,8 +454,8 @@ where
             .start_encoding(((t.0, t.1, t.2, t.3, t.4, t.5, t.6), t.7))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.inner.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -464,8 +468,8 @@ where
     E0: ExactBytesEncode,
     E1: ExactBytesEncode,
 {
-    fn requiring_bytes(&self) -> u64 {
-        self.inner.requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.inner.exact_requiring_bytes()
     }
 }
 
@@ -487,18 +491,21 @@ where
     type Item = (A::Item, B::Item);
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        let mut offset = 0;
         if self.a.item.is_none() {
-            let (size, item) = track!(self.a.decode(buf, eos))?;
-            self.a.item = item;
-            Ok((size, None))
-        } else {
-            let (size, item) = track!(self.b.decode(buf, eos))?;
-            let item = item.map(|b| {
-                let a = self.a.item.take().expect("Never fails");
-                (a, b)
-            });
-            Ok((size, item))
+            let (size, _always_none) = track!(self.a.decode(buf, eos))?;
+            if self.a.item.is_none() {
+                return Ok((size, None));
+            }
+            offset = size;
         }
+
+        let (size, item) = track!(self.b.decode(&buf[offset..], eos))?;
+        let item = item.map(|b| {
+            let a = self.a.item.take().expect("Never fails");
+            (a, b)
+        });
+        Ok((offset + size, item))
     }
 
     fn has_terminated(&self) -> bool {
@@ -509,18 +516,15 @@ where
         }
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        let a = self.a
-            .item
-            .as_ref()
-            .map(|_| 0)
-            .or_else(|| self.a.requiring_bytes_hint());
-        let b = self.b.requiring_bytes_hint();
+    fn requiring_bytes(&self) -> ByteCount {
+        let a = self.a.requiring_bytes();
+        let b = self.b.requiring_bytes();
         match (a, b) {
-            (Some(a), Some(b)) => Some(a + b),
-            (Some(a), None) => Some(a),
-            (None, Some(b)) => Some(b),
-            (None, None) => None,
+            (ByteCount::Finite(a), ByteCount::Finite(b)) => ByteCount::Finite(a + b),
+            (ByteCount::Infinite, _) | (_, ByteCount::Infinite) => ByteCount::Infinite,
+            (ByteCount::Finite(a), _) => ByteCount::Finite(a),
+            (_, ByteCount::Finite(b)) => ByteCount::Finite(b),
+            (ByteCount::Unknown, ByteCount::Unknown) => ByteCount::Unknown,
         }
     }
 }
@@ -547,10 +551,8 @@ where
         Ok(())
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.a
-            .requiring_bytes_hint()
-            .and_then(|a| self.b.requiring_bytes_hint().map(|b| a + b))
+    fn requiring_bytes(&self) -> ByteCount {
+        self.a.requiring_bytes() + self.b.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -562,8 +564,8 @@ where
     E0: ExactBytesEncode,
     E1: ExactBytesEncode,
 {
-    fn requiring_bytes(&self) -> u64 {
-        self.a.requiring_bytes() + self.b.requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.a.exact_requiring_bytes() + self.b.exact_requiring_bytes()
     }
 }
 
@@ -595,25 +597,26 @@ impl<T: Decode> Decode for Buffered<T, T::Item> {
 
     fn has_terminated(&self) -> bool {
         if self.item.is_some() {
-            true
+            false
         } else {
             self.decoder.has_terminated()
         }
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
+    fn requiring_bytes(&self) -> ByteCount {
         if self.item.is_some() {
-            Some(0)
+            ByteCount::Finite(0)
         } else {
-            self.decoder.requiring_bytes_hint()
+            self.decoder.requiring_bytes()
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeExt, StartDecoderChain};
+    use {DecodeExt, StartDecoderChain};
     use fixnum::U8Decoder;
+    use io::IoDecodeExt;
 
     #[test]
     fn it_works() {
@@ -623,8 +626,8 @@ mod test {
             .chain(U8Decoder::new());
 
         assert_eq!(
-            track_try_unwrap!(decoder.decode(b"foo")),
-            Some((b'f', b'o', b'o'))
+            track_try_unwrap!(decoder.decode_exact(b"foo".as_ref())),
+            (b'f', b'o', b'o')
         );
     }
 }

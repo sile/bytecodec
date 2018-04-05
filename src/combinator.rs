@@ -7,9 +7,9 @@ use std::marker::PhantomData;
 
 pub use chain::{DecoderChain, EncoderChain};
 
-use {Decode, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
+use {ByteCount, Decode, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
 use bytes::BytesEncoder;
-use io::encode_to_writer;
+use io::IoEncodeExt;
 
 /// Combinator for converting decoded items to other values.
 ///
@@ -47,8 +47,8 @@ where
         self.decoder.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.decoder.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.decoder.requiring_bytes()
     }
 }
 
@@ -57,18 +57,18 @@ where
 /// This is created by calling `{DecodeExt, EncodeExt}::map_err` method.
 #[derive(Debug)]
 pub struct MapErr<C, F, E> {
-    codec: C,
+    inner: C,
     map_err: F,
     _error: PhantomData<E>,
 }
 impl<C, F, E> MapErr<C, F, E> {
-    pub(crate) fn new(codec: C, map_err: F) -> Self
+    pub(crate) fn new(inner: C, map_err: F) -> Self
     where
         F: Fn(Error) -> E,
         Error: From<E>,
     {
         MapErr {
-            codec,
+            inner,
             map_err,
             _error: PhantomData,
         }
@@ -83,17 +83,17 @@ where
     type Item = D::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        self.codec
+        self.inner
             .decode(buf, eos)
             .map_err(|e| (self.map_err)(e).into())
     }
 
     fn has_terminated(&self) -> bool {
-        self.codec.has_terminated()
+        self.inner.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.codec.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 }
 impl<C, F, E> Encode for MapErr<C, F, E>
@@ -105,23 +105,23 @@ where
     type Item = C::Item;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        self.codec
+        self.inner
             .encode(buf, eos)
             .map_err(|e| (self.map_err)(e).into())
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        self.codec
+        self.inner
             .start_encoding(item)
             .map_err(|e| (self.map_err)(e).into())
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.codec.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
-        self.codec.is_idle()
+        self.inner.is_idle()
     }
 }
 impl<C, F, E> ExactBytesEncode for MapErr<C, F, E>
@@ -130,8 +130,8 @@ where
     F: Fn(Error) -> E,
     Error: From<E>,
 {
-    fn requiring_bytes(&self) -> u64 {
-        self.codec.requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.inner.exact_requiring_bytes()
     }
 }
 
@@ -191,11 +191,11 @@ where
         }
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
+    fn requiring_bytes(&self) -> ByteCount {
         if let Some(ref d) = self.decoder1 {
-            d.requiring_bytes_hint()
+            d.requiring_bytes()
         } else {
-            self.decoder0.requiring_bytes_hint()
+            self.decoder0.requiring_bytes()
         }
     }
 }
@@ -206,14 +206,14 @@ where
 /// This is created by calling `EncodeExt::map_from` method.
 #[derive(Debug)]
 pub struct MapFrom<E, T, F> {
-    encoder: E,
+    inner: E,
     _item: PhantomData<T>,
     from: F,
 }
 impl<E, T, F> MapFrom<E, T, F> {
-    pub(crate) fn new(encoder: E, from: F) -> Self {
+    pub(crate) fn new(inner: E, from: F) -> Self {
         MapFrom {
-            encoder,
+            inner,
             _item: PhantomData,
             from,
         }
@@ -227,19 +227,19 @@ where
     type Item = T;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        track!(self.encoder.encode(buf, eos))
+        track!(self.inner.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track!(self.encoder.start_encoding((self.from)(item)))
+        track!(self.inner.start_encoding((self.from)(item)))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.encoder.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
-        self.encoder.is_idle()
+        self.inner.is_idle()
     }
 }
 impl<E, T, F> ExactBytesEncode for MapFrom<E, T, F>
@@ -247,8 +247,8 @@ where
     E: ExactBytesEncode,
     F: Fn(T) -> E::Item,
 {
-    fn requiring_bytes(&self) -> u64 {
-        self.encoder.requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.inner.exact_requiring_bytes()
     }
 }
 
@@ -258,14 +258,14 @@ where
 /// This is created by calling `EncodeExt::try_map_from` method.
 #[derive(Debug)]
 pub struct TryMapFrom<C, T, E, F> {
-    encoder: C,
+    inner: C,
     try_from: F,
     _phantom: PhantomData<(T, E)>,
 }
 impl<C, T, E, F> TryMapFrom<C, T, E, F> {
-    pub(crate) fn new(encoder: C, try_from: F) -> Self {
+    pub(crate) fn new(inner: C, try_from: F) -> Self {
         TryMapFrom {
-            encoder,
+            inner,
             try_from,
             _phantom: PhantomData,
         }
@@ -280,20 +280,20 @@ where
     type Item = T;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        track!(self.encoder.encode(buf, eos))
+        track!(self.inner.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
         let item = track!((self.try_from)(item).map_err(Error::from))?;
-        track!(self.encoder.start_encoding(item))
+        track!(self.inner.start_encoding(item))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.encoder.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
-        self.encoder.is_idle()
+        self.inner.is_idle()
     }
 }
 impl<C, T, E, F> ExactBytesEncode for TryMapFrom<C, T, E, F>
@@ -302,8 +302,8 @@ where
     F: Fn(T) -> std::result::Result<C::Item, E>,
     Error: From<E>,
 {
-    fn requiring_bytes(&self) -> u64 {
-        self.encoder.requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.inner.exact_requiring_bytes()
     }
 }
 
@@ -312,15 +312,12 @@ where
 /// This is created by calling `EncodeExt::repeat` method.
 #[derive(Debug)]
 pub struct Repeat<E, I> {
-    encoder: E,
+    inner: E,
     items: Option<I>,
 }
 impl<E, I> Repeat<E, I> {
-    pub(crate) fn new(encoder: E) -> Self {
-        Repeat {
-            encoder,
-            items: None,
-        }
+    pub(crate) fn new(inner: E) -> Self {
+        Repeat { inner, items: None }
     }
 }
 impl<E, I> Encode for Repeat<E, I>
@@ -331,15 +328,15 @@ where
     type Item = I;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        while self.encoder.is_idle() {
+        while self.inner.is_idle() {
             if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
-                track!(self.encoder.start_encoding(item))?;
+                track!(self.inner.start_encoding(item))?;
             } else {
                 self.items = None;
                 break;
             }
         }
-        track!(self.encoder.encode(buf, eos))
+        track!(self.inner.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -348,11 +345,11 @@ where
         Ok(())
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
+    fn requiring_bytes(&self) -> ByteCount {
         if self.is_idle() {
-            Some(0)
+            ByteCount::Finite(0)
         } else {
-            None
+            ByteCount::Unknown
         }
     }
 
@@ -397,11 +394,11 @@ impl<D: Decode> Decode for Omit<D> {
         }
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
+    fn requiring_bytes(&self) -> ByteCount {
         if let Some(ref d) = self.0 {
-            d.requiring_bytes_hint()
+            d.requiring_bytes()
         } else {
-            Some(0)
+            ByteCount::Finite(0)
         }
     }
 }
@@ -410,8 +407,8 @@ impl<D: Decode> Decode for Omit<D> {
 #[derive(Debug)]
 pub struct Optional<E>(E);
 impl<E> Optional<E> {
-    pub(crate) fn new(encoder: E) -> Self {
-        Optional(encoder)
+    pub(crate) fn new(inner: E) -> Self {
+        Optional(inner)
     }
 }
 impl<E: Encode> Encode for Optional<E> {
@@ -428,8 +425,8 @@ impl<E: Encode> Encode for Optional<E> {
         Ok(())
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -437,8 +434,8 @@ impl<E: Encode> Encode for Optional<E> {
     }
 }
 impl<E: ExactBytesEncode> ExactBytesEncode for Optional<E> {
-    fn requiring_bytes(&self) -> u64 {
-        self.0.requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.0.exact_requiring_bytes()
     }
 }
 
@@ -471,7 +468,7 @@ where
         if self.items.is_none() {
             self.items = Some(T::default());
         }
-        if (buf.is_empty() && eos.is_eos()) || self.decoder.has_terminated() {
+        if (buf.is_empty() && eos.is_reached()) || self.decoder.has_terminated() {
             return Ok((0, self.items.take()));
         }
 
@@ -485,8 +482,8 @@ where
         self.decoder.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.decoder.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.decoder.requiring_bytes()
     }
 }
 
@@ -550,9 +547,10 @@ impl<D: Decode> Decode for Length<D> {
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         let limit = cmp::min(buf.len() as u64, self.remaining_bytes) as usize;
-        let expected_eos = Eos::with_remaining_bytes(self.remaining_bytes - limit as u64);
-        if !eos.is_unknown() {
-            track_assert!(eos >= expected_eos, ErrorKind::UnexpectedEos; eos, expected_eos);
+        let required = self.remaining_bytes - limit as u64;
+        let expected_eos = Eos::with_remaining_bytes(ByteCount::Finite(required));
+        if let Some(remaining) = eos.remaining_bytes().to_finite() {
+            track_assert!(remaining >= required, ErrorKind::UnexpectedEos; remaining, required);
         }
         let (size, item) = track!(self.inner.decode(&buf[..limit], expected_eos))?;
         self.remaining_bytes -= size as u64;
@@ -576,11 +574,11 @@ impl<D: Decode> Decode for Length<D> {
         }
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
+    fn requiring_bytes(&self) -> ByteCount {
         if self.has_terminated() {
-            Some(0)
+            ByteCount::Finite(0)
         } else {
-            Some(self.remaining_bytes)
+            ByteCount::Finite(self.remaining_bytes)
         }
     }
 }
@@ -589,7 +587,7 @@ impl<E: Encode> Encode for Length<E> {
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         if (buf.len() as u64) < self.remaining_bytes {
-            track_assert!(!eos.is_eos(), ErrorKind::UnexpectedEos);
+            track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos);
         }
 
         let (limit, eos) = if (buf.len() as u64) < self.remaining_bytes {
@@ -620,8 +618,8 @@ impl<E: Encode> Encode for Length<E> {
         track!(self.inner.start_encoding(item))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        Some(self.remaining_bytes)
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Finite(self.remaining_bytes)
     }
 
     fn is_idle(&self) -> bool {
@@ -629,7 +627,7 @@ impl<E: Encode> Encode for Length<E> {
     }
 }
 impl<E: Encode> ExactBytesEncode for Length<E> {
-    fn requiring_bytes(&self) -> u64 {
+    fn exact_requiring_bytes(&self) -> u64 {
         self.remaining_bytes
     }
 }
@@ -670,11 +668,11 @@ impl<D: Decode> Decode for Take<D> {
         self.decoder.has_terminated() || self.decoded_items == self.limit
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
+    fn requiring_bytes(&self) -> ByteCount {
         if self.has_terminated() {
-            Some(0)
+            ByteCount::Finite(0)
         } else {
-            self.decoder.requiring_bytes_hint()
+            self.decoder.requiring_bytes()
         }
     }
 }
@@ -719,8 +717,8 @@ where
         self.decoder.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.decoder.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.decoder.requiring_bytes()
     }
 }
 
@@ -744,7 +742,7 @@ impl<D: Decode> Decode for SkipRemaining<D> {
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         track_assert!(
-            !eos.is_unknown(),
+            !eos.remaining_bytes().is_infinite(),
             ErrorKind::InvalidInput,
             "Cannot skip infinity byte stream"
         );
@@ -753,7 +751,7 @@ impl<D: Decode> Decode for SkipRemaining<D> {
             let (size, item) = track!(self.decoder.decode(buf, eos))?;
             self.item = item;
             Ok((size, None))
-        } else if eos.is_eos() {
+        } else if eos.is_reached() {
             Ok((buf.len(), self.item.take()))
         } else {
             Ok((buf.len(), None))
@@ -768,11 +766,11 @@ impl<D: Decode> Decode for SkipRemaining<D> {
         }
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
+    fn requiring_bytes(&self) -> ByteCount {
         if self.item.is_none() {
-            self.decoder.requiring_bytes_hint()
+            self.decoder.requiring_bytes()
         } else {
-            None
+            ByteCount::Infinite
         }
     }
 }
@@ -782,14 +780,14 @@ impl<D: Decode> Decode for SkipRemaining<D> {
 /// This is created by calling `{DecodeExt, EncodeExt}::max_bytes` method.
 #[derive(Debug)]
 pub struct MaxBytes<C> {
-    codec: C,
+    inner: C,
     consumed_bytes: u64,
     max_bytes: u64,
 }
 impl<C> MaxBytes<C> {
-    pub(crate) fn new(codec: C, max_bytes: u64) -> Self {
+    pub(crate) fn new(inner: C, max_bytes: u64) -> Self {
         MaxBytes {
-            codec,
+            inner,
             consumed_bytes: 0,
             max_bytes,
         }
@@ -805,7 +803,7 @@ impl<D: Decode> Decode for MaxBytes<D> {
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         let limit = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
         let eos = eos.back((buf.len() - limit) as u64);
-        let (size, item) = track!(self.codec.decode(&buf[..limit], eos))?;
+        let (size, item) = track!(self.inner.decode(&buf[..limit], eos))?;
 
         self.consumed_bytes += size as u64;
         if self.consumed_bytes == self.max_bytes {
@@ -819,11 +817,11 @@ impl<D: Decode> Decode for MaxBytes<D> {
     }
 
     fn has_terminated(&self) -> bool {
-        self.codec.has_terminated()
+        self.inner.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.codec.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 }
 impl<E: Encode> Encode for MaxBytes<E> {
@@ -832,7 +830,7 @@ impl<E: Encode> Encode for MaxBytes<E> {
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let limit = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
         let eos = eos.back((buf.len() - limit) as u64);
-        let size = track!(self.codec.encode(&mut buf[..limit], eos))?;
+        let size = track!(self.inner.encode(&mut buf[..limit], eos))?;
         self.consumed_bytes += size as u64;
         if self.consumed_bytes == self.max_bytes {
             track_assert!(self.is_idle(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
@@ -845,20 +843,20 @@ impl<E: Encode> Encode for MaxBytes<E> {
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track!(self.codec.start_encoding(item))
+        track!(self.inner.start_encoding(item))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.codec.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
-        self.codec.is_idle()
+        self.inner.is_idle()
     }
 }
 impl<E: ExactBytesEncode> ExactBytesEncode for MaxBytes<E> {
-    fn requiring_bytes(&self) -> u64 {
-        self.codec.requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.inner.exact_requiring_bytes()
     }
 }
 
@@ -893,8 +891,8 @@ where
         self.decoder.has_terminated()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.decoder.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.decoder.requiring_bytes()
     }
 }
 
@@ -904,14 +902,14 @@ where
 /// This is created by calling `EncodeExt::padding` method.
 #[derive(Debug)]
 pub struct Padding<E> {
-    encoder: E,
+    inner: E,
     padding_byte: u8,
     eos_reached: bool,
 }
 impl<E> Padding<E> {
-    pub(crate) fn new(encoder: E, padding_byte: u8) -> Self {
+    pub(crate) fn new(inner: E, padding_byte: u8) -> Self {
         Padding {
-            encoder,
+            inner,
             padding_byte,
             eos_reached: true,
         }
@@ -921,13 +919,13 @@ impl<E: Encode> Encode for Padding<E> {
     type Item = E::Item;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        if !self.encoder.is_idle() {
-            self.encoder.encode(buf, eos)
+        if !self.inner.is_idle() {
+            self.inner.encode(buf, eos)
         } else {
             for b in buf.iter_mut() {
                 *b = self.padding_byte;
             }
-            self.eos_reached = eos.is_eos();
+            self.eos_reached = eos.is_reached();
             Ok(buf.len())
         }
     }
@@ -935,11 +933,11 @@ impl<E: Encode> Encode for Padding<E> {
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
         track_assert!(self.is_idle(), ErrorKind::EncoderFull);
         self.eos_reached = false;
-        track!(self.encoder.start_encoding(item))
+        track!(self.inner.start_encoding(item))
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        None
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Infinite
     }
 
     fn is_idle(&self) -> bool {
@@ -989,15 +987,8 @@ where
         Ok(())
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        let a = self.prefix_encoder.requiring_bytes_hint();
-        let b = self.body_encoder.requiring_bytes_hint();
-        match (a, b) {
-            (Some(a), Some(b)) => Some(a + b),
-            (Some(a), None) => Some(a),
-            (None, Some(b)) => Some(b),
-            (None, None) => None,
-        }
+    fn requiring_bytes(&self) -> ByteCount {
+        self.prefix_encoder.requiring_bytes() + self.body_encoder.requiring_bytes()
     }
 
     fn is_idle(&self) -> bool {
@@ -1010,8 +1001,8 @@ where
     E1: ExactBytesEncode,
     F: Fn(&E0) -> E1::Item,
 {
-    fn requiring_bytes(&self) -> u64 {
-        self.prefix_encoder.requiring_bytes() + self.body_encoder.requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.prefix_encoder.exact_requiring_bytes() + self.body_encoder.exact_requiring_bytes()
     }
 }
 
@@ -1020,13 +1011,13 @@ where
 /// This is created by calling `EncodeExt::pre_encode` method.
 #[derive(Debug)]
 pub struct PreEncode<E> {
-    encoder: E,
+    inner: E,
     pre_encoded: BytesEncoder<Vec<u8>>,
 }
 impl<E> PreEncode<E> {
-    pub(crate) fn new(encoder: E) -> Self {
+    pub(crate) fn new(inner: E) -> Self {
         PreEncode {
-            encoder,
+            inner,
             pre_encoded: BytesEncoder::new(),
         }
     }
@@ -1040,13 +1031,14 @@ impl<E: Encode> Encode for PreEncode<E> {
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
         let mut buf = Vec::new();
-        track!(encode_to_writer(&mut self.encoder, item, &mut buf))?;
+        track!(self.inner.start_encoding(item))?;
+        track!(self.inner.encode_all(&mut buf))?;
         track!(self.pre_encoded.start_encoding(buf))?;
         Ok(())
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        Some(self.requiring_bytes())
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Finite(self.exact_requiring_bytes())
     }
 
     fn is_idle(&self) -> bool {
@@ -1054,65 +1046,141 @@ impl<E: Encode> Encode for PreEncode<E> {
     }
 }
 impl<E: Encode> ExactBytesEncode for PreEncode<E> {
-    fn requiring_bytes(&self) -> u64 {
-        self.pre_encoded.requiring_bytes()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.pre_encoded.exact_requiring_bytes()
+    }
+}
+
+/// TODO: doc
+#[derive(Debug)]
+pub struct Slice<T> {
+    inner: T,
+    slice_len: u64,
+    consumable_bytes: u64,
+}
+impl<T> Slice<T> {
+    pub(crate) fn new(inner: T, slice_len: u64) -> Self {
+        Slice {
+            inner,
+            slice_len,
+            consumable_bytes: slice_len,
+        }
+    }
+
+    pub fn consumable_bytes(&self) -> u64 {
+        self.consumable_bytes
+    }
+
+    /// TODO: doc
+    pub fn reset_consumable_bytes(&mut self) {
+        self.consumable_bytes = self.slice_len;
+    }
+
+    // NOTE: 反映されるのは次から
+    pub fn set_slice_len(&mut self, n: u64) {
+        self.slice_len = n;
+    }
+}
+impl<D: Decode> Decode for Slice<D> {
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        let limit = cmp::min(buf.len() as u64, self.consumable_bytes) as usize;
+        let eos = eos.back((buf.len() - limit) as u64);
+        let (size, item) = track!(self.inner.decode(&buf[..limit], eos))?;
+        self.consumable_bytes -= size as u64;
+        Ok((size, item))
+    }
+
+    fn has_terminated(&self) -> bool {
+        self.inner.has_terminated()
+    }
+
+    fn requiring_bytes(&self) -> ByteCount {
+        // TODO:
+        self.inner.requiring_bytes()
+    }
+}
+impl<E: Encode> Encode for Slice<E> {
+    type Item = E::Item;
+
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
+        let limit = cmp::min(buf.len() as u64, self.consumable_bytes) as usize;
+        let eos = eos.back((buf.len() - limit) as u64);
+        let size = track!(self.inner.encode(&mut buf[..limit], eos))?;
+        self.consumable_bytes -= size as u64;
+        Ok(size)
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        track!(self.inner.start_encoding(item))
+    }
+
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
+    }
+
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
+    }
+}
+impl<E: ExactBytesEncode> ExactBytesEncode for Slice<E> {
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.inner.exact_requiring_bytes()
     }
 }
 
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeExt, Encode, EncodeExt, ErrorKind};
+    use {Decode, DecodeExt, Encode, EncodeExt, Eos, ErrorKind};
     use bytes::{Utf8Decoder, Utf8Encoder};
     use fixnum::{U8Decoder, U8Encoder};
+    use io::{IoDecodeExt, IoEncodeExt};
 
     #[test]
     fn collect_works() {
         let mut decoder = U8Decoder::new().collect::<Vec<_>>();
-        let mut input = DecodeBuf::with_remaining_bytes(b"foo", 0);
-
-        let item = track_try_unwrap!(decoder.decode(&mut input));
-        assert_eq!(item, Some(vec![b'f', b'o', b'o']));
+        let item = track_try_unwrap!(decoder.decode_exact(b"foo".as_ref()));
+        assert_eq!(item, vec![b'f', b'o', b'o']);
     }
 
     #[test]
     fn take_works() {
         let mut decoder = U8Decoder::new().take(2).collect::<Vec<_>>();
-        let mut input = DecodeBuf::new(b"foo");
-
-        let item = track_try_unwrap!(decoder.decode(&mut input));
-        assert_eq!(item, Some(vec![b'f', b'o']));
+        let item = track_try_unwrap!(decoder.decode_exact(b"foo".as_ref()));
+        assert_eq!(item, vec![b'f', b'o']);
     }
 
     #[test]
     fn decoder_length_works() {
         let mut decoder = Utf8Decoder::new().length(3);
-        let mut input = DecodeBuf::with_remaining_bytes(b"foobarba", 0);
+        let mut input = b"foobarba".as_ref();
 
-        let item = track_try_unwrap!(decoder.decode(&mut input));
-        assert_eq!(item, Some("foo".to_owned()));
+        let item = track_try_unwrap!(decoder.decode_exact(&mut input));
+        assert_eq!(item, "foo");
 
-        let item = track_try_unwrap!(decoder.decode(&mut input));
-        assert_eq!(item, Some("bar".to_owned()));
+        let item = track_try_unwrap!(decoder.decode_exact(&mut input));
+        assert_eq!(item, "bar");
 
-        let error = decoder.decode(&mut input).err().unwrap();
+        let error = decoder.decode_exact(&mut input).err().unwrap();
         assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
     }
 
     #[test]
     fn encoder_length_works() {
-        let mut output = [0; 4];
+        let mut output = Vec::new();
         let mut encoder = Utf8Encoder::new().length(3);
         encoder.start_encoding("hey").unwrap(); // OK
         track_try_unwrap!(encoder.encode_all(&mut output));
-        assert_eq!(output.as_ref(), b"hey\x00");
+        assert_eq!(output, b"hey");
 
-        let mut output = [0; 4];
+        let mut output = Vec::new();
         let mut encoder = Utf8Encoder::new().length(3);
         encoder.start_encoding("hello").unwrap(); // Error (too long)
         let error = encoder.encode_all(&mut output).err().expect("too long");
         assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
 
-        let mut output = [0; 4];
+        let mut output = Vec::new();
         let mut encoder = Utf8Encoder::new().length(3);
         encoder.start_encoding("hi").unwrap(); // Error (too short)
         let error = encoder.encode_all(&mut output).err().expect("too short");
@@ -1121,33 +1189,88 @@ mod test {
 
     #[test]
     fn padding_works() {
-        let mut output = [0; 4];
+        let mut output = Vec::new();
         let mut encoder = U8Encoder::new().padding(9).length(3);
         encoder.start_encoding(3).unwrap();
-        track_try_unwrap!(encoder.encode_all(&mut output[..]));
-        assert_eq!(output.as_ref(), [3, 9, 9, 0]);
+        track_try_unwrap!(encoder.encode_all(&mut output));
+        assert_eq!(output, [3, 9, 9]);
     }
 
     #[test]
     fn repeat_works() {
-        let mut output = [0; 4];
+        let mut output = Vec::new();
         let mut encoder = U8Encoder::new().repeat();
         encoder.start_encoding(0..4).unwrap();
         track_try_unwrap!(encoder.encode_all(&mut output));
-        assert_eq!(output.as_ref(), [0, 1, 2, 3]);
+        assert_eq!(output, [0, 1, 2, 3]);
     }
 
     #[test]
     fn encoder_max_bytes_works() {
-        let mut output = [0; 4];
         let mut encoder = Utf8Encoder::new().max_bytes(3);
 
+        let mut output = Vec::new();
         encoder.start_encoding("foo").unwrap(); // OK
         encoder.encode_all(&mut output).unwrap();
-        assert_eq!(output.as_ref(), b"foo\x00");
+        assert_eq!(output, b"foo");
 
+        let mut output = Vec::new();
         encoder.start_encoding("hello").unwrap(); // Error
         let error = encoder.encode_all(&mut output).err().unwrap();
         assert_eq!(*error.kind(), ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn decoder_slice_works() {
+        let mut decoder = Utf8Decoder::new().slice(3);
+
+        let eos = Eos::new(true);
+        let input = b"foobarbaz";
+        let mut offset = 0;
+
+        let (size, item) = track_try_unwrap!(decoder.decode(&input[offset..], eos));
+        offset += size;
+        assert_eq!(offset, 3);
+        assert_eq!(item, None);
+
+        let (size, item) = track_try_unwrap!(decoder.decode(&input[offset..], eos));
+        offset += size;
+        assert_eq!(offset, 3);
+        assert_eq!(item, None);
+
+        decoder.set_slice_len(6);
+        decoder.reset_consumable_bytes();
+        let (size, item) = track_try_unwrap!(decoder.decode(&input[offset..], eos));
+        offset += size;
+        assert_eq!(offset, 9);
+        assert_eq!(item, Some("foobarbaz".to_owned()));
+    }
+
+    #[test]
+    fn encoder_slice_works() {
+        let mut encoder = Utf8Encoder::new().slice(3);
+        encoder.start_encoding("foobarbazqux").unwrap();
+
+        let eos = Eos::new(true);
+        let mut output = [0; 12];
+        let mut offset = 0;
+        offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
+        assert_eq!(offset, 3);
+        assert!(!encoder.is_idle());
+
+        offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
+        assert_eq!(offset, 3);
+
+        encoder.reset_consumable_bytes();
+        offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
+        assert_eq!(offset, 6);
+
+        encoder.set_slice_len(6);
+        encoder.reset_consumable_bytes();
+        offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
+        assert_eq!(offset, 12);
+
+        assert!(encoder.is_idle());
+        assert_eq!(output.as_ref(), b"foobarbazqux");
     }
 }
