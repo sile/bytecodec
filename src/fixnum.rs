@@ -1560,14 +1560,15 @@ impl_encode!(F64leEncoder, f64);
 
 #[cfg(test)]
 mod test {
-    use EncodeExt;
+    use Encode;
     use io::{IoDecodeExt, IoEncodeExt};
     use super::*;
 
     macro_rules! assert_encode_decode {
         ($encoder:ident, $decoder:ident, $item:expr, $bytes:expr) => {
             let mut output = Vec::new();
-            let mut encoder = track_try_unwrap!($encoder::with_item($item));
+            let mut encoder = $encoder::new();
+            track_try_unwrap!(encoder.start_encoding($item));
             track_try_unwrap!(encoder.encode_all(&mut output));
             assert_eq!(output, $bytes);
 
@@ -1580,6 +1581,7 @@ mod test {
     #[test]
     fn fixnum_works() {
         assert_encode_decode!(U8Encoder, U8Decoder, 7, [7]);
+        assert_encode_decode!(I8Encoder, I8Decoder, -1, [255]);
         assert_encode_decode!(U16beEncoder, U16beDecoder, 0x0102, [0x01, 0x02]);
         assert_encode_decode!(U16leEncoder, U16leDecoder, 0x0102, [0x02, 0x01]);
         assert_encode_decode!(I16beEncoder, I16beDecoder, -2, [0xFF, 0xFE]);
