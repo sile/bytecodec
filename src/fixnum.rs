@@ -88,7 +88,7 @@ impl_decode!(U8Decoder, u8);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U8Encoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -144,7 +144,7 @@ impl_decode!(I8Decoder, i8);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::I8Encoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -227,7 +227,7 @@ impl_decode!(U16leDecoder, u16);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U16beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -256,7 +256,7 @@ impl_encode!(U16beEncoder, u16);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U16leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -339,7 +339,7 @@ impl_decode!(I16leDecoder, i16);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::I16beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -368,7 +368,7 @@ impl_encode!(I16beEncoder, i16);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::I16leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -457,7 +457,7 @@ impl_decode!(U24leDecoder, u32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U24beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -489,7 +489,7 @@ impl_encode!(U24beEncoder, u32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U24leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -573,7 +573,7 @@ impl_decode!(U32leDecoder, u32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U32beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -602,7 +602,7 @@ impl_encode!(U32beEncoder, u32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U32leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -685,7 +685,7 @@ impl_decode!(I32leDecoder, i32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::I32beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -714,7 +714,7 @@ impl_encode!(I32beEncoder, i32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::I32leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -803,7 +803,7 @@ impl_decode!(U40leDecoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U40beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -836,7 +836,7 @@ impl_encode!(U40beEncoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U40leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -927,7 +927,7 @@ impl_decode!(U48leDecoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U48beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -960,7 +960,7 @@ impl_encode!(U48beEncoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U48leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1051,7 +1051,7 @@ impl_decode!(U56leDecoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U56beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1084,7 +1084,7 @@ impl_encode!(U56beEncoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U56leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1169,7 +1169,7 @@ impl_decode!(U64leDecoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U64beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1198,7 +1198,7 @@ impl_encode!(U64beEncoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::U64leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1281,7 +1281,7 @@ impl_decode!(I64leDecoder, i64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::I64beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1310,7 +1310,7 @@ impl_encode!(I64beEncoder, i64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::I64leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1393,7 +1393,7 @@ impl_decode!(F32leDecoder, f32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::F32beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1422,7 +1422,7 @@ impl_encode!(F32beEncoder, f32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::F32leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1505,7 +1505,7 @@ impl_decode!(F64leDecoder, f64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::F64beEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1534,7 +1534,7 @@ impl_encode!(F64beEncoder, f64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Encode, EncodeExt};
+/// use bytecodec::EncodeExt;
 /// use bytecodec::fixnum::F64leEncoder;
 /// use bytecodec::io::IoEncodeExt;
 ///
@@ -1557,3 +1557,122 @@ impl F64leEncoder {
     }
 }
 impl_encode!(F64leEncoder, f64);
+
+#[cfg(test)]
+mod test {
+    use EncodeExt;
+    use io::{IoDecodeExt, IoEncodeExt};
+    use super::*;
+
+    macro_rules! assert_encode_decode {
+        ($encoder:ident, $decoder:ident, $item:expr, $bytes:expr) => {
+            let mut output = Vec::new();
+            let mut encoder = track_try_unwrap!($encoder::with_item($item));
+            track_try_unwrap!(encoder.encode_all(&mut output));
+            assert_eq!(output, $bytes);
+
+            let mut decoder = $decoder::new();
+            let item = track_try_unwrap!(decoder.decode_exact(&$bytes[..]));
+            assert_eq!(item, $item);
+        }
+    }
+
+    #[test]
+    fn fixnum_works() {
+        assert_encode_decode!(U8Encoder, U8Decoder, 7, [7]);
+        assert_encode_decode!(U16beEncoder, U16beDecoder, 0x0102, [0x01, 0x02]);
+        assert_encode_decode!(U16leEncoder, U16leDecoder, 0x0102, [0x02, 0x01]);
+        assert_encode_decode!(I16beEncoder, I16beDecoder, -2, [0xFF, 0xFE]);
+        assert_encode_decode!(I16leEncoder, I16leDecoder, -2, [0xFE, 0xFF]);
+        assert_encode_decode!(U24beEncoder, U24beDecoder, 0x01_0203, [0x01, 0x02, 0x03]);
+        assert_encode_decode!(U24leEncoder, U24leDecoder, 0x01_0203, [0x03, 0x02, 0x01]);
+        assert_encode_decode!(
+            U32beEncoder,
+            U32beDecoder,
+            0x0102_0304,
+            [0x01, 0x02, 0x03, 0x04]
+        );
+        assert_encode_decode!(
+            U32leEncoder,
+            U32leDecoder,
+            0x0102_0304,
+            [0x04, 0x03, 0x02, 0x01]
+        );
+        assert_encode_decode!(I32beEncoder, I32beDecoder, -2, [0xFF, 0xFF, 0xFF, 0xFE]);
+        assert_encode_decode!(I32leEncoder, I32leDecoder, -2, [0xFE, 0xFF, 0xFF, 0xFF]);
+        assert_encode_decode!(
+            U40beEncoder,
+            U40beDecoder,
+            0x01_0203_0405,
+            [0x01, 0x02, 0x03, 0x04, 0x05]
+        );
+        assert_encode_decode!(
+            U40leEncoder,
+            U40leDecoder,
+            0x01_0203_0405,
+            [0x05, 0x04, 0x03, 0x02, 0x01]
+        );
+        assert_encode_decode!(
+            U48beEncoder,
+            U48beDecoder,
+            0x0102_0304_0506,
+            [0x01, 0x02, 0x03, 0x04, 0x05, 0x06]
+        );
+        assert_encode_decode!(
+            U48leEncoder,
+            U48leDecoder,
+            0x0102_0304_0506,
+            [0x06, 0x05, 0x04, 0x03, 0x02, 0x01]
+        );
+        assert_encode_decode!(
+            U56beEncoder,
+            U56beDecoder,
+            0x01_0203_0405_0607,
+            [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]
+        );
+        assert_encode_decode!(
+            U56leEncoder,
+            U56leDecoder,
+            0x01_0203_0405_0607,
+            [0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]
+        );
+        assert_encode_decode!(
+            U64beEncoder,
+            U64beDecoder,
+            0x0102_0304_0506_0708,
+            [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+        );
+        assert_encode_decode!(
+            U64leEncoder,
+            U64leDecoder,
+            0x0102_0304_0506_0708,
+            [0x08, 0x7, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]
+        );
+        assert_encode_decode!(
+            I64beEncoder,
+            I64beDecoder,
+            -2,
+            [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE]
+        );
+        assert_encode_decode!(
+            I64leEncoder,
+            I64leDecoder,
+            -2,
+            [0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
+        );
+        assert_encode_decode!(F32beEncoder, F32beDecoder, -123.4, [194, 246, 204, 205]);
+        assert_encode_decode!(F32leEncoder, F32leDecoder, -123.4, [205, 204, 246, 194]);
+        assert_encode_decode!(
+            F64beEncoder,
+            F64beDecoder,
+            -123.456,
+            [192, 94, 221, 47, 26, 159, 190, 119]
+        );
+        assert_encode_decode!(
+            F64leEncoder,
+            F64leDecoder,
+            -123.456,
+            [119, 190, 159, 26, 47, 221, 94, 192]
+        );
+    }
+}

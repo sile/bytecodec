@@ -9,22 +9,7 @@ pub trait Encode {
     /// The type of items to be encoded.
     type Item;
 
-    /// Tries to start encoding the given item.
-    ///
-    /// If the encoding has no items to be encoded (i.e., `is_idle()` returns `true`) and
-    /// the item is valid, the encoder **should** accept it.
-    ///
-    /// # Errors
-    ///
-    /// - `ErrorKind::EncoderFull`:
-    ///   - The encoder cannot accept any more items
-    /// - `ErrorKind::InvalidInput`:
-    ///   - An invalid item was passed
-    /// - `ErrorKind::Other`:
-    ///   - Other errors has occurred
-    fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
-
-    /// Encodes the current item and writes the encoded bytes to the given buffer as many as possible.
+    /// Encodes the current item and writes the encoded bytes to the given buffer.
     ///
     /// TODO: update doc
     /// NOTE: 結果サイズが0かどうか、ではなくてis_idleを使って次の呼び出し有無は判定する
@@ -44,6 +29,21 @@ pub trait Encode {
     /// - `ErrorKind::Other`:
     ///   - Other errors has occurred
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize>;
+
+    /// Tries to start encoding the given item.
+    ///
+    /// If the encoding has no items to be encoded (i.e., `is_idle()` returns `true`) and
+    /// the item is valid, the encoder **should** accept it.
+    ///
+    /// # Errors
+    ///
+    /// - `ErrorKind::EncoderFull`:
+    ///   - The encoder cannot accept any more items
+    /// - `ErrorKind::InvalidInput`:
+    ///   - An invalid item was passed
+    /// - `ErrorKind::Other`:
+    ///   - Other errors has occurred
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
     /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
     fn is_idle(&self) -> bool;
