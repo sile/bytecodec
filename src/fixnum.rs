@@ -61,12 +61,13 @@ macro_rules! impl_encode {
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U8Decoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U8Decoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[7][..])).unwrap();
-/// assert_eq!(item, Some(7));
+/// let item = decoder.decode_exact([7].as_ref()).unwrap();
+/// assert_eq!(item, 7);
 /// ```
 #[derive(Debug, Default)]
 pub struct U8Decoder(CopyableBytesDecoder<[u8; 1]>);
@@ -89,8 +90,9 @@ impl_decode!(U8Decoder, u8);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U8Encoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 1];
+/// let mut output = Vec::new();
 /// let mut encoder = U8Encoder::with_item(7).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [7]);
@@ -115,12 +117,13 @@ impl_encode!(U8Encoder, u8);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::I8Decoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = I8Decoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[255][..])).unwrap();
-/// assert_eq!(item, Some(-1));
+/// let item = decoder.decode_exact([255].as_ref()).unwrap();
+/// assert_eq!(item, -1);
 /// ```
 #[derive(Debug, Default)]
 pub struct I8Decoder(CopyableBytesDecoder<[u8; 1]>);
@@ -143,8 +146,9 @@ impl_decode!(I8Decoder, i8);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::I8Encoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 1];
+/// let mut output = Vec::new();
 /// let mut encoder = I8Encoder::with_item(-1).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [255]);
@@ -169,12 +173,13 @@ impl_encode!(I8Encoder, i8);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U16beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U16beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02][..])).unwrap();
-/// assert_eq!(item, Some(0x0102u16));
+/// let item = decoder.decode_exact([0x01, 0x02].as_ref()).unwrap();
+/// assert_eq!(item, 0x0102u16);
 /// ```
 #[derive(Debug, Default)]
 pub struct U16beDecoder(CopyableBytesDecoder<[u8; 2]>);
@@ -195,12 +200,13 @@ impl_decode!(U16beDecoder, u16);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U16leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U16leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02][..])).unwrap();
-/// assert_eq!(item, Some(0x0201u16));
+/// let item = decoder.decode_exact([0x01, 0x02].as_ref()).unwrap();
+/// assert_eq!(item, 0x0201u16);
 /// ```
 #[derive(Debug, Default)]
 pub struct U16leDecoder(CopyableBytesDecoder<[u8; 2]>);
@@ -223,8 +229,9 @@ impl_decode!(U16leDecoder, u16);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U16beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 2];
+/// let mut output = Vec::new();
 /// let mut encoder = U16beEncoder::with_item(0x0102).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x01, 0x02]);
@@ -251,8 +258,9 @@ impl_encode!(U16beEncoder, u16);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U16leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 2];
+/// let mut output = Vec::new();
 /// let mut encoder = U16leEncoder::with_item(0x0102).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x02, 0x01]);
@@ -277,12 +285,13 @@ impl_encode!(U16leEncoder, u16);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::I16beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = I16beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02][..])).unwrap();
-/// assert_eq!(item, Some(0x0102i16));
+/// let item = decoder.decode_exact([0x01, 0x02].as_ref()).unwrap();
+/// assert_eq!(item, 0x0102i16);
 /// ```
 #[derive(Debug, Default)]
 pub struct I16beDecoder(CopyableBytesDecoder<[u8; 2]>);
@@ -303,12 +312,13 @@ impl_decode!(I16beDecoder, i16);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::I16leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = I16leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02][..])).unwrap();
-/// assert_eq!(item, Some(0x0201i16));
+/// let item = decoder.decode_exact([0x01, 0x02].as_ref()).unwrap();
+/// assert_eq!(item, 0x0201i16);
 /// ```
 #[derive(Debug, Default)]
 pub struct I16leDecoder(CopyableBytesDecoder<[u8; 2]>);
@@ -331,8 +341,9 @@ impl_decode!(I16leDecoder, i16);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::I16beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 2];
+/// let mut output = Vec::new();
 /// let mut encoder = I16beEncoder::with_item(-2).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0xFF, 0xFE]);
@@ -359,8 +370,9 @@ impl_encode!(I16beEncoder, i16);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::I16leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 2];
+/// let mut output = Vec::new();
 /// let mut encoder = I16leEncoder::with_item(-2).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0xFE, 0xFF]);
@@ -387,12 +399,13 @@ impl_encode!(I16leEncoder, i16);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U24beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U24beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03][..])).unwrap();
-/// assert_eq!(item, Some(0x0001_0203u32));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03].as_ref()).unwrap();
+/// assert_eq!(item, 0x0001_0203u32);
 /// ```
 #[derive(Debug, Default)]
 pub struct U24beDecoder(CopyableBytesDecoder<[u8; 3]>);
@@ -415,12 +428,13 @@ impl_decode!(U24beDecoder, u32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U24leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U24leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03][..])).unwrap();
-/// assert_eq!(item, Some(0x0003_0201u32));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03].as_ref()).unwrap();
+/// assert_eq!(item, 0x0003_0201u32);
 /// ```
 #[derive(Debug, Default)]
 pub struct U24leDecoder(CopyableBytesDecoder<[u8; 3]>);
@@ -445,8 +459,9 @@ impl_decode!(U24leDecoder, u32);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U24beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 3];
+/// let mut output = Vec::new();
 /// let mut encoder = U24beEncoder::with_item(0x0001_0203).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x01, 0x02, 0x03]);
@@ -476,8 +491,9 @@ impl_encode!(U24beEncoder, u32);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U24leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 3];
+/// let mut output = Vec::new();
 /// let mut encoder = U24leEncoder::with_item(0x0001_0203).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x03, 0x02, 0x01]);
@@ -503,12 +519,13 @@ impl_encode!(U24leEncoder, u32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U32beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U32beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04][..])).unwrap();
-/// assert_eq!(item, Some(0x0102_0304u32));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04].as_ref()).unwrap();
+/// assert_eq!(item, 0x0102_0304u32);
 /// ```
 #[derive(Debug, Default)]
 pub struct U32beDecoder(CopyableBytesDecoder<[u8; 4]>);
@@ -529,12 +546,13 @@ impl_decode!(U32beDecoder, u32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U32leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U32leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04][..])).unwrap();
-/// assert_eq!(item, Some(0x0403_0201u32));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04].as_ref()).unwrap();
+/// assert_eq!(item, 0x0403_0201u32);
 /// ```
 #[derive(Debug, Default)]
 pub struct U32leDecoder(CopyableBytesDecoder<[u8; 4]>);
@@ -557,8 +575,9 @@ impl_decode!(U32leDecoder, u32);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U32beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 4];
+/// let mut output = Vec::new();
 /// let mut encoder = U32beEncoder::with_item(0x0102_0304).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x01, 0x02, 0x03, 0x04]);
@@ -585,8 +604,9 @@ impl_encode!(U32beEncoder, u32);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U32leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 4];
+/// let mut output = Vec::new();
 /// let mut encoder = U32leEncoder::with_item(0x0102_0304).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x04, 0x03, 0x02, 0x01]);
@@ -611,12 +631,13 @@ impl_encode!(U32leEncoder, u32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::I32beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = I32beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04][..])).unwrap();
-/// assert_eq!(item, Some(0x0102_0304i32));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04].as_ref()).unwrap();
+/// assert_eq!(item, 0x0102_0304i32);
 /// ```
 #[derive(Debug, Default)]
 pub struct I32beDecoder(CopyableBytesDecoder<[u8; 4]>);
@@ -637,12 +658,13 @@ impl_decode!(I32beDecoder, i32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::I32leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = I32leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04][..])).unwrap();
-/// assert_eq!(item, Some(0x0403_0201i32));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04].as_ref()).unwrap();
+/// assert_eq!(item, 0x0403_0201i32);
 /// ```
 #[derive(Debug, Default)]
 pub struct I32leDecoder(CopyableBytesDecoder<[u8; 4]>);
@@ -665,8 +687,9 @@ impl_decode!(I32leDecoder, i32);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::I32beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 4];
+/// let mut output = Vec::new();
 /// let mut encoder = I32beEncoder::with_item(-2).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0xFF, 0xFF, 0xFF, 0xFE]);
@@ -693,8 +716,9 @@ impl_encode!(I32beEncoder, i32);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::I32leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 4];
+/// let mut output = Vec::new();
 /// let mut encoder = I32leEncoder::with_item(-2).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0xFE, 0xFF, 0xFF, 0xFF]);
@@ -721,12 +745,13 @@ impl_encode!(I32leEncoder, i32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U40beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U40beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04, 0x05][..])).unwrap();
-/// assert_eq!(item, Some(0x0000_0001_0203_0405u64));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04, 0x05].as_ref()).unwrap();
+/// assert_eq!(item, 0x0000_0001_0203_0405u64);
 /// ```
 #[derive(Debug, Default)]
 pub struct U40beDecoder(CopyableBytesDecoder<[u8; 5]>);
@@ -749,12 +774,13 @@ impl_decode!(U40beDecoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U40leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U40leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04, 0x05][..])).unwrap();
-/// assert_eq!(item, Some(0x0000_0005_0403_0201u64));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04, 0x05].as_ref()).unwrap();
+/// assert_eq!(item, 0x0000_0005_0403_0201u64);
 /// ```
 #[derive(Debug, Default)]
 pub struct U40leDecoder(CopyableBytesDecoder<[u8; 5]>);
@@ -779,8 +805,9 @@ impl_decode!(U40leDecoder, u64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U40beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 5];
+/// let mut output = Vec::new();
 /// let mut encoder = U40beEncoder::with_item(0x0000_0001_0203_0405).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x01, 0x02, 0x03, 0x04, 0x05]);
@@ -811,8 +838,9 @@ impl_encode!(U40beEncoder, u64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U40leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 5];
+/// let mut output = Vec::new();
 /// let mut encoder = U40leEncoder::with_item(0x0000_0001_0203_0405).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x05, 0x04, 0x03, 0x02, 0x01]);
@@ -841,12 +869,13 @@ impl_encode!(U40leEncoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U48beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U48beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06][..])).unwrap();
-/// assert_eq!(item, Some(0x0000_0102_0304_0506u64));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04, 0x05, 0x06].as_ref()).unwrap();
+/// assert_eq!(item, 0x0000_0102_0304_0506u64);
 /// ```
 #[derive(Debug, Default)]
 pub struct U48beDecoder(CopyableBytesDecoder<[u8; 6]>);
@@ -869,12 +898,13 @@ impl_decode!(U48beDecoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U48leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U48leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06][..])).unwrap();
-/// assert_eq!(item, Some(0x0000_0605_0403_0201u64));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04, 0x05, 0x06].as_ref()).unwrap();
+/// assert_eq!(item, 0x0000_0605_0403_0201u64);
 /// ```
 #[derive(Debug, Default)]
 pub struct U48leDecoder(CopyableBytesDecoder<[u8; 6]>);
@@ -899,8 +929,9 @@ impl_decode!(U48leDecoder, u64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U48beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 6];
+/// let mut output = Vec::new();
 /// let mut encoder = U48beEncoder::with_item(0x0000_0102_0304_0506).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x01, 0x02, 0x03, 0x04, 0x05, 0x06]);
@@ -931,8 +962,9 @@ impl_encode!(U48beEncoder, u64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U48leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 6];
+/// let mut output = Vec::new();
 /// let mut encoder = U48leEncoder::with_item(0x0000_0102_0304_0506).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
@@ -961,12 +993,13 @@ impl_encode!(U48leEncoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U56beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U56beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07][..])).unwrap();
-/// assert_eq!(item, Some(0x0001_0203_0405_0607u64));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07].as_ref()).unwrap();
+/// assert_eq!(item, 0x0001_0203_0405_0607u64);
 /// ```
 #[derive(Debug, Default)]
 pub struct U56beDecoder(CopyableBytesDecoder<[u8; 7]>);
@@ -989,12 +1022,13 @@ impl_decode!(U56beDecoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U56leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U56leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07][..])).unwrap();
-/// assert_eq!(item, Some(0x0007_0605_0403_0201u64));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07].as_ref()).unwrap();
+/// assert_eq!(item, 0x0007_0605_0403_0201u64);
 /// ```
 #[derive(Debug, Default)]
 pub struct U56leDecoder(CopyableBytesDecoder<[u8; 7]>);
@@ -1019,8 +1053,9 @@ impl_decode!(U56leDecoder, u64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U56beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 7];
+/// let mut output = Vec::new();
 /// let mut encoder = U56beEncoder::with_item(0x0001_0203_0405_0607).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
@@ -1051,8 +1086,9 @@ impl_encode!(U56beEncoder, u64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U56leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 7];
+/// let mut output = Vec::new();
 /// let mut encoder = U56leEncoder::with_item(0x0001_0203_0405_0607).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
@@ -1079,12 +1115,13 @@ impl_encode!(U56leEncoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U64beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U64beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08][..])).unwrap();
-/// assert_eq!(item, Some(0x0102_0304_0506_0708u64));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08].as_ref()).unwrap();
+/// assert_eq!(item, 0x0102_0304_0506_0708u64);
 /// ```
 #[derive(Debug, Default)]
 pub struct U64beDecoder(CopyableBytesDecoder<[u8; 8]>);
@@ -1105,12 +1142,13 @@ impl_decode!(U64beDecoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::U64leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = U64leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08][..])).unwrap();
-/// assert_eq!(item, Some(0x0807_0605_0403_0201u64));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08].as_ref()).unwrap();
+/// assert_eq!(item, 0x0807_0605_0403_0201u64);
 /// ```
 #[derive(Debug, Default)]
 pub struct U64leDecoder(CopyableBytesDecoder<[u8; 8]>);
@@ -1133,8 +1171,9 @@ impl_decode!(U64leDecoder, u64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U64beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 8];
+/// let mut output = Vec::new();
 /// let mut encoder = U64beEncoder::with_item(0x0102_0304_0506_0708).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
@@ -1161,8 +1200,9 @@ impl_encode!(U64beEncoder, u64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::U64leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 8];
+/// let mut output = Vec::new();
 /// let mut encoder = U64leEncoder::with_item(0x0102_0304_0506_0708).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]);
@@ -1187,12 +1227,13 @@ impl_encode!(U64leEncoder, u64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::I64beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = I64beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08][..])).unwrap();
-/// assert_eq!(item, Some(0x0102_0304_0506_0708i64));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08].as_ref()).unwrap();
+/// assert_eq!(item, 0x0102_0304_0506_0708i64);
 /// ```
 #[derive(Debug, Default)]
 pub struct I64beDecoder(CopyableBytesDecoder<[u8; 8]>);
@@ -1213,12 +1254,13 @@ impl_decode!(I64beDecoder, i64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::I64leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = I64leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08][..])).unwrap();
-/// assert_eq!(item, Some(0x0807_0605_0403_0201i64));
+/// let item = decoder.decode_exact([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08].as_ref()).unwrap();
+/// assert_eq!(item, 0x0807_0605_0403_0201i64);
 /// ```
 #[derive(Debug, Default)]
 pub struct I64leDecoder(CopyableBytesDecoder<[u8; 8]>);
@@ -1241,8 +1283,9 @@ impl_decode!(I64leDecoder, i64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::I64beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 8];
+/// let mut output = Vec::new();
 /// let mut encoder = I64beEncoder::with_item(-2).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE]);
@@ -1269,8 +1312,9 @@ impl_encode!(I64beEncoder, i64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::I64leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 8];
+/// let mut output = Vec::new();
 /// let mut encoder = I64leEncoder::with_item(-2).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
@@ -1295,12 +1339,13 @@ impl_encode!(I64leEncoder, i64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::F32beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = F32beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[66, 246, 204, 205][..])).unwrap();
-/// assert_eq!(item, Some(123.4));
+/// let item = decoder.decode_exact([66, 246, 204, 205].as_ref()).unwrap();
+/// assert_eq!(item, 123.4);
 /// ```
 #[derive(Debug, Default)]
 pub struct F32beDecoder(CopyableBytesDecoder<[u8; 4]>);
@@ -1321,12 +1366,13 @@ impl_decode!(F32beDecoder, f32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::F32leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = F32leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[205, 204, 246, 66][..])).unwrap();
-/// assert_eq!(item, Some(123.4));
+/// let item = decoder.decode_exact([205, 204, 246, 66].as_ref()).unwrap();
+/// assert_eq!(item, 123.4);
 /// ```
 #[derive(Debug, Default)]
 pub struct F32leDecoder(CopyableBytesDecoder<[u8; 4]>);
@@ -1349,8 +1395,9 @@ impl_decode!(F32leDecoder, f32);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::F32beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 4];
+/// let mut output = Vec::new();
 /// let mut encoder = F32beEncoder::with_item(123.4).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [66, 246, 204, 205]);
@@ -1377,8 +1424,9 @@ impl_encode!(F32beEncoder, f32);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::F32leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 4];
+/// let mut output = Vec::new();
 /// let mut encoder = F32leEncoder::with_item(123.4).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [205, 204, 246, 66]);
@@ -1403,12 +1451,13 @@ impl_encode!(F32leEncoder, f32);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::F64beDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = F64beDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[64, 94, 221, 47, 26, 159, 190, 119][..])).unwrap();
-/// assert_eq!(item, Some(123.456));
+/// let item = decoder.decode_exact([64, 94, 221, 47, 26, 159, 190, 119].as_ref()).unwrap();
+/// assert_eq!(item, 123.456);
 /// ```
 #[derive(Debug, Default)]
 pub struct F64beDecoder(CopyableBytesDecoder<[u8; 8]>);
@@ -1429,12 +1478,13 @@ impl_decode!(F64beDecoder, f64);
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::fixnum::F64leDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = F64leDecoder::new();
-/// let item = decoder.decode(&mut DecodeBuf::new(&[119, 190, 159, 26, 47, 221, 94, 64][..])).unwrap();
-/// assert_eq!(item, Some(123.456));
+/// let item = decoder.decode_exact([119, 190, 159, 26, 47, 221, 94, 64].as_ref()).unwrap();
+/// assert_eq!(item, 123.456);
 /// ```
 #[derive(Debug, Default)]
 pub struct F64leDecoder(CopyableBytesDecoder<[u8; 8]>);
@@ -1457,8 +1507,9 @@ impl_decode!(F64leDecoder, f64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::F64beEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 8];
+/// let mut output = Vec::new();
 /// let mut encoder = F64beEncoder::with_item(123.456).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [64, 94, 221, 47, 26, 159, 190, 119]);
@@ -1485,8 +1536,9 @@ impl_encode!(F64beEncoder, f64);
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::fixnum::F64leEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 8];
+/// let mut output = Vec::new();
 /// let mut encoder = F64leEncoder::with_item(123.456).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert_eq!(output, [119, 190, 159, 26, 47, 221, 94, 64]);

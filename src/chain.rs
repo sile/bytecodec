@@ -7,21 +7,22 @@ use {ByteCount, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf, DecodeExt, StartDecoderChain};
+/// use bytecodec::{Decode, DecodeExt, StartDecoderChain};
 /// use bytecodec::fixnum::U8Decoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = StartDecoderChain
 ///     .chain(U8Decoder::new())
 ///     .chain(U8Decoder::new())
 ///     .chain(U8Decoder::new());
 ///
-/// let mut input = DecodeBuf::new(b"foobar");
+/// let mut input = &b"foobar"[..];
 ///
-/// let item = decoder.decode(&mut input).unwrap();
-/// assert_eq!(item, Some((b'f', b'o', b'o')));
+/// let item = decoder.decode_exact(&mut input).unwrap();
+/// assert_eq!(item, (b'f', b'o', b'o'));
 ///
-/// let item = decoder.decode(&mut input).unwrap();
-/// assert_eq!(item, Some((b'b', b'a', b'r')));
+/// let item = decoder.decode_exact(&mut input).unwrap();
+/// assert_eq!(item, (b'b', b'a', b'r'));
 /// ```
 #[derive(Debug)]
 pub struct StartDecoderChain;
@@ -217,15 +218,16 @@ where
 /// use bytecodec::{Encode, EncodeExt, StartEncoderChain};
 /// use bytecodec::bytes::Utf8Encoder;
 /// use bytecodec::fixnum::U8Encoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 4];
+/// let mut output = Vec::new();
 /// let mut encoder = StartEncoderChain
 ///     .chain(U8Encoder::new())
 ///     .chain(Utf8Encoder::new())
 ///     .map_from(|s: String| (s.len() as u8, s));
 /// encoder.start_encoding("foo".to_owned()).unwrap();
 /// encoder.encode_all(&mut output).unwrap();
-/// assert_eq!(output.as_ref(), b"\x03foo");
+/// assert_eq!(output, b"\x03foo");
 /// ```
 #[derive(Debug)]
 pub struct StartEncoderChain;

@@ -7,7 +7,7 @@ use bincode;
 use serde::{Deserialize, Serialize};
 use trackable::error::ErrorKindExt;
 
-use {Decode, DecodeBuf, Encode, EncodeBuf, ErrorKind, Result};
+use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 use monolithic::{MonolithicDecode, MonolithicDecoder, MonolithicEncode, MonolithicEncoder};
 
 /// Bincode decoder.
@@ -31,20 +31,16 @@ where
 {
     type Item = T;
 
-    fn decode(&mut self, buf: &mut DecodeBuf) -> Result<Option<Self::Item>> {
-        track!(self.0.decode(buf))
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        track!(self.0.decode(buf, eos))
     }
 
     fn has_terminated(&self) -> bool {
         self.0.has_terminated()
     }
 
-    fn is_idle(&self) -> bool {
-        self.0.is_idle()
-    }
-
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 }
 impl<T> Default for BincodeDecoder<T>
@@ -97,8 +93,8 @@ where
 {
     type Item = T;
 
-    fn encode(&mut self, buf: &mut EncodeBuf) -> Result<()> {
-        track!(self.0.encode(buf))
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
+        track!(self.0.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -109,8 +105,8 @@ where
         self.0.is_idle()
     }
 
-    fn requiring_bytes_hint(&self) -> Option<u64> {
-        self.0.requiring_bytes_hint()
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
     }
 }
 impl<T> Default for BincodeEncoder<T>

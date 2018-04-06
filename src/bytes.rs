@@ -12,12 +12,13 @@ use {ByteCount, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::bytes::BytesEncoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 4];
+/// let mut output = Vec::new();
 /// let mut encoder = BytesEncoder::with_item(b"foo").unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert!(encoder.is_idle());
-/// assert_eq!(&output[..], b"foo\x00");
+/// assert_eq!(output, b"foo");
 /// ```
 #[derive(Debug)]
 pub struct BytesEncoder<B> {
@@ -93,25 +94,24 @@ impl<B: AsRef<[u8]>> ExactBytesEncode for BytesEncoder<B> {
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::{Decode, Eos};
 /// use bytecodec::bytes::CopyableBytesDecoder;
 ///
 /// let mut decoder = CopyableBytesDecoder::new([0; 3]);
-/// let mut input = DecodeBuf::new(b"fooba");
+/// let mut input = b"foobar";
 ///
 /// // Decodes first item
-/// assert_eq!(decoder.requiring_bytes_hint(), Some(3));
-/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(decoder.requiring_bytes().to_u64(), Some(3));
+/// let (_, item) = decoder.decode(&input[0..3], Eos::new(false)).unwrap();
 /// assert_eq!(item.as_ref(), Some(b"foo"));
 ///
 /// // Decodes second item
-/// assert_eq!(decoder.requiring_bytes_hint(), Some(3));
-/// let item = decoder.decode(&mut input).unwrap();
+/// assert_eq!(decoder.requiring_bytes().to_u64(), Some(3));
+/// let (_, item) = decoder.decode(&input[3..5], Eos::new(false)).unwrap();
 /// assert_eq!(item, None);
-/// assert_eq!(decoder.requiring_bytes_hint(), Some(1));
+/// assert_eq!(decoder.requiring_bytes().to_u64(), Some(1));
 ///
-/// let mut input = DecodeBuf::new(b"r");
-/// let item = decoder.decode(&mut input).unwrap();
+/// let (_, item) = decoder.decode(&input[5..], Eos::new(true)).unwrap();
 /// assert_eq!(item.as_ref(), Some(b"bar"));
 /// ```
 #[derive(Debug, Default)]
@@ -160,16 +160,16 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::Decode;
 /// use bytecodec::bytes::BytesDecoder;
+/// use bytecodec::io::IoDecodeExt;
 ///
 /// let mut decoder = BytesDecoder::new([0; 3]);
-/// assert_eq!(decoder.requiring_bytes_hint(), Some(3));
+/// assert_eq!(decoder.requiring_bytes().to_u64(), Some(3));
 ///
-/// let mut input = DecodeBuf::new(b"foobar");
-/// let item = decoder.decode(&mut input).unwrap();
-/// assert_eq!(item.as_ref(), Some(b"foo"));
-/// assert_eq!(decoder.requiring_bytes_hint(), Some(0)); // no more items are decoded
+/// let item = decoder.decode_exact(b"foobar".as_ref()).unwrap();
+/// assert_eq!(item.as_ref(), b"foo");
+/// assert_eq!(decoder.requiring_bytes().to_u64(), Some(0)); // no more items are decoded
 /// ```
 #[derive(Debug)]
 pub struct BytesDecoder<B> {
@@ -224,23 +224,19 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::{Decode, Eos};
 /// use bytecodec::bytes::RemainingBytesDecoder;
 ///
 /// let mut decoder = RemainingBytesDecoder::new();
-/// assert_eq!(decoder.requiring_bytes_hint(), None);
+/// assert_eq!(decoder.requiring_bytes().to_u64(), None);
 ///
-/// let mut input = DecodeBuf::new(b"foo");
-/// let item = decoder.decode(&mut input).unwrap();
+/// let (size, item) = decoder.decode(b"foo", Eos::new(false)).unwrap();
 /// assert_eq!(item, None);
-/// assert!(input.is_empty());
-/// assert!(!input.is_eos());
+/// assert_eq!(size, 3);
 ///
-/// let mut input = DecodeBuf::with_remaining_bytes(b"bar", 0);
-/// let item = decoder.decode(&mut input).unwrap();
+/// let (size, item) = decoder.decode(b"bar", Eos::new(true)).unwrap();
 /// assert_eq!(item, Some(b"foobar".to_vec()));
-/// assert!(input.is_empty());
-/// assert!(input.is_eos());
+/// assert_eq!(size, 3);
 /// ```
 #[derive(Debug, Default)]
 pub struct RemainingBytesDecoder(Vec<u8>);
@@ -290,12 +286,13 @@ impl<T: AsRef<str>> AsRef<[u8]> for Utf8Bytes<T> {
 /// ```
 /// use bytecodec::{Encode, EncodeExt};
 /// use bytecodec::bytes::Utf8Encoder;
+/// use bytecodec::io::IoEncodeExt;
 ///
-/// let mut output = [0; 4];
+/// let mut output = Vec::new();
 /// let mut encoder = Utf8Encoder::with_item("foo").unwrap();
 /// encoder.encode_all(&mut output).unwrap();
 /// assert!(encoder.is_idle());
-/// assert_eq!(&output[..], b"foo\x00");
+/// assert_eq!(output, b"foo");
 /// ```
 #[derive(Debug)]
 pub struct Utf8Encoder<S = String>(BytesEncoder<Utf8Bytes<S>>);
@@ -336,16 +333,16 @@ impl<S> Default for Utf8Encoder<S> {
 }
 
 /// `Utf8Decoder` decodes Rust strings from a input byte sequence.
+///
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf};
+/// use bytecodec::{Decode, Eos};
 /// use bytecodec::bytes::Utf8Decoder;
 ///
 /// let mut decoder = Utf8Decoder::new();
 ///
-/// let mut input = DecodeBuf::with_remaining_bytes(b"foo", 0);
-/// let item = decoder.decode(&mut input).unwrap();
+/// let (_, item) = decoder.decode(b"foo", Eos::new(true)).unwrap();
 /// assert_eq!(item, Some("foo".to_owned()));
 /// ```
 #[derive(Debug, Default)]
@@ -400,12 +397,12 @@ mod test {
     #[test]
     fn bytes_decoder_works() {
         let mut decoder = BytesDecoder::new([0; 3]);
-        assert_eq!(decoder.requiring_bytes().to_finite(), Some(3));
+        assert_eq!(decoder.requiring_bytes().to_u64(), Some(3));
 
         let mut input = b"foobar".as_ref();
         let item = decoder.decode_exact(&mut input).unwrap();
         assert_eq!(item.as_ref(), b"foo");
-        assert_eq!(decoder.requiring_bytes().to_finite(), Some(0));
+        assert_eq!(decoder.requiring_bytes().to_u64(), Some(0));
 
         assert_eq!(
             decoder.decode_exact(&mut input).err().map(|e| *e.kind()),

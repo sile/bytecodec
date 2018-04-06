@@ -119,8 +119,9 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     /// use bytecodec::{Encode, EncodeExt};
     /// use bytecodec::fixnum::U8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
-    /// let mut output = [0; 1];
+    /// let mut output = Vec::new();
     /// let mut encoder = U8Encoder::with_item(7).unwrap();
     /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output, [7]);
@@ -146,24 +147,22 @@ pub trait EncodeExt: Encode + Sized {
     /// #[macro_use]
     /// extern crate trackable;
     ///
-    /// use bytecodec::{Encode, EncodeExt};
+    /// use bytecodec::{Encode, EncodeExt, Eos};
     /// use bytecodec::fixnum::U8Encoder;
     ///
     /// # fn main() {
-    /// let mut buf = [];
-    ///
     /// let encoder = U8Encoder::with_item(7).unwrap();
     /// let mut encoder = encoder.map_err(|e| track!(e, "oops!")); // or track_err!(encoder, "oops!")
-    /// let error = track!(encoder.encode_all(&mut buf)).err().unwrap();
+    /// let error = track!(encoder.encode(&mut [][..], Eos::new(true))).err().unwrap();
     ///
     /// assert_eq!(error.to_string(), "\
-    /// UnexpectedEos (cause; assertion failed: `!eos.is_eos()`; \
+    /// UnexpectedEos (cause; assertion failed: `!eos.is_reached()`; \
     ///                buf.len()=0, size=0, self.offset=0, b.as_ref().len()=1)
     /// HISTORY:
     ///   [0] at src/bytes.rs:54
-    ///   [1] at src/fixnum.rs:115
-    ///   [2] at src/encode.rs:13 -- oops!
-    ///   [3] at src/encode.rs:14\n");
+    ///   [1] at src/fixnum.rs:113
+    ///   [2] at src/encode.rs:11 -- oops!
+    ///   [3] at src/encode.rs:12\n");
     /// # }
     /// ```
     fn map_err<F, E>(self, f: F) -> MapErr<Self, F, E>
@@ -182,8 +181,9 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     /// use bytecodec::{Encode, EncodeExt};
     /// use bytecodec::fixnum::U8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
-    /// let mut output = [0; 1];
+    /// let mut output = Vec::new();
     /// let mut encoder = U8Encoder::new().map_from(|s: String| s.len() as u8);
     /// let item = "Hello World!".to_owned();
     /// encoder.start_encoding(item).unwrap();
@@ -209,9 +209,10 @@ pub trait EncodeExt: Encode + Sized {
     ///
     /// use bytecodec::{Encode, EncodeExt, ErrorKind, Result};
     /// use bytecodec::fixnum::U8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
     /// # fn main() {
-    /// let mut output = [0; 1];
+    /// let mut output = Vec::new();
     /// let mut encoder = U8Encoder::new().try_map_from(|s: String| -> Result<_> {
     ///     track_assert!(s.len() <= 0xFF, ErrorKind::InvalidInput);
     ///     Ok(s.len() as u8)
@@ -242,15 +243,16 @@ pub trait EncodeExt: Encode + Sized {
     /// use bytecodec::{Encode, EncodeExt, StartEncoderChain};
     /// use bytecodec::bytes::Utf8Encoder;
     /// use bytecodec::fixnum::U8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
-    /// let mut output = [0; 4];
+    /// let mut output = Vec::new();
     /// let mut encoder = StartEncoderChain
     ///     .chain(U8Encoder::new())
     ///     .chain(Utf8Encoder::new())
     ///     .map_from(|s: String| (s.len() as u8, s));
     /// encoder.start_encoding("foo".to_owned()).unwrap();
     /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output.as_ref(), b"\x03foo");
+    /// assert_eq!(output, b"\x03foo");
     /// ```
     fn chain<E: Encode>(self, other: E) -> EncoderChain<Self, E, Self::Item> {
         EncoderChain::new(self, other)
@@ -267,17 +269,16 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     /// use bytecodec::{Encode, EncodeExt};
     /// use bytecodec::fixnum::U8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
-    /// let mut output = [0; 1];
+    /// let mut output = Vec::new();
     /// let mut encoder = U8Encoder::new().optional();
     ///
     /// encoder.start_encoding(None).unwrap();
-    /// let size = encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(size, 0);
+    /// encoder.encode_all(&mut output).unwrap();
     ///
     /// encoder.start_encoding(Some(9)).unwrap();
-    /// let size = encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(size, 1);
+    /// encoder.encode_all(&mut output).unwrap();
     ///
     /// assert_eq!(output, [9]);
     /// ```
@@ -292,13 +293,14 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     /// use bytecodec::{Encode, EncodeExt, ErrorKind};
     /// use bytecodec::bytes::Utf8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
-    /// let mut output = [0; 4];
+    /// let mut output = Vec::new();
     /// let mut encoder = Utf8Encoder::new().max_bytes(3);
     ///
     /// encoder.start_encoding("foo").unwrap(); // OK
     /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output.as_ref(), b"foo\x00");
+    /// assert_eq!(output, b"foo");
     ///
     /// encoder.start_encoding("hello").unwrap(); // Error
     /// let error = encoder.encode_all(&mut output).err().unwrap();
@@ -315,12 +317,13 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     /// use bytecodec::{Encode, EncodeExt, ErrorKind};
     /// use bytecodec::bytes::Utf8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
-    /// let mut output = [0; 4];
+    /// let mut output = Vec::new();
     /// let mut encoder = Utf8Encoder::new().length(3);
     /// encoder.start_encoding("hey").unwrap(); // OK
     /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output.as_ref(), b"hey\x00");
+    /// assert_eq!(output, b"hey");
     ///
     /// let mut encoder = Utf8Encoder::new().length(3);
     /// encoder.start_encoding("hello").unwrap(); // Error (too long)
@@ -344,12 +347,13 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     /// use bytecodec::{Encode, EncodeExt, ErrorKind};
     /// use bytecodec::fixnum::U8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
-    /// let mut output = [0; 4];
+    /// let mut output = Vec::new();
     /// let mut encoder = U8Encoder::new().padding(9).length(3);
     /// encoder.start_encoding(3).unwrap();
     /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output.as_ref(), [3, 9, 9, 0]);
+    /// assert_eq!(output, [3, 9, 9]);
     /// ```
     fn padding(self, padding_byte: u8) -> Padding<Self> {
         Padding::new(self, padding_byte)
@@ -362,12 +366,13 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     /// use bytecodec::{Encode, EncodeExt, ErrorKind};
     /// use bytecodec::fixnum::U8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
-    /// let mut output = [0; 4];
+    /// let mut output = Vec::new();
     /// let mut encoder = U8Encoder::new().repeat();
     /// encoder.start_encoding(0..4).unwrap();
     /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output.as_ref(), [0, 1, 2, 3]);
+    /// assert_eq!(output, [0, 1, 2, 3]);
     /// ```
     fn repeat<I>(self) -> Repeat<Self, I>
     where
@@ -386,13 +391,14 @@ pub trait EncodeExt: Encode + Sized {
     /// use bytecodec::{Encode, EncodeExt, ExactBytesEncode};
     /// use bytecodec::bytes::Utf8Encoder;
     /// use bytecodec::fixnum::U8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
-    /// let mut output = [0; 4];
+    /// let mut output = Vec::new();
     /// let mut encoder =
-    ///     Utf8Encoder::new().with_prefix(U8Encoder::new(), |body| body.requiring_bytes() as u8);
+    ///     Utf8Encoder::new().with_prefix(U8Encoder::new(), |body| body.exact_requiring_bytes() as u8);
     /// encoder.start_encoding("foo").unwrap();
     /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output.as_ref(), [3, b'f', b'o', b'o']);
+    /// assert_eq!(output, [3, b'f', b'o', b'o']);
     /// ```
     fn with_prefix<E, F>(self, prefix: E, f: F) -> WithPrefix<Self, E, F>
     where
@@ -412,17 +418,18 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     /// use bytecodec::{Encode, EncodeExt, ExactBytesEncode};
     /// use bytecodec::fixnum::U8Encoder;
+    /// use bytecodec::io::IoEncodeExt;
     ///
-    /// let mut output = [0; 4];
+    /// let mut output = Vec::new();
     /// let mut encoder =
     ///     U8Encoder::new()
     ///         .repeat()
     ///         .pre_encode()
-    ///         .with_prefix(U8Encoder::new(), |body| body.requiring_bytes() as u8);
+    ///         .with_prefix(U8Encoder::new(), |body| body.exact_requiring_bytes() as u8);
     ///
     /// encoder.start_encoding(0..3).unwrap();
     /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output.as_ref(), [3, 0, 1, 2]);
+    /// assert_eq!(output, [3, 0, 1, 2]);
     /// ```
     fn pre_encode(self) -> PreEncode<Self> {
         PreEncode::new(self)

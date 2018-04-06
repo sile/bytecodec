@@ -94,14 +94,13 @@ impl<D: ?Sized + Decode> Decode for Box<D> {
 /// # Examples
 ///
 /// ```
-/// use bytecodec::{Decode, DecodeBuf, DecodedValue};
+/// use bytecodec::{Decode, DecodedValue, Eos};
 ///
 /// let mut decoder = DecodedValue::new(10);
 ///
-/// let mut input = DecodeBuf::new(b"foo");
-/// let item = decoder.decode(&mut input).unwrap();
+/// let (size, item) = decoder.decode(b"foo", Eos::new(false)).unwrap();
 /// assert_eq!(item, Some(10));
-/// assert_eq!(input.len(), 3);
+/// assert_eq!(size, 0);
 /// ```
 #[derive(Debug)]
 pub struct DecodedValue<T>(Option<T>);
@@ -137,12 +136,13 @@ pub trait DecodeExt: Decode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::{Decode, DecodeExt};
     /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
     /// let mut decoder = U8Decoder::new().map(|b| b * 2);
-    /// let item = decoder.decode(&mut DecodeBuf::new(&[10][..])).unwrap();
-    /// assert_eq!(item, Some(20));
+    /// let item = decoder.decode_exact([10].as_ref()).unwrap();
+    /// assert_eq!(item, 20);
     /// ```
     fn map<T, F>(self, f: F) -> Map<Self, T, F>
     where
@@ -160,21 +160,21 @@ pub trait DecodeExt: Decode + Sized {
     /// #[macro_use]
     /// extern crate trackable;
     ///
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt, ErrorKind, Result};
+    /// use bytecodec::{Decode, DecodeExt, ErrorKind, Result};
     /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
     /// # fn main() {
     /// let mut decoder = U8Decoder::new().try_map(|b| -> Result<_> {
     ///     track_assert_ne!(b, 0, ErrorKind::InvalidInput);
     ///     Ok(b * 2)
     /// });
-    /// let mut input = DecodeBuf::new(&[0, 4][..]);
     ///
-    /// let error = decoder.decode(&mut input).err().unwrap();
+    /// let error = decoder.decode_exact([0].as_ref()).err().unwrap();
     /// assert_eq!(*error.kind(), ErrorKind::InvalidInput);
     ///
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some(8));
+    /// let item = decoder.decode_exact([4].as_ref()).unwrap();
+    /// assert_eq!(item, 8);
     /// # }
     /// ```
     fn try_map<F, T, E>(self, f: F) -> TryMap<Self, F, T, E>
@@ -196,26 +196,27 @@ pub trait DecodeExt: Decode + Sized {
     /// #[macro_use]
     /// extern crate trackable;
     ///
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::{Decode, DecodeExt};
     /// use bytecodec::fixnum::U16beDecoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
     /// # fn main() {
     /// let mut decoder =
     ///     U16beDecoder::new().map_err(|e| track!(e, "oops!"));
     ///     // or `track_err!(U16beDecoder::new(), "oops!")`
     ///
-    /// let mut input =
-    ///     DecodeBuf::with_remaining_bytes(&[10][..], 0); // Insufficient bytes
-    ///
-    /// let error = track!(decoder.decode(&mut input)).err().unwrap();
+    /// let input = [0]; // Insufficient bytes
+    /// let error = track!(decoder.decode_exact(input.as_ref())).err().unwrap();
     ///
     /// assert_eq!(error.to_string(), "\
-    /// UnexpectedEos (cause; assertion failed: `!buf.is_eos()`)
+    /// UnexpectedEos (cause; assertion failed: `left == right`; \
+    ///                assertion failed: `(left == right)` (left: `1`, right: `0`))
     /// HISTORY:
-    ///   [0] at src/bytes.rs:143
-    ///   [1] at src/fixnum.rs:195
-    ///   [2] at src/decode.rs:11 -- oops!
-    ///   [3] at src/decode.rs:17\n");
+    ///   [0] at src/bytes.rs:140
+    ///   [1] at src/fixnum.rs:196
+    ///   [2] at src/decode.rs:12 -- oops!
+    ///   [3] at src/io.rs:47
+    ///   [4] at src/decode.rs:16\n");
     /// # }
     /// ```
     fn map_err<F, E>(self, f: F) -> MapErr<Self, F, E>
@@ -236,15 +237,14 @@ pub trait DecodeExt: Decode + Sized {
     /// Decodes a length-prefixed string:
     ///
     /// ```
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::{Decode, DecodeExt};
     /// use bytecodec::bytes::Utf8Decoder;
     /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
     /// let mut decoder = U8Decoder::new().and_then(|len| Utf8Decoder::new().length(len as u64));
-    /// let mut input = DecodeBuf::new(b"\x03foobar");
-    ///
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some("foo".to_owned()));
+    /// let item = decoder.decode_exact(b"\x03foobar".as_ref()).unwrap();
+    /// assert_eq!(item, "foo");
     /// ```
     fn and_then<D, F>(self, f: F) -> AndThen<Self, D, F>
     where
@@ -261,21 +261,22 @@ pub trait DecodeExt: Decode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt, StartDecoderChain};
+    /// use bytecodec::{Decode, DecodeExt, StartDecoderChain};
     /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
     /// let mut decoder = StartDecoderChain
     ///     .chain(U8Decoder::new())
     ///     .chain(U8Decoder::new())
     ///     .chain(U8Decoder::new());
     ///
-    /// let mut input = DecodeBuf::new(b"foobar");
+    /// let mut input = &b"foobar"[..];
     ///
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some((b'f', b'o', b'o')));
+    /// let item = decoder.decode_exact(&mut input).unwrap();
+    /// assert_eq!(item, (b'f', b'o', b'o'));
     ///
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some((b'b', b'a', b'r')));
+    /// let item = decoder.decode_exact(&mut input).unwrap();
+    /// assert_eq!(item, (b'b', b'a', b'r'));
     /// ```
     fn chain<D: Decode>(self, other: D) -> DecoderChain<Self, D, Self::Item> {
         DecoderChain::new(self, other)
@@ -286,14 +287,13 @@ pub trait DecodeExt: Decode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::{Decode, DecodeExt};
     /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
     /// let mut decoder = U8Decoder::new().collect::<Vec<_>>();
-    /// let mut input = DecodeBuf::with_remaining_bytes(b"foo", 0);
-    ///
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some(vec![b'f', b'o', b'o']));
+    /// let item = decoder.decode_exact(b"foo".as_ref()).unwrap();
+    /// assert_eq!(item, vec![b'f', b'o', b'o']);
     /// ```
     fn collect<T>(self) -> Collect<Self, T>
     where
@@ -307,19 +307,20 @@ pub trait DecodeExt: Decode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt, ErrorKind};
+    /// use bytecodec::{Decode, DecodeExt, ErrorKind};
     /// use bytecodec::bytes::Utf8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
     /// let mut decoder = Utf8Decoder::new().length(3);
-    /// let mut input = DecodeBuf::with_remaining_bytes(b"foobarba", 0);
+    /// let mut input = &b"foobarba"[..];
     ///
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some("foo".to_owned()));
+    /// let item = decoder.decode_exact(&mut input).unwrap();
+    /// assert_eq!(item, "foo");
     ///
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some("bar".to_owned()));
+    /// let item = decoder.decode_exact(&mut input).unwrap();
+    /// assert_eq!(item, "bar");
     ///
-    /// let error = decoder.decode(&mut input).err().unwrap();
+    /// let error = decoder.decode_exact(&mut input).err().unwrap();
     /// assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
     /// ```
     fn length(self, expected_bytes: u64) -> Length<Self> {
@@ -331,14 +332,13 @@ pub trait DecodeExt: Decode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::{Decode, DecodeExt};
     /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
     /// let mut decoder = U8Decoder::new().take(2).collect::<Vec<_>>();
-    /// let mut input = DecodeBuf::new(b"foo");
-    ///
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some(vec![b'f', b'o']));
+    /// let item = decoder.decode_exact(b"foo".as_ref()).unwrap();
+    /// assert_eq!(item, vec![b'f', b'o']);
     /// ```
     fn take(self, n: usize) -> Take<Self> {
         Take::new(self, n)
@@ -349,18 +349,19 @@ pub trait DecodeExt: Decode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::{Decode, DecodeExt};
     /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
-    /// let mut input = DecodeBuf::new(b"foo");
+    /// let mut input = &b"foo"[..];
     ///
     /// let mut decoder = U8Decoder::new().omit(true);
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some(None));
+    /// let item = decoder.decode_exact(&mut input).unwrap();
+    /// assert_eq!(item, None);
     ///
     /// let mut decoder = U8Decoder::new().omit(false);
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some(Some(b'f')));
+    /// let item = decoder.decode_exact(&mut input).unwrap();
+    /// assert_eq!(item, Some(b'f'));
     /// ```
     fn omit(self, do_omit: bool) -> Omit<Self> {
         Omit::new(self, do_omit)
@@ -372,15 +373,16 @@ pub trait DecodeExt: Decode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt};
+    /// use bytecodec::{Decode, DecodeExt};
     /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
-    /// let mut input = DecodeBuf::with_remaining_bytes(b"foo", 0);
+    /// let mut input = &b"foo"[..];
     ///
     /// let mut decoder = U8Decoder::new().skip_remaining();
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some(b'f'));
-    /// assert!(input.is_empty() && input.is_eos());
+    /// let item = decoder.decode_exact(&mut input).unwrap();
+    /// assert_eq!(item, b'f');
+    /// assert!(input.is_empty());
     /// ```
     fn skip_remaining(self) -> SkipRemaining<Self> {
         SkipRemaining::new(self)
@@ -391,17 +393,16 @@ pub trait DecodeExt: Decode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt, ErrorKind};
+    /// use bytecodec::{Decode, DecodeExt, ErrorKind};
     /// use bytecodec::bytes::Utf8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
     /// let mut decoder = Utf8Decoder::new().max_bytes(3);
     ///
-    /// let mut input = DecodeBuf::with_remaining_bytes(b"foo", 0);
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some("foo".to_owned())); // OK
+    /// let item = decoder.decode_exact(b"foo".as_ref()).unwrap();
+    /// assert_eq!(item, "foo"); // OK
     ///
-    /// let mut input = DecodeBuf::with_remaining_bytes(b"hello", 0);
-    /// let error = decoder.decode(&mut input).err();
+    /// let error = decoder.decode_exact(b"hello".as_ref()).err();
     /// assert_eq!(error.map(|e| *e.kind()), Some(ErrorKind::InvalidInput)); // Error
     /// ```
     fn max_bytes(self, bytes: u64) -> MaxBytes<Self> {
@@ -413,16 +414,17 @@ pub trait DecodeExt: Decode + Sized {
     /// # Examples
     ///
     /// ```
-    /// use bytecodec::{Decode, DecodeBuf, DecodeExt, ErrorKind};
+    /// use bytecodec::{Decode, DecodeExt, ErrorKind};
     /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
     ///
     /// let mut decoder = U8Decoder::new().assert(|&b| b == 3);
     ///
-    /// let mut input = DecodeBuf::new(&[3, 4][..]);
-    /// let item = decoder.decode(&mut input).unwrap();
-    /// assert_eq!(item, Some(3));
+    /// let mut input = &[3, 4][..];
+    /// let item = decoder.decode_exact(&mut input).unwrap();
+    /// assert_eq!(item, 3);
     ///
-    /// let error = decoder.decode(&mut input).err();
+    /// let error = decoder.decode_exact(&mut input).err();
     /// assert_eq!(error.map(|e| *e.kind()), Some(ErrorKind::InvalidInput));
     /// ```
     fn assert<F>(self, f: F) -> Assert<Self, F>

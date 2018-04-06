@@ -13,7 +13,8 @@ impl Eos {
         }
     }
 
-    /// TODO: doc
+    /// Makes a new `Eos` instance that
+    /// has the given information about the number of remaining bytes in a stream.
     pub fn with_remaining_bytes(n: ByteCount) -> Self {
         Eos(n)
     }
@@ -23,16 +24,27 @@ impl Eos {
         self.0 == ByteCount::Finite(0)
     }
 
-    /// Returns the number of bytes remaining in the target stream.
-    ///
-    /// If it is unknown, `None` will be returned.
-    /// TODO: update doc
+    /// Returns the information about the number of bytes remaining in the target stream.
     pub fn remaining_bytes(&self) -> ByteCount {
         self.0
     }
 
     /// Returns a new `Eos` instance that has moved backward from
     /// the end of the target stream by the specified number of bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{ByteCount, Eos};
+    ///
+    /// let eos = Eos::new(true);
+    /// assert_eq!(eos.is_reached(), true);
+    /// assert_eq!(eos.remaining_bytes(), ByteCount::Finite(0));
+    ///
+    /// let eos = eos.back(5);
+    /// assert_eq!(eos.is_reached(), false);
+    /// assert_eq!(eos.remaining_bytes(), ByteCount::Finite(5));
+    /// ```
     pub fn back(&self, bytes: u64) -> Self {
         if let ByteCount::Finite(n) = self.0 {
             Eos(ByteCount::Finite(n + bytes))

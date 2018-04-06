@@ -328,15 +328,24 @@ where
     type Item = I;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        while self.inner.is_idle() {
-            if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
-                track!(self.inner.start_encoding(item))?;
-            } else {
-                self.items = None;
-                break;
+        let mut offset = 0;
+        loop {
+            while self.inner.is_idle() {
+                if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
+                    println!("# Start");
+                    track!(self.inner.start_encoding(item))?;
+                } else {
+                    self.items = None;
+                    return Ok(offset);
+                }
+            }
+
+            let size = track!(self.inner.encode(&mut buf[offset..], eos))?;
+            offset += size;
+            if size == 0 {
+                return Ok(offset);
             }
         }
-        track!(self.inner.encode(buf, eos))
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -801,15 +810,11 @@ impl<D: Decode> Decode for MaxBytes<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        let limit = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
-        let eos = eos.back((buf.len() - limit) as u64);
-        let (size, item) = track!(self.inner.decode(&buf[..limit], eos))?;
-
+        let (size, item) = track!(self.inner.decode(&buf, eos))?;
         self.consumed_bytes += size as u64;
-        if self.consumed_bytes == self.max_bytes {
-            track_assert!(item.is_some(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
-                          self.max_bytes);
-        }
+        track_assert!(self.consumed_bytes <= self.max_bytes,
+                      ErrorKind::InvalidInput, "Max bytes limit exceeded";
+                      self.consumed_bytes, self.max_bytes);
         if item.is_some() {
             self.consumed_bytes = 0;
         }
@@ -828,14 +833,11 @@ impl<E: Encode> Encode for MaxBytes<E> {
     type Item = E::Item;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let limit = cmp::min(buf.len() as u64, self.max_remaining_bytes()) as usize;
-        let eos = eos.back((buf.len() - limit) as u64);
-        let size = track!(self.inner.encode(&mut buf[..limit], eos))?;
+        let size = track!(self.inner.encode(buf, eos))?;
         self.consumed_bytes += size as u64;
-        if self.consumed_bytes == self.max_bytes {
-            track_assert!(self.is_idle(), ErrorKind::InvalidInput, "Max bytes limit exceeded";
-                          self.max_bytes);
-        }
+        track_assert!(self.consumed_bytes <= self.max_bytes,
+                      ErrorKind::InvalidInput, "Max bytes limit exceeded";
+                      self.consumed_bytes, self.max_bytes);
         if self.is_idle() {
             self.consumed_bytes = 0;
         }
