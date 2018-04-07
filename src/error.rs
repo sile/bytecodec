@@ -27,8 +27,6 @@ impl From<std::io::Error> for Error {
 #[allow(missing_docs)]
 pub enum ErrorKind {
     InvalidInput,
-    // TODO: TooLittleConsumption
-    // TODO: Livelock
     UnexpectedEos,
     EncoderFull,
     DecoderTerminated,
