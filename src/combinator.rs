@@ -1076,6 +1076,14 @@ impl<T> Slice<T> {
     pub fn set_consumable_bytes(&mut self, n: u64) {
         self.consumable_bytes = n;
     }
+
+    /// Returns `true` if the encoder or decoder cannot consume any more bytes, otherwise `false`.
+    ///
+    /// To resume its works, it is needed to reset the value of consumable bytes
+    /// by calling `set_consumable_bytes` method.
+    pub fn is_suspended(&self) -> bool {
+        self.consumable_bytes == 0
+    }
 }
 impl<D: Decode> Decode for Slice<D> {
     type Item = D::Item;
