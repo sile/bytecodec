@@ -16,17 +16,17 @@ use io::IoEncodeExt;
 /// This is created by calling `DecodeExt::map` method.
 #[derive(Debug)]
 pub struct Map<D, T, F> {
-    decoder: D,
+    inner: D,
     map: F,
     _item: PhantomData<T>,
 }
 impl<D: Decode, T, F> Map<D, T, F> {
-    pub(crate) fn new(decoder: D, map: F) -> Self
+    pub(crate) fn new(inner: D, map: F) -> Self
     where
         F: Fn(D::Item) -> T,
     {
         Map {
-            decoder,
+            inner,
             map,
             _item: PhantomData,
         }
@@ -40,15 +40,15 @@ where
     type Item = T;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        track!(self.decoder.decode(buf, eos)).map(|(n, r)| (n, r.map(&self.map)))
+        track!(self.inner.decode(buf, eos)).map(|(n, r)| (n, r.map(&self.map)))
     }
 
     fn has_terminated(&self) -> bool {
-        self.decoder.has_terminated()
+        self.inner.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        self.decoder.requiring_bytes()
+        self.inner.requiring_bytes()
     }
 }
 
@@ -143,18 +143,18 @@ where
 /// This is created by calling `DecodeExt::and_then` method.
 #[derive(Debug)]
 pub struct AndThen<D0, D1, F> {
-    decoder0: D0,
-    decoder1: Option<D1>,
+    inner0: D0,
+    inner1: Option<D1>,
     and_then: F,
 }
 impl<D0: Decode, D1, F> AndThen<D0, D1, F> {
-    pub(crate) fn new(decoder0: D0, and_then: F) -> Self
+    pub(crate) fn new(inner0: D0, and_then: F) -> Self
     where
         F: Fn(D0::Item) -> D1,
     {
         AndThen {
-            decoder0,
-            decoder1: None,
+            inner0,
+            inner1: None,
             and_then,
         }
     }
@@ -168,34 +168,34 @@ where
     type Item = D1::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        if let Some(result) = self.decoder1.as_mut().map(|d| track!(d.decode(buf, eos))) {
+        if let Some(result) = self.inner1.as_mut().map(|d| track!(d.decode(buf, eos))) {
             let (size, item) = result?;
             if item.is_some() {
-                self.decoder1 = None;
+                self.inner1 = None;
             }
             Ok((size, item))
         } else {
-            let (size, item) = track!(self.decoder0.decode(buf, eos))?;
+            let (size, item) = track!(self.inner0.decode(buf, eos))?;
             if let Some(d) = item.map(&self.and_then) {
-                self.decoder1 = Some(d);
+                self.inner1 = Some(d);
             }
             Ok((size, None))
         }
     }
 
     fn has_terminated(&self) -> bool {
-        if let Some(ref d) = self.decoder1 {
+        if let Some(ref d) = self.inner1 {
             d.has_terminated()
         } else {
-            self.decoder0.has_terminated()
+            self.inner0.has_terminated()
         }
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        if let Some(ref d) = self.decoder1 {
+        if let Some(ref d) = self.inner1 {
             d.requiring_bytes()
         } else {
-            self.decoder0.requiring_bytes()
+            self.inner0.requiring_bytes()
         }
     }
 }
@@ -373,11 +373,11 @@ where
 #[derive(Debug)]
 pub struct Omit<D>(Option<D>);
 impl<D> Omit<D> {
-    pub(crate) fn new(decoder: D, do_omit: bool) -> Self {
+    pub(crate) fn new(inner: D, do_omit: bool) -> Self {
         if do_omit {
             Omit(None)
         } else {
-            Omit(Some(decoder))
+            Omit(Some(inner))
         }
     }
 }
@@ -455,15 +455,12 @@ impl<E: ExactBytesEncode> ExactBytesEncode for Optional<E> {
 /// Note that this is a oneshot decoder (i.e., it decodes only one item).
 #[derive(Debug)]
 pub struct Collect<D, T> {
-    decoder: D,
+    inner: D,
     items: Option<T>,
 }
 impl<D, T> Collect<D, T> {
-    pub(crate) fn new(decoder: D) -> Self {
-        Collect {
-            decoder,
-            items: None,
-        }
+    pub(crate) fn new(inner: D) -> Self {
+        Collect { inner, items: None }
     }
 }
 impl<D, T: Default> Decode for Collect<D, T>
@@ -477,22 +474,22 @@ where
         if self.items.is_none() {
             self.items = Some(T::default());
         }
-        if (buf.is_empty() && eos.is_reached()) || self.decoder.has_terminated() {
+        if (buf.is_empty() && eos.is_reached()) || self.inner.has_terminated() {
             return Ok((0, self.items.take()));
         }
 
         let items = self.items.as_mut().expect("Never fails");
-        let (size, item) = track!(self.decoder.decode(buf, eos))?;
+        let (size, item) = track!(self.inner.decode(buf, eos))?;
         items.extend(item);
         Ok((size, None))
     }
 
     fn has_terminated(&self) -> bool {
-        self.decoder.has_terminated()
+        self.inner.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        self.decoder.requiring_bytes()
+        self.inner.requiring_bytes()
     }
 }
 
@@ -646,14 +643,14 @@ impl<E: Encode> ExactBytesEncode for Length<E> {
 /// This is created by calling `DecodeExt::take` method.
 #[derive(Debug)]
 pub struct Take<D> {
-    decoder: D,
+    inner: D,
     limit: usize,
     decoded_items: usize,
 }
 impl<D> Take<D> {
-    pub(crate) fn new(decoder: D, count: usize) -> Self {
+    pub(crate) fn new(inner: D, count: usize) -> Self {
         Take {
-            decoder,
+            inner,
             limit: count,
             decoded_items: 0,
         }
@@ -664,7 +661,7 @@ impl<D: Decode> Decode for Take<D> {
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         track_assert_ne!(self.decoded_items, self.limit, ErrorKind::DecoderTerminated);
-        match track!(self.decoder.decode(buf, eos))? {
+        match track!(self.inner.decode(buf, eos))? {
             (size, Some(item)) => {
                 self.decoded_items += 1;
                 Ok((size, Some(item)))
@@ -674,14 +671,14 @@ impl<D: Decode> Decode for Take<D> {
     }
 
     fn has_terminated(&self) -> bool {
-        self.decoder.has_terminated() || self.decoded_items == self.limit
+        self.inner.has_terminated() || self.decoded_items == self.limit
     }
 
     fn requiring_bytes(&self) -> ByteCount {
         if self.has_terminated() {
             ByteCount::Finite(0)
         } else {
-            self.decoder.requiring_bytes()
+            self.inner.requiring_bytes()
         }
     }
 }
@@ -691,14 +688,14 @@ impl<D: Decode> Decode for Take<D> {
 /// This is created by calling `DecodeExt::try_map` method.
 #[derive(Debug)]
 pub struct TryMap<D, F, T, E> {
-    decoder: D,
+    inner: D,
     try_map: F,
     _phantom: PhantomData<(T, E)>,
 }
 impl<D, F, T, E> TryMap<D, F, T, E> {
-    pub(crate) fn new(decoder: D, try_map: F) -> Self {
+    pub(crate) fn new(inner: D, try_map: F) -> Self {
         TryMap {
-            decoder,
+            inner,
             try_map,
             _phantom: PhantomData,
         }
@@ -713,7 +710,7 @@ where
     type Item = T;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        match track!(self.decoder.decode(buf, eos))? {
+        match track!(self.inner.decode(buf, eos))? {
             (size, Some(item)) => {
                 let item = track!((self.try_map)(item).map_err(Error::from))?;
                 Ok((size, Some(item)))
@@ -723,11 +720,11 @@ where
     }
 
     fn has_terminated(&self) -> bool {
-        self.decoder.has_terminated()
+        self.inner.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        self.decoder.requiring_bytes()
+        self.inner.requiring_bytes()
     }
 }
 
@@ -735,15 +732,12 @@ where
 /// after decoding an item by using `D`.
 #[derive(Debug)]
 pub struct SkipRemaining<D: Decode> {
-    decoder: D,
+    inner: D,
     item: Option<D::Item>,
 }
 impl<D: Decode> SkipRemaining<D> {
-    pub(crate) fn new(decoder: D) -> Self {
-        SkipRemaining {
-            decoder,
-            item: None,
-        }
+    pub(crate) fn new(inner: D) -> Self {
+        SkipRemaining { inner, item: None }
     }
 }
 impl<D: Decode> Decode for SkipRemaining<D> {
@@ -757,7 +751,7 @@ impl<D: Decode> Decode for SkipRemaining<D> {
         );
 
         if self.item.is_none() {
-            let (size, item) = track!(self.decoder.decode(buf, eos))?;
+            let (size, item) = track!(self.inner.decode(buf, eos))?;
             self.item = item;
             Ok((size, None))
         } else if eos.is_reached() {
@@ -769,7 +763,7 @@ impl<D: Decode> Decode for SkipRemaining<D> {
 
     fn has_terminated(&self) -> bool {
         if self.item.is_none() {
-            self.decoder.has_terminated()
+            self.inner.has_terminated()
         } else {
             false
         }
@@ -777,7 +771,7 @@ impl<D: Decode> Decode for SkipRemaining<D> {
 
     fn requiring_bytes(&self) -> ByteCount {
         if self.item.is_none() {
-            self.decoder.requiring_bytes()
+            self.inner.requiring_bytes()
         } else {
             ByteCount::Infinite
         }
@@ -867,12 +861,12 @@ impl<E: ExactBytesEncode> ExactBytesEncode for MaxBytes<E> {
 /// This created by calling `DecodeExt::assert` method.
 #[derive(Debug)]
 pub struct Assert<D, F> {
-    decoder: D,
+    inner: D,
     assert: F,
 }
 impl<D, F> Assert<D, F> {
-    pub(crate) fn new(decoder: D, assert: F) -> Self {
-        Assert { decoder, assert }
+    pub(crate) fn new(inner: D, assert: F) -> Self {
+        Assert { inner, assert }
     }
 }
 impl<D: Decode, F> Decode for Assert<D, F>
@@ -882,7 +876,7 @@ where
     type Item = D::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        let (size, item) = track!(self.decoder.decode(buf, eos))?;
+        let (size, item) = track!(self.inner.decode(buf, eos))?;
         if let Some(ref item) = item {
             track_assert!((self.assert)(item), ErrorKind::InvalidInput);
         }
@@ -890,11 +884,11 @@ where
     }
 
     fn has_terminated(&self) -> bool {
-        self.decoder.has_terminated()
+        self.inner.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        self.decoder.requiring_bytes()
+        self.inner.requiring_bytes()
     }
 }
 
