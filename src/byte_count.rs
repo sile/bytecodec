@@ -50,3 +50,26 @@ impl PartialOrd for ByteCount {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        assert!(ByteCount::Finite(0).is_finite());
+        assert!(ByteCount::Infinite.is_infinite());
+        assert!(ByteCount::Unknown.is_unknow());
+
+        assert_eq!(ByteCount::Finite(3).to_u64(), Some(3));
+        assert_eq!(ByteCount::Infinite.to_u64(), None);
+        assert_eq!(ByteCount::Unknown.to_u64(), None);
+
+        assert!(ByteCount::Finite(1) < ByteCount::Finite(2));
+        assert!(ByteCount::Finite(9) < ByteCount::Infinite);
+        assert!(!(ByteCount::Infinite < ByteCount::Unknown));
+        assert!(!(ByteCount::Unknown < ByteCount::Infinite));
+        assert!(!(ByteCount::Unknown < ByteCount::Unknown));
+        assert!(!(ByteCount::Unknown < ByteCount::Unknown));
+    }
+}
