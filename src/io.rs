@@ -1,15 +1,12 @@
 //! I/O (i.e., `Read` and `Write` traits) related module.
-#![allow(missing_docs)] // TODO: delete
 use std::cmp;
 use std::io::{self, Read, Write};
 
 use {ByteCount, Decode, Encode, Eos, Error, ErrorKind, Result};
 
 /// An extension of `Decode` trait to aid decodings involving I/O.
-///
-/// TODO: rename to DecodeExt(?)
 pub trait IoDecodeExt: Decode {
-    /// Tries to decode an item from the given read buffer.
+    /// Decodes an item from the given read buffer.
     fn decode_from_read_buf<B>(&mut self, buf: &mut ReadBuf<B>) -> Result<Option<Self::Item>>
     where
         B: AsRef<[u8]>,
@@ -56,6 +53,8 @@ impl<T: Decode> IoDecodeExt for T {}
 
 /// An extension of `Encode` trait to aid encodings involving I/O.
 pub trait IoEncodeExt: Encode {
+    /// Encodes the items remaining in the encoder and
+    /// writes the encoded bytes to the given write buffer.
     fn encode_to_write_buf<B>(&mut self, buf: &mut WriteBuf<B>) -> Result<()>
     where
         B: AsMut<[u8]>,
@@ -66,7 +65,10 @@ pub trait IoEncodeExt: Encode {
         Ok(())
     }
 
-    // TODO:
+    /// Encodes all of the items remaining in the encoder and
+    /// writes the encoded bytes to the given writer.
+    ///
+    /// Note that this is a blocking method.
     fn encode_all<W: Write>(&mut self, mut writer: W) -> Result<()> {
         let mut buf = [0; 1024];
         while !self.is_idle() {
@@ -79,6 +81,7 @@ pub trait IoEncodeExt: Encode {
 }
 impl<T: Encode> IoEncodeExt for T {}
 
+/// State of I/O streams.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
 pub enum StreamState {
@@ -93,6 +96,7 @@ impl StreamState {
         *self == StreamState::Normal
     }
 
+    /// Returns `true` if the state is `Error`, otherwise `false`.
     pub fn is_error(&self) -> bool {
         *self == StreamState::Error
     }
@@ -142,14 +146,22 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
         self.tail == self.inner.as_ref().len()
     }
 
+    /// Returns the state of the stream that operated in the last `fill()` call.
     pub fn stream_state(&self) -> StreamState {
         self.stream_state
     }
 
+    /// Returns a mutable reference to the `StreamState` instance.
     pub fn stream_state_mut(&mut self) -> &mut StreamState {
         &mut self.stream_state
     }
 
+    /// Fills the read buffer by reading bytes from the given reader.
+    ///
+    /// The fill process continues until one of the following condition is satisfied:
+    /// - The read buffer became full
+    /// - A read operation returned a `WouldBlock` error
+    /// - The input stream has reached EOS
     pub fn fill<R: Read>(&mut self, mut reader: R) -> Result<()> {
         while !self.is_full() {
             match reader.read(&mut self.inner.as_mut()[self.tail..]) {
@@ -200,6 +212,7 @@ pub struct WriteBuf<B> {
     stream_state: StreamState,
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
+    /// Makes a new `WriteBuf` instance.
     pub fn new(inner: B) -> Self {
         WriteBuf {
             inner,
@@ -209,26 +222,39 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
         }
     }
 
+    /// Returns the number of encoded bytes in the buffer.
     pub fn len(&self) -> usize {
         self.tail - self.head
     }
 
+    /// Returns `true` if the buffer is empty, otherwise `false`.
     pub fn is_empty(&self) -> bool {
         self.tail == 0
     }
 
+    /// Returns `true` if the buffer is full, otherwise `false`.
     pub fn is_full(&self) -> bool {
         self.tail == self.inner.as_ref().len()
     }
 
+    /// Returns the state of the stream that operated in the last `flush()` call.
     pub fn stream_state(&self) -> StreamState {
         self.stream_state
     }
 
+    /// Returns a mutable reference to the `StreamState` instance.
     pub fn stream_state_mut(&mut self) -> &mut StreamState {
         &mut self.stream_state
     }
 
+    /// Writes the encoded bytes contained in this buffer to the given writer.
+    ///
+    /// The written bytes will be removed from the buffer.
+    ///
+    /// The flush process continues until one of the following condition is satisfied:
+    /// - The write buffer became empty
+    /// - A write operation returned a `WouldBlock` error
+    /// - The output stream has reached EOS
     pub fn flush<W: Write>(&mut self, mut writer: W) -> Result<()> {
         while !self.is_empty() {
             match writer.write(&mut self.inner.as_mut()[self.head..self.tail]) {
@@ -271,5 +297,39 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
     /// Takes ownership of `ReadBuf` and returns the inner bytes of the buffer.
     pub fn into_inner(self) -> B {
         self.inner
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use EncodeExt;
+    use bytes::{Utf8Decoder, Utf8Encoder};
+    use super::*;
+
+    #[test]
+    fn decode_from_read_buf_works() {
+        let mut buf = ReadBuf::new(vec![0; 1024]);
+        track_try_unwrap!(buf.fill(b"foo".as_ref()));
+        assert_eq!(buf.len(), 3);
+        assert_eq!(buf.stream_state(), StreamState::Eos);
+
+        let mut decoder = Utf8Decoder::new();
+        let item = track_try_unwrap!(decoder.decode_from_read_buf(&mut buf));
+        assert_eq!(item, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn encode_to_write_buf_works() {
+        let mut encoder = track_try_unwrap!(Utf8Encoder::with_item("foo"));
+
+        let mut buf = WriteBuf::new(vec![0; 1024]);
+        track_try_unwrap!(encoder.encode_to_write_buf(&mut buf));
+        assert_eq!(buf.len(), 3);
+
+        let mut v = Vec::new();
+        track_try_unwrap!(buf.flush(&mut v));
+        assert_eq!(buf.len(), 0);
+        assert_eq!(buf.stream_state(), StreamState::Normal);
+        assert_eq!(v, b"foo");
     }
 }
