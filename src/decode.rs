@@ -176,7 +176,7 @@ pub trait DecodeExt: Decode + Sized {
     ///   [0] at src/bytes.rs:140
     ///   [1] at src/fixnum.rs:196
     ///   [2] at src/decode.rs:12 -- oops!
-    ///   [3] at src/io.rs:47
+    ///   [3] at src/io.rs:44
     ///   [4] at src/decode.rs:16\n");
     /// # }
     /// ```
