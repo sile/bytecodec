@@ -607,7 +607,7 @@ impl<E: Encode> Encode for Length<E> {
             track_assert_eq!(
                 self.remaining_bytes,
                 0,
-                ErrorKind::InvalidInput, // TODO: TooLittleConsumption
+                ErrorKind::InvalidInput,
                 "Too small item"
             );
         }
@@ -1049,7 +1049,7 @@ impl<E: Encode> ExactBytesEncode for PreEncode<E> {
     }
 }
 
-/// Combinator for slicing an encoded byte sequence by the specified number of bytes.
+/// Combinator for slicing an input/output byte sequence by the specified number of bytes.
 ///
 /// This is created by calling `{DecodeExt, EncodeExt}::slice`.
 #[derive(Debug)]
@@ -1225,28 +1225,30 @@ mod test {
 
     #[test]
     fn decoder_slice_works() {
-        let mut decoder = Utf8Decoder::new().slice();
+        let mut decoder0 = Utf8Decoder::new().length(3).slice();
+        let mut decoder1 = Utf8Decoder::new().length(3).slice();
 
         let eos = Eos::new(true);
-        let input = b"foobarbaz";
+        let input = b"fboaor";
         let mut offset = 0;
 
-        decoder.set_consumable_bytes(3);
-        let (size, item) = track_try_unwrap!(decoder.decode(&input[offset..], eos));
-        offset += size;
-        assert_eq!(offset, 3);
-        assert_eq!(item, None);
+        let mut last_item0 = None;
+        let mut last_item1 = None;
+        for _ in 0..3 {
+            decoder0.set_consumable_bytes(1);
+            let (size, item) = track_try_unwrap!(decoder0.decode(&input[offset..], eos));
+            offset += size;
+            last_item0 = item;
 
-        let (size, item) = track_try_unwrap!(decoder.decode(&input[offset..], eos));
-        offset += size;
-        assert_eq!(offset, 3);
-        assert_eq!(item, None);
+            decoder1.set_consumable_bytes(1);
+            let (size, item) = track_try_unwrap!(decoder1.decode(&input[offset..], eos));
+            offset += size;
+            last_item1 = item;
+        }
 
-        decoder.set_consumable_bytes(6);
-        let (size, item) = track_try_unwrap!(decoder.decode(&input[offset..], eos));
-        offset += size;
-        assert_eq!(offset, 9);
-        assert_eq!(item, Some("foobarbaz".to_owned()));
+        assert_eq!(offset, input.len());
+        assert_eq!(last_item0, Some("foo".to_owned()));
+        assert_eq!(last_item1, Some("bar".to_owned()));
     }
 
     #[test]
@@ -1264,6 +1266,7 @@ mod test {
 
         offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
         assert_eq!(offset, 3);
+        assert_eq!(encoder.is_suspended(), true);
 
         encoder.set_consumable_bytes(3);
         offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));

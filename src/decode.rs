@@ -11,22 +11,28 @@ pub trait Decode {
 
     /// Consumes the given buffer (a part of a byte sequence), and decodes an item from it.
     ///
-    /// TODO: update doc
+    /// The first element of a succeeded result is the number of bytes consumed
+    /// from `buf` by the decoding process.
     ///
-    /// If an item is successfully decoded, the decoder will return `Ok(Some(..))`.
+    /// If an item is successfully decoded, the decoder will return `Ok((_, Some(..)))`.
     ///
     /// If the buffer does not contain enough bytes to decode the next item,
-    /// the decoder will return `Ok(None)`.
-    /// In this case, the decoder **must** consume all the bytes in the buffer.
+    /// the decoder will return `Ok((_, None))`.
+    /// In this case, the decoder must consume as many bytes in the buffer as possible.
+    ///
+    /// If an item is not yet decoded but the number of consumed bytes in the last `decode` invocation
+    /// is smaller than the length of `buf`, it means the decoder has been suspended its work in any reasons.
+    /// In that case the decoder may require some instructions from clients to resume the work,
+    /// but its concrete method is beyond the scope of this trait.
     ///
     /// # Errors
     ///
     /// Decoders return the following kinds of errors as necessary:
     /// - `ErrorKind::DecoderTerminated`:
     ///   - If all decodable items have been decoded,
-    ///     the decoder **must** return this kind of error when `decode()` method is called.
+    ///     the decoder must return this kind of error when `decode` method is called.
     /// - `ErrorKind::UnexpectedEos`:
-    ///   - `DecodeBuf::is_eos()` returns `true` despite of
+    ///   - The invocation of `eos.is_reached()` returns `true` despite of
     ///     the decoder requires more bytes to decode the next item.
     /// - `ErrorKind::InvalidInput`:
     ///   - Decoded items have invalid values
@@ -38,21 +44,19 @@ pub trait Decode {
     /// Returns `true` if the decoder cannot decode items anymore, otherwise `false`.
     ///
     /// If it returns `true`, the next invocation of `decode` method
-    /// **must** return an `ErrorKind::DecoderTerminated` error, and vice versa.
+    /// must return an `ErrorKind::DecoderTerminated` error, and vice versa.
     fn has_terminated(&self) -> bool;
 
     /// Returns the lower bound of the number of bytes needed to decode the next item.
     ///
-    /// If the decoder does not know the value, it will return `None`
+    /// If the decoder does not know the value, it will return `ByteCount::Unknown`
     /// (e.g., null-terminated strings have no pre-estimable length).
     ///
-    /// If the decoder returns `Some(0)`, it means one of the followings:
+    /// If the decoder returns `ByteCount::Finite(0)`, it means one of the followings:
     /// - (a) There is an already decoded item
     ///   - The next invocation of `decode()` will return it without consuming any bytes
     /// - (b) There are no decodable items
     ///   - All decodable items have been decoded, and the decoder cannot do any further works
-    ///
-    /// The default implementation returns `Some(0)` if the decoder has terminated, otherwise `None`.
     fn requiring_bytes(&self) -> ByteCount;
 }
 impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
@@ -128,8 +132,6 @@ impl<T> Decode for DecodedValue<T> {
 }
 
 /// An extension of `Decode` trait.
-///
-/// TODO: BuildDecoderExt (?)
 pub trait DecodeExt: Decode + Sized {
     /// Creates a decoder that converts decoded values by calling the given function.
     ///
@@ -434,7 +436,41 @@ pub trait DecodeExt: Decode + Sized {
         Assert::new(self, f)
     }
 
-    /// TODO: doc
+    /// Creates a decoder that makes it possible to slice the input byte sequence in arbitrary units.
+    ///
+    /// Slicing an input byte sequence makes it easier to demultiplex multiple sequences from it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeExt, Eos};
+    /// use bytecodec::bytes::Utf8Decoder;
+    ///
+    /// let mut decoder0 = Utf8Decoder::new().length(3).slice();
+    /// let mut decoder1 = Utf8Decoder::new().length(3).slice();
+    ///
+    /// let eos = Eos::new(true);
+    /// let input = b"fboaor";
+    /// let mut offset = 0;
+    ///
+    /// let mut last_item0 = None;
+    /// let mut last_item1 = None;
+    /// for _ in 0..3 {
+    ///     decoder0.set_consumable_bytes(1);
+    ///     let (size, item) = decoder0.decode(&input[offset..], eos).unwrap();
+    ///     offset += size;
+    ///     last_item0 = item;
+    ///
+    ///     decoder1.set_consumable_bytes(1);
+    ///     let (size, item) = decoder1.decode(&input[offset..], eos).unwrap();
+    ///     offset += size;
+    ///     last_item1 = item;
+    /// }
+    ///
+    /// assert_eq!(offset, input.len());
+    /// assert_eq!(last_item0, Some("foo".to_owned()));
+    /// assert_eq!(last_item1, Some("bar".to_owned()));
+    /// ```
     fn slice(self) -> Slice<Self> {
         Slice::new(self)
     }
