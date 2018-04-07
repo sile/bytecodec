@@ -435,8 +435,8 @@ pub trait DecodeExt: Decode + Sized {
     }
 
     /// TODO: doc
-    fn slice(self, bytes: u64) -> Slice<Self> {
-        Slice::new(self, bytes)
+    fn slice(self) -> Slice<Self> {
+        Slice::new(self)
     }
 }
 impl<T: Decode> DecodeExt for T {}

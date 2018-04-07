@@ -795,10 +795,6 @@ impl<C> MaxBytes<C> {
             max_bytes,
         }
     }
-
-    fn max_remaining_bytes(&self) -> u64 {
-        self.max_bytes - self.consumed_bytes
-    }
 }
 impl<D: Decode> Decode for MaxBytes<D> {
     type Item = D::Item;
@@ -1053,34 +1049,32 @@ impl<E: Encode> ExactBytesEncode for PreEncode<E> {
     }
 }
 
-/// TODO: doc
+/// Combinator for slicing an encoded byte sequence by the specified number of bytes.
+///
+/// This is created by calling `{DecodeExt, EncodeExt}::slice`.
 #[derive(Debug)]
 pub struct Slice<T> {
     inner: T,
-    slice_len: u64,
     consumable_bytes: u64,
 }
 impl<T> Slice<T> {
-    pub(crate) fn new(inner: T, slice_len: u64) -> Self {
+    pub(crate) fn new(inner: T) -> Self {
         Slice {
             inner,
-            slice_len,
-            consumable_bytes: slice_len,
+            consumable_bytes: 0,
         }
     }
 
+    /// Returns the number of remaining bytes consumable in this slice.
+    ///
+    /// The inner decoder or encoder will be suspended if the consumable bytes reaches to `0`.
     pub fn consumable_bytes(&self) -> u64 {
         self.consumable_bytes
     }
 
-    /// TODO: doc
-    pub fn reset_consumable_bytes(&mut self) {
-        self.consumable_bytes = self.slice_len;
-    }
-
-    // NOTE: 反映されるのは次から
-    pub fn set_slice_len(&mut self, n: u64) {
-        self.slice_len = n;
+    /// Set the number of remaining bytes consumable in this slice.
+    pub fn set_consumable_bytes(&mut self, n: u64) {
+        self.consumable_bytes = n;
     }
 }
 impl<D: Decode> Decode for Slice<D> {
@@ -1099,7 +1093,6 @@ impl<D: Decode> Decode for Slice<D> {
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        // TODO:
         self.inner.requiring_bytes()
     }
 }
@@ -1224,12 +1217,13 @@ mod test {
 
     #[test]
     fn decoder_slice_works() {
-        let mut decoder = Utf8Decoder::new().slice(3);
+        let mut decoder = Utf8Decoder::new().slice();
 
         let eos = Eos::new(true);
         let input = b"foobarbaz";
         let mut offset = 0;
 
+        decoder.set_consumable_bytes(3);
         let (size, item) = track_try_unwrap!(decoder.decode(&input[offset..], eos));
         offset += size;
         assert_eq!(offset, 3);
@@ -1240,8 +1234,7 @@ mod test {
         assert_eq!(offset, 3);
         assert_eq!(item, None);
 
-        decoder.set_slice_len(6);
-        decoder.reset_consumable_bytes();
+        decoder.set_consumable_bytes(6);
         let (size, item) = track_try_unwrap!(decoder.decode(&input[offset..], eos));
         offset += size;
         assert_eq!(offset, 9);
@@ -1250,12 +1243,13 @@ mod test {
 
     #[test]
     fn encoder_slice_works() {
-        let mut encoder = Utf8Encoder::new().slice(3);
+        let mut encoder = Utf8Encoder::new().slice();
         encoder.start_encoding("foobarbazqux").unwrap();
 
         let eos = Eos::new(true);
         let mut output = [0; 12];
         let mut offset = 0;
+        encoder.set_consumable_bytes(3);
         offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
         assert_eq!(offset, 3);
         assert!(!encoder.is_idle());
@@ -1263,12 +1257,11 @@ mod test {
         offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
         assert_eq!(offset, 3);
 
-        encoder.reset_consumable_bytes();
+        encoder.set_consumable_bytes(3);
         offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
         assert_eq!(offset, 6);
 
-        encoder.set_slice_len(6);
-        encoder.reset_consumable_bytes();
+        encoder.set_consumable_bytes(6);
         offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
         assert_eq!(offset, 12);
 

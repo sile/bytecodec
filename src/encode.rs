@@ -9,15 +9,22 @@ pub trait Encode {
     /// The type of items to be encoded.
     type Item;
 
-    /// Encodes the current item and writes the encoded bytes to the given buffer.
+    /// Encodes the items in the encoder and writes the encoded bytes to the given buffer.
     ///
-    /// TODO: update doc
-    /// NOTE: 結果サイズが0かどうか、ではなくてis_idleを使って次の呼び出し有無は判定する
+    /// It returns the number of bytes written to the given buffer.
     ///
     /// If the encoded bytes are larger than the length of `buf`,
-    /// the encoder **must** consume all the bytes in the buffer.
-    /// The encoded bytes that could not be written is held by the encoder
-    /// until the next invocation of the `encode()` method.
+    /// the encoder must consume as many bytes in the buffer as possible.
+    ///
+    /// The completion of the encoding can be detected by using `is_idle` method.
+    ///
+    /// If `self.is_idle()` returns `false` but the number of written bytes in the last `encode` invocation
+    /// is smaller than the length of `buf`, it means the encoder has been suspended its work in any reasons.
+    /// In that case the encoder may require some instructions from clients to resume the work,
+    /// but its concrete method is beyond the scope of this trait.
+    ///
+    /// The encoded bytes that could not be written to the given buffer is held by
+    /// the encoder until the next invocation of the `encode` method.
     ///
     /// # Errors
     ///
@@ -25,20 +32,19 @@ pub trait Encode {
     /// - `ErrorKind::InvalidInput`:
     ///   - An item that the encoder could not encode was passed
     /// - `ErrorKind::UnexpectedEos`:
-    ///   - The output byte sequence has reached the end in the middle of an encoding process
+    ///   - The output byte stream has reached the end in the middle of an encoding process
     /// - `ErrorKind::Other`:
     ///   - Other errors has occurred
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize>;
 
     /// Tries to start encoding the given item.
     ///
-    /// If the encoding has no items to be encoded (i.e., `is_idle()` returns `true`) and
-    /// the item is valid, the encoder **should** accept it.
+    /// If the encoder has no items to be encoded and the passed item is valid, it must accept the item.
     ///
     /// # Errors
     ///
     /// - `ErrorKind::EncoderFull`:
-    ///   - The encoder cannot accept any more items
+    ///   - The encoder currently cannot accept any more items
     /// - `ErrorKind::InvalidInput`:
     ///   - An invalid item was passed
     /// - `ErrorKind::Other`:
@@ -50,12 +56,7 @@ pub trait Encode {
 
     /// Returns the number of bytes required to encode all the items in the encoder.
     ///
-    /// If the encoder does not known the value, it will return `None`.
-    ///
-    /// If there is no items to be encoded, the encoder **should** return `Ok(0)`.
-    ///
-    /// The default implementation returns `Some(0)` if the encoder is idle, otherwise `None`.
-    /// TODO: remove default implementation
+    /// If there are no items to be encoded, the encoder must return `ByteCount::Finite(0)`.
     fn requiring_bytes(&self) -> ByteCount;
 }
 impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
@@ -98,10 +99,8 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
 }
 
 /// This trait indicates that the encoder always known the exact bytes required to encode remaining items.
-///
-/// By implementing this trait, the user of those encoders can implement length-prefixed protocols easily.
 pub trait ExactBytesEncode: Encode {
-    /// Returns the exact number of bytes required to encode all the items in the encoder.
+    /// Returns the exact number of bytes required to encode all the items remaining in the encoder.
     fn exact_requiring_bytes(&self) -> u64;
 }
 impl<E: ?Sized + ExactBytesEncode> ExactBytesEncode for Box<E> {
@@ -435,9 +434,40 @@ pub trait EncodeExt: Encode + Sized {
         PreEncode::new(self)
     }
 
-    /// TODO: doc
-    fn slice(self, bytes: u64) -> Slice<Self> {
-        Slice::new(self, bytes)
+    /// Creates an encoder that makes it possible to slice the encoded byte sequence in arbitrary units.
+    ///
+    /// Slicing encoded byte sequences makes it easier to multiplex them into a single sequence.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Encode, EncodeExt, Eos};
+    /// use bytecodec::bytes::Utf8Encoder;
+    ///
+    /// let mut encoder = Utf8Encoder::new().slice();
+    /// encoder.start_encoding("foobarbaz").unwrap();
+    ///
+    /// let eos = Eos::new(true);
+    /// let mut output = [0; 9];
+    /// let mut offset = 0;
+    ///
+    /// encoder.set_consumable_bytes(3);
+    /// offset += encoder.encode(&mut output[offset..], eos).unwrap();
+    /// assert_eq!(offset, 3);
+    /// assert_eq!(encoder.is_idle(), false);
+    /// assert_eq!(encoder.consumable_bytes(), 0);
+    ///
+    /// offset += encoder.encode(&mut output[offset..], eos).unwrap();
+    /// assert_eq!(offset, 3);
+    ///
+    /// encoder.set_consumable_bytes(6);
+    /// offset += encoder.encode(&mut output[offset..], eos).unwrap();
+    /// assert_eq!(offset, 9);
+    /// assert_eq!(encoder.is_idle(), true);
+    /// assert_eq!(output.as_ref(), b"foobarbaz");
+    /// ```
+    fn slice(self) -> Slice<Self> {
+        Slice::new(self)
     }
 }
 impl<T: Encode> EncodeExt for T {}
