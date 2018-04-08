@@ -800,7 +800,7 @@ impl<D: Decode> Decode for MaxBytes<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        let (size, item) = track!(self.inner.decode(&buf, eos))?;
+        let (size, item) = track!(self.inner.decode(buf, eos))?;
         self.consumed_bytes += size as u64;
         track_assert!(self.consumed_bytes <= self.max_bytes,
                       ErrorKind::InvalidInput, "Max bytes limit exceeded";

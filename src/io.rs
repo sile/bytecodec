@@ -257,7 +257,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
     /// - The output stream has reached EOS
     pub fn flush<W: Write>(&mut self, mut writer: W) -> Result<()> {
         while !self.is_empty() {
-            match writer.write(&mut self.inner.as_mut()[self.head..self.tail]) {
+            match writer.write(&self.inner.as_ref()[self.head..self.tail]) {
                 Err(e) => {
                     if e.kind() == io::ErrorKind::WouldBlock {
                         self.stream_state = StreamState::WouldBlock;
