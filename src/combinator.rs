@@ -168,18 +168,25 @@ where
     type Item = D1::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        if let Some(result) = self.inner1.as_mut().map(|d| track!(d.decode(buf, eos))) {
-            let (size, item) = result?;
-            if item.is_some() {
-                self.inner1 = None;
-            }
-            Ok((size, item))
-        } else {
+        let mut offset = 0;
+        if self.inner1.is_none() {
             let (size, item) = track!(self.inner0.decode(buf, eos))?;
             if let Some(d) = item.map(&self.and_then) {
                 self.inner1 = Some(d);
             }
-            Ok((size, None))
+            offset = size;
+        }
+        if let Some(result) = self.inner1
+            .as_mut()
+            .map(|d| track!(d.decode(&buf[offset..], eos)))
+        {
+            let (size, item) = result?;
+            if item.is_some() {
+                self.inner1 = None;
+            }
+            Ok((offset + size, item))
+        } else {
+            Ok((offset, None))
         }
     }
 
@@ -1278,5 +1285,13 @@ mod test {
 
         assert!(encoder.is_idle());
         assert_eq!(output.as_ref(), b"foobarbazqux");
+    }
+
+    #[test]
+    fn and_then_works() {
+        let mut decoder =
+            U8Decoder::new().and_then(|len| Utf8Decoder::new().length(u64::from(len)));
+        let (_, item) = track_try_unwrap!(decoder.decode(b"\x03foo", Eos::new(false)));
+        assert_eq!(item, Some("foo".to_owned()));
     }
 }
