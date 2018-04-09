@@ -566,7 +566,7 @@ where
     }
 
     fn is_idle(&self) -> bool {
-        self.a.is_idle() && self.b.is_idle()
+        self.b.is_idle()
     }
 }
 impl<E0, E1> ExactBytesEncode for Chain<E0, E1>
