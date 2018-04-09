@@ -168,14 +168,15 @@ where
     type Item = D1::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        let mut offset = 0;
-        if self.inner1.is_none() {
+        let offset = if self.inner1.is_none() {
             let (size, item) = track!(self.inner0.decode(buf, eos))?;
             if let Some(d) = item.map(&self.and_then) {
                 self.inner1 = Some(d);
             }
-            offset = size;
-        }
+            size
+        } else {
+            0
+        };
         if let Some(result) = self.inner1
             .as_mut()
             .map(|d| track!(d.decode(&buf[offset..], eos)))
