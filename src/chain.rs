@@ -539,16 +539,17 @@ where
     type Item = (A::Item, B::Item);
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
+        let mut offset = 0;
         if !self.a.is_idle() {
-            track!(self.a.encode(buf, eos))
-        } else {
-            track!(self.b.encode(buf, eos))
+            offset += track!(self.a.encode(buf, eos))?;
         }
+        if self.a.is_idle() {
+            offset += track!(self.b.encode(&mut buf[offset..], eos))?;
+        }
+        Ok(offset)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert!(self.a.is_idle(), ErrorKind::EncoderFull);
-        track_assert!(self.b.is_idle(), ErrorKind::EncoderFull);
         track!(self.a.start_encoding(item.0))?;
         track!(self.b.start_encoding(item.1))?;
         Ok(())
@@ -565,7 +566,7 @@ where
     }
 
     fn is_idle(&self) -> bool {
-        self.b.is_idle()
+        self.a.is_idle() && self.b.is_idle()
     }
 }
 impl<E0, E1> ExactBytesEncode for Chain<E0, E1>
@@ -623,12 +624,12 @@ impl<T: Decode> Decode for Buffered<T, T::Item> {
 
 #[cfg(test)]
 mod test {
-    use {DecodeExt, StartDecoderChain};
-    use fixnum::U8Decoder;
+    use {DecodeExt, Encode, EncodeExt, Eos, StartDecoderChain, StartEncoderChain};
+    use fixnum::{U8Decoder, U8Encoder};
     use io::IoDecodeExt;
 
     #[test]
-    fn it_works() {
+    fn decoder_chain_works() {
         let mut decoder = StartDecoderChain
             .chain(U8Decoder::new())
             .chain(U8Decoder::new())
@@ -638,5 +639,18 @@ mod test {
             track_try_unwrap!(decoder.decode_exact(b"foo".as_ref())),
             (b'f', b'o', b'o')
         );
+    }
+
+    #[test]
+    fn encoder_chain_works() {
+        let mut encoder = StartEncoderChain
+            .chain(U8Encoder::new())
+            .chain(U8Encoder::new())
+            .chain(U8Encoder::new());
+        track_try_unwrap!(encoder.start_encoding((1, 2, 3)));
+
+        let mut output = [0; 3];
+        track_try_unwrap!(encoder.encode(&mut output[..], Eos::new(true)));
+        assert_eq!(output, [1, 2, 3]);
     }
 }
