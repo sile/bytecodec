@@ -1,8 +1,8 @@
 use std;
 
 use {ByteCount, Eos, Error, Result};
-use combinator::{AndThen, Assert, Collect, DecoderChain, Length, Map, MapErr, MaxBytes, Omit,
-                 SkipRemaining, Slice, Take, TryMap};
+use combinator::{AndThen, Assert, Buffered, Collect, DecoderChain, Length, Map, MapErr, MaxBytes,
+                 Omit, SkipRemaining, Slice, Take, TryMap};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {
@@ -432,6 +432,29 @@ pub trait DecodeExt: Decode + Sized {
     /// ```
     fn slice(self) -> Slice<Self> {
         Slice::new(self)
+    }
+
+    /// Creates a decoder that buffers the last decoded item.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeExt, Eos, StartDecoderChain};
+    /// use bytecodec::fixnum::U8Decoder;
+    ///
+    /// let mut decoder = StartDecoderChain
+    ///     .chain(U8Decoder::new())
+    ///     .chain(U8Decoder::new())
+    ///     .chain(U8Decoder::new())
+    ///     .buffered();
+    /// let (size, item) = decoder.decode(b"foo", Eos::new(false)).unwrap();
+    /// assert_eq!(size, 3);
+    /// assert_eq!(item, None);
+    /// assert_eq!(decoder.take_item(), Some((b'f', b'o', b'o')));
+    /// assert_eq!(decoder.has_item(), false);
+    /// ```
+    fn buffered(self) -> Buffered<Self> {
+        Buffered::new(self)
     }
 }
 impl<T: Decode> DecodeExt for T {}

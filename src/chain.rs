@@ -1,3 +1,4 @@
+use std::fmt;
 use std::marker::PhantomData;
 
 use {ByteCount, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
@@ -32,15 +33,30 @@ impl StartDecoderChain {
         DecoderChain::new(StartDecoderChain, decoder)
     }
 }
+impl Decode for StartDecoderChain {
+    type Item = ();
+
+    fn decode(&mut self, _buf: &[u8], _eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        track_panic!(ErrorKind::Other)
+    }
+
+    fn has_terminated(&self) -> bool {
+        false
+    }
+
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Unknown
+    }
+}
 
 /// Combinator for connecting decoders to a chain.
 ///
 /// This is created by calling `StartDecoderChain::chain` or `DecodeExt::chain` methods.
 #[derive(Debug)]
-pub struct DecoderChain<D0, D1, T>(Chain<Buffered<D0, T>, D1>);
-impl<D0, D1, T> DecoderChain<D0, D1, T> {
+pub struct DecoderChain<D0: Decode, D1, T>(Chain<Buffered<D0>, D1>, PhantomData<T>);
+impl<D0: Decode, D1, T> DecoderChain<D0, D1, T> {
     pub(crate) fn new(d0: D0, d1: D1) -> Self {
-        DecoderChain(Chain::new(Buffered::new(d0), d1))
+        DecoderChain(Chain::new(Buffered::new(d0), d1), PhantomData)
     }
 }
 impl<D> Decode for DecoderChain<StartDecoderChain, D, ()>
@@ -485,7 +501,7 @@ impl<A, B> Chain<A, B> {
         Chain { a, b }
     }
 }
-impl<A, B> Decode for Chain<Buffered<A, A::Item>, B>
+impl<A, B> Decode for Chain<Buffered<A>, B>
 where
     A: Decode,
     B: Decode,
@@ -579,25 +595,59 @@ where
     }
 }
 
-#[derive(Debug)]
-struct Buffered<T, I> {
-    decoder: T,
-    item: Option<I>,
+/// Combinator that gives a buffer to the decoder.
+///
+/// Thsi is created by calling `DecodeExt::buffer` method.
+pub struct Buffered<D: Decode> {
+    inner: D,
+    item: Option<D::Item>,
 }
-impl<T, I> Buffered<T, I> {
-    fn new(decoder: T) -> Self {
+impl<D: Decode> Buffered<D> {
+    pub(crate) fn new(inner: D) -> Self {
+        Buffered { inner, item: None }
+    }
+
+    /// Returns `true` if the decoder has a decoded item, other `false`.
+    ///
+    /// Note that the decoder cannot decode new items if this method returns `true`.
+    pub fn has_item(&self) -> bool {
+        self.item.is_some()
+    }
+
+    /// Returns a reference to the item decoded by the decoder in the last `decode` call.
+    pub fn get_item(&self) -> Option<&D::Item> {
+        self.item.as_ref()
+    }
+
+    /// Takes the item decoded by the decoder in the last `decode` call.
+    pub fn take_item(&mut self) -> Option<D::Item> {
+        self.item.take()
+    }
+}
+impl<D: Decode + fmt::Debug> fmt::Debug for Buffered<D> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Buffered {{ inner: {:?}, item.is_some(): {:?} }}",
+            self.inner,
+            self.item.is_some()
+        )
+    }
+}
+impl<D: Decode + Default> Default for Buffered<D> {
+    fn default() -> Self {
         Buffered {
-            decoder,
+            inner: D::default(),
             item: None,
         }
     }
 }
-impl<T: Decode> Decode for Buffered<T, T::Item> {
-    type Item = T::Item;
+impl<D: Decode> Decode for Buffered<D> {
+    type Item = D::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         if self.item.is_none() {
-            let (size, item) = track!(self.decoder.decode(buf, eos))?;
+            let (size, item) = track!(self.inner.decode(buf, eos))?;
             self.item = item;
             Ok((size, None))
         } else {
@@ -609,7 +659,7 @@ impl<T: Decode> Decode for Buffered<T, T::Item> {
         if self.item.is_some() {
             false
         } else {
-            self.decoder.has_terminated()
+            self.inner.has_terminated()
         }
     }
 
@@ -617,14 +667,14 @@ impl<T: Decode> Decode for Buffered<T, T::Item> {
         if self.item.is_some() {
             ByteCount::Finite(0)
         } else {
-            self.decoder.requiring_bytes()
+            self.inner.requiring_bytes()
         }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use {DecodeExt, Encode, EncodeExt, Eos, StartDecoderChain, StartEncoderChain};
+    use {Decode, DecodeExt, Encode, EncodeExt, Eos, StartDecoderChain, StartEncoderChain};
     use fixnum::{U8Decoder, U8Encoder};
     use io::IoDecodeExt;
 
@@ -652,5 +702,18 @@ mod test {
         let mut output = [0; 3];
         track_try_unwrap!(encoder.encode(&mut output[..], Eos::new(true)));
         assert_eq!(output, [1, 2, 3]);
+    }
+
+    #[test]
+    fn buffered_works() {
+        let mut decoder = StartDecoderChain
+            .chain(U8Decoder::new())
+            .chain(U8Decoder::new())
+            .chain(U8Decoder::new())
+            .buffered();
+        let (size, item) = track_try_unwrap!(decoder.decode(b"foo", Eos::new(false)));
+        assert_eq!(size, 3);
+        assert_eq!(item, None);
+        assert_eq!(decoder.take_item(), Some((b'f', b'o', b'o')));
     }
 }

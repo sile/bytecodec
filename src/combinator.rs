@@ -5,7 +5,7 @@ use std;
 use std::cmp;
 use std::marker::PhantomData;
 
-pub use chain::{DecoderChain, EncoderChain};
+pub use chain::{Buffered, DecoderChain, EncoderChain};
 
 use {ByteCount, Decode, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
 use bytes::BytesEncoder;
