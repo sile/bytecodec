@@ -341,7 +341,6 @@ where
         loop {
             while self.inner.is_idle() {
                 if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
-                    println!("# Start");
                     track!(self.inner.start_encoding(item))?;
                 } else {
                     self.items = None;

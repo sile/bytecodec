@@ -52,8 +52,8 @@ impl<D: MonolithicDecode> Decode for MonolithicDecoder<D> {
         if eos.is_reached() {
             let original_len = buf.len();
             let item = track!(
-                self.inner
-                    .monolithic_decode(self.buf.as_slice().chain(buf.by_ref()))
+                self.inner.monolithic_decode(self.buf.as_slice().chain(buf.by_ref()));
+                original_len, self.buf.len(), buf.len(), eos
             )?;
             self.buf.clear();
             Ok((original_len - buf.len(), Some(item)))
@@ -119,17 +119,21 @@ impl<E: MonolithicEncode> Encode for MonolithicEncoder<E> {
     type Item = E::Item;
 
     fn encode(&mut self, mut buf: &mut [u8], eos: Eos) -> Result<usize> {
+        let mut offset = 0;
         if let Some(item) = self.item.take() {
             let mut extra = Vec::new();
+            offset = buf.len();
             {
                 let writer = WriterChain::new(&mut buf, &mut extra);
                 track!(self.inner.monolithic_encode(&item, writer))?;
             }
-            if extra.is_empty() {
+            offset -= buf.len();
+            if !extra.is_empty() {
                 track!(self.buf.start_encoding(extra))?;
             }
         }
-        track!(self.buf.encode(buf, eos))
+        offset += track!(self.buf.encode(&mut buf[offset..], eos))?;
+        Ok(offset)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {

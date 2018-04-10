@@ -138,3 +138,23 @@ where
         )
     }
 }
+
+#[cfg(test)]
+mod test {
+    use EncodeExt;
+    use io::{IoDecodeExt, IoEncodeExt};
+    use super::*;
+
+    #[test]
+    fn bincode_works() {
+        let item = (1, Some(2), 3);
+
+        let mut buf = Vec::new();
+        let mut encoder = BincodeEncoder::with_item(item).unwrap();
+        encoder.encode_all(&mut buf).unwrap();
+
+        let mut decoder = BincodeDecoder::<(u8, Option<u16>, u32)>::new();
+        let decoded = decoder.decode_exact(&buf[..]).unwrap();
+        assert_eq!(decoded, item);
+    }
+}

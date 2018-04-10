@@ -161,8 +161,10 @@ where
 mod test {
     use serde_json::Value;
 
-    use {Decode, Eos};
+    use {Decode, EncodeExt, Eos};
     use json_codec::JsonDecoder;
+    use io::{IoDecodeExt, IoEncodeExt};
+    use super::*;
 
     #[test]
     fn json_decoder_works() {
@@ -173,5 +175,18 @@ mod test {
         let json = item.unwrap();
 
         assert_eq!(json.to_string(), "[1,2,3]");
+    }
+
+    #[test]
+    fn json_works() {
+        let item = (1, Some(2), 3);
+
+        let mut buf = Vec::new();
+        let mut encoder = JsonEncoder::with_item(item).unwrap();
+        encoder.encode_all(&mut buf).unwrap();
+
+        let mut decoder = JsonDecoder::<(u8, Option<u16>, u32)>::new();
+        let decoded = decoder.decode_exact(&buf[..]).unwrap();
+        assert_eq!(decoded, item);
     }
 }
