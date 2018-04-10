@@ -57,6 +57,7 @@ pub mod fixnum;
 #[cfg(feature = "json_codec")]
 pub mod json_codec;
 pub mod io;
+pub mod marker;
 pub mod monolithic;
 pub mod value;
 
