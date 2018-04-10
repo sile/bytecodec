@@ -190,6 +190,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> BytesDecoder<B> {
             .as_ref()
             .map_or(0, |b| b.as_ref().len() - self.offset) as u64
     }
+
+    fn buf_len(&self) -> usize {
+        self.bytes.as_ref().map_or(0, |b| b.as_ref().len())
+    }
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
     type Item = B;
@@ -205,7 +209,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
         if self.exact_requiring_bytes() == 0 {
             Ok((size, self.bytes.take()))
         } else {
-            track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos);
+            track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos; self.offset, self.buf_len());
             Ok((size, None))
         }
     }

@@ -319,7 +319,7 @@ where
 /// Combinator for repeating encoding of `E::Item`.
 ///
 /// This is created by calling `EncodeExt::repeat` method.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Repeat<E, I> {
     inner: E,
     items: Option<I>,
@@ -378,7 +378,7 @@ where
 /// Combinator for representing optional decoders.
 ///
 /// This is created by calling `DecodeExt::omit` method.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Omit<D>(Option<D>);
 impl<D> Omit<D> {
     pub(crate) fn new(inner: D, do_omit: bool) -> Self {
@@ -421,7 +421,7 @@ impl<D: Decode> Decode for Omit<D> {
 }
 
 /// Combinator for representing an optional encoder.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Optional<E>(E);
 impl<E> Optional<E> {
     pub(crate) fn new(inner: E) -> Self {
@@ -461,7 +461,7 @@ impl<E: ExactBytesEncode> ExactBytesEncode for Optional<E> {
 /// This is created by calling `DecodeExt::collect` method.
 ///
 /// Note that this is a oneshot decoder (i.e., it decodes only one item).
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Collect<D, T> {
     inner: D,
     items: Option<T>,
@@ -504,7 +504,7 @@ where
 /// Combinator for consuming the specified number of bytes exactly.
 ///
 /// This is created by calling `{DecodeExt, EncodeExt}::length` method.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Length<C> {
     inner: C,
     expected_bytes: u64,
@@ -649,7 +649,7 @@ impl<E: Encode> ExactBytesEncode for Length<E> {
 /// Combinator for decoding the specified number of items.
 ///
 /// This is created by calling `DecodeExt::take` method.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Take<D> {
     inner: D,
     limit: usize,
@@ -738,7 +738,7 @@ where
 
 /// Combinator for skipping the remaining bytes in an input byte sequence
 /// after decoding an item by using `D`.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SkipRemaining<D: Decode> {
     inner: D,
     item: Option<D::Item>,
@@ -789,7 +789,7 @@ impl<D: Decode> Decode for SkipRemaining<D> {
 /// Combinator that will fail if the number of consumed bytes exceeds the specified size.
 ///
 /// This is created by calling `{DecodeExt, EncodeExt}::max_bytes` method.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MaxBytes<C> {
     inner: C,
     consumed_bytes: u64,
@@ -900,7 +900,7 @@ where
 /// after encoding of `E`'s item has been completed.
 ///
 /// This is created by calling `EncodeExt::padding` method.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Padding<E> {
     inner: E,
     padding_byte: u8,
@@ -1015,7 +1015,7 @@ where
 /// Combinator for pre-encoding items when `start_encoding` method is called.
 ///
 /// This is created by calling `EncodeExt::pre_encode` method.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PreEncode<E> {
     inner: E,
     pre_encoded: BytesEncoder<Vec<u8>>,
@@ -1060,7 +1060,7 @@ impl<E: Encode> ExactBytesEncode for PreEncode<E> {
 /// Combinator for slicing an input/output byte sequence by the specified number of bytes.
 ///
 /// This is created by calling `{DecodeExt, EncodeExt}::slice`.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Slice<T> {
     inner: T,
     consumable_bytes: u64,
@@ -1142,7 +1142,7 @@ impl<E: ExactBytesEncode> ExactBytesEncode for Slice<E> {
 }
 
 /// Combinator for representing encoders that cannot accept any more items.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Last<E> {
     inner: E,
 }
