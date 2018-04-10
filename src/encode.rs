@@ -1,8 +1,8 @@
 use std;
 
 use {ByteCount, Eos, Error, Result};
-use combinator::{EncoderChain, Length, MapErr, MapFrom, MaxBytes, Optional, Padding, PreEncode,
-                 Repeat, Slice, TryMapFrom, WithPrefix};
+use combinator::{EncoderChain, Last, Length, MapErr, MapFrom, MaxBytes, Optional, Padding,
+                 PreEncode, Repeat, Slice, TryMapFrom, WithPrefix};
 
 /// This trait allows for encoding items into a byte sequence incrementally.
 pub trait Encode {
@@ -468,6 +468,11 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     fn slice(self) -> Slice<Self> {
         Slice::new(self)
+    }
+
+    /// Creates an encoder that cannot accept any more items.
+    fn last(self) -> Last<Self> {
+        Last::new(self)
     }
 }
 impl<T: Encode> EncodeExt for T {}

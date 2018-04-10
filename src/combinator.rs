@@ -10,6 +10,7 @@ pub use chain::{Buffered, DecoderChain, EncoderChain};
 use {ByteCount, Decode, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
 use bytes::BytesEncoder;
 use io::IoEncodeExt;
+use marker::Never;
 
 /// Combinator for converting decoded items to other values.
 ///
@@ -1136,6 +1137,41 @@ impl<E: Encode> Encode for Slice<E> {
     }
 }
 impl<E: ExactBytesEncode> ExactBytesEncode for Slice<E> {
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.inner.exact_requiring_bytes()
+    }
+}
+
+/// Combinator for representing encoders that cannot accept any more items.
+#[derive(Debug)]
+pub struct Last<E> {
+    inner: E,
+}
+impl<E> Last<E> {
+    pub(crate) fn new(inner: E) -> Self {
+        Last { inner }
+    }
+}
+impl<E: Encode> Encode for Last<E> {
+    type Item = Never;
+
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
+        track!(self.inner.encode(buf, eos))
+    }
+
+    fn start_encoding(&mut self, _item: Self::Item) -> Result<()> {
+        unreachable!()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
+    }
+
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
+    }
+}
+impl<E: ExactBytesEncode> ExactBytesEncode for Last<E> {
     fn exact_requiring_bytes(&self) -> u64 {
         self.inner.exact_requiring_bytes()
     }
