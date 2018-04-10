@@ -136,6 +136,18 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
         self.tail - self.head
     }
 
+    /// Returns the free space of the buffer.
+    ///
+    /// Invariant: `self.len() + self.room() <= self.capacity()`
+    pub fn room(&self) -> usize {
+        self.inner.as_ref().len() - self.tail
+    }
+
+    /// Returns the capacity of the buffer.
+    pub fn capacity(&self) -> usize {
+        self.inner.as_ref().len()
+    }
+
     /// Returns `true` if the buffer is empty, otherwise `false`.
     pub fn is_empty(&self) -> bool {
         self.tail == 0
@@ -225,6 +237,18 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
     /// Returns the number of encoded bytes in the buffer.
     pub fn len(&self) -> usize {
         self.tail - self.head
+    }
+
+    /// Returns the free space of the buffer.
+    ///
+    /// Invariant: `self.len() + self.room() <= self.capacity()`
+    pub fn room(&self) -> usize {
+        self.inner.as_ref().len() - self.tail
+    }
+
+    /// Returns the capacity of the buffer.
+    pub fn capacity(&self) -> usize {
+        self.inner.as_ref().len()
     }
 
     /// Returns `true` if the buffer is empty, otherwise `false`.
