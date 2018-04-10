@@ -119,21 +119,22 @@ impl<E: MonolithicEncode> Encode for MonolithicEncoder<E> {
     type Item = E::Item;
 
     fn encode(&mut self, mut buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let mut offset = 0;
         if let Some(item) = self.item.take() {
             let mut extra = Vec::new();
-            offset = buf.len();
+            let original_len = buf.len();
             {
                 let writer = WriterChain::new(&mut buf, &mut extra);
                 track!(self.inner.monolithic_encode(&item, writer))?;
             }
-            offset -= buf.len();
-            if !extra.is_empty() {
+            if extra.is_empty() {
+                Ok(original_len - buf.len())
+            } else {
                 track!(self.buf.start_encoding(extra))?;
+                Ok(original_len)
             }
+        } else {
+            track!(self.buf.encode(buf, eos))
         }
-        offset += track!(self.buf.encode(&mut buf[offset..], eos))?;
-        Ok(offset)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
