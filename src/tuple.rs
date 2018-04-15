@@ -46,6 +46,9 @@ where
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         let mut offset = 0;
         offset += track!(self.d0.decode(buf, eos))?.0;
+        if !self.d0.has_item() {
+            return Ok((offset, None));
+        }
 
         let (size, item) = track!(self.d1.decode(&buf[offset..], eos))?;
         offset += size;
@@ -113,7 +116,14 @@ where
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         let mut offset = 0;
         offset += track!(self.d0.decode(buf, eos))?.0;
+        if !self.d0.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d1.decode(&buf[offset..], eos))?.0;
+        if !self.d1.has_item() {
+            return Ok((offset, None));
+        }
 
         let (size, item) = track!(self.d2.decode(&buf[offset..], eos))?;
         offset += size;
@@ -201,8 +211,19 @@ where
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         let mut offset = 0;
         offset += track!(self.d0.decode(buf, eos))?.0;
+        if !self.d0.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d1.decode(&buf[offset..], eos))?.0;
+        if !self.d1.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d2.decode(&buf[offset..], eos))?.0;
+        if !self.d2.has_item() {
+            return Ok((offset, None));
+        }
 
         let (size, item) = track!(self.d3.decode(&buf[offset..], eos))?;
         offset += size;
@@ -300,9 +321,24 @@ where
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         let mut offset = 0;
         offset += track!(self.d0.decode(buf, eos))?.0;
+        if !self.d0.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d1.decode(&buf[offset..], eos))?.0;
+        if !self.d1.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d2.decode(&buf[offset..], eos))?.0;
+        if !self.d2.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d3.decode(&buf[offset..], eos))?.0;
+        if !self.d3.has_item() {
+            return Ok((offset, None));
+        }
 
         let (size, item) = track!(self.d4.decode(&buf[offset..], eos))?;
         offset += size;
@@ -409,10 +445,29 @@ where
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         let mut offset = 0;
         offset += track!(self.d0.decode(buf, eos))?.0;
+        if !self.d0.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d1.decode(&buf[offset..], eos))?.0;
+        if !self.d1.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d2.decode(&buf[offset..], eos))?.0;
+        if !self.d2.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d3.decode(&buf[offset..], eos))?.0;
+        if !self.d3.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d4.decode(&buf[offset..], eos))?.0;
+        if !self.d4.has_item() {
+            return Ok((offset, None));
+        }
 
         let (size, item) = track!(self.d5.decode(&buf[offset..], eos))?;
         offset += size;
@@ -547,11 +602,34 @@ where
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         let mut offset = 0;
         offset += track!(self.d0.decode(buf, eos))?.0;
+        if !self.d0.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d1.decode(&buf[offset..], eos))?.0;
+        if !self.d1.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d2.decode(&buf[offset..], eos))?.0;
+        if !self.d2.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d3.decode(&buf[offset..], eos))?.0;
+        if !self.d3.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d4.decode(&buf[offset..], eos))?.0;
+        if !self.d4.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d5.decode(&buf[offset..], eos))?.0;
+        if !self.d5.has_item() {
+            return Ok((offset, None));
+        }
 
         let (size, item) = track!(self.d6.decode(&buf[offset..], eos))?;
         offset += size;
@@ -697,12 +775,39 @@ where
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         let mut offset = 0;
         offset += track!(self.d0.decode(buf, eos))?.0;
+        if !self.d0.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d1.decode(&buf[offset..], eos))?.0;
+        if !self.d1.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d2.decode(&buf[offset..], eos))?.0;
+        if !self.d2.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d3.decode(&buf[offset..], eos))?.0;
+        if !self.d3.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d4.decode(&buf[offset..], eos))?.0;
+        if !self.d4.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d5.decode(&buf[offset..], eos))?.0;
+        if !self.d5.has_item() {
+            return Ok((offset, None));
+        }
+
         offset += track!(self.d6.decode(&buf[offset..], eos))?.0;
+        if !self.d6.has_item() {
+            return Ok((offset, None));
+        }
 
         let (size, item) = track!(self.d7.decode(&buf[offset..], eos))?;
         offset += size;
