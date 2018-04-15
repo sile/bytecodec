@@ -803,6 +803,31 @@ impl<C> MaxBytes<C> {
             max_bytes,
         }
     }
+
+    /// Returns the number of bytes consumed for encoding/decoding the current item.
+    pub fn consumed_bytes(&self) -> u64 {
+        self.consumed_bytes
+    }
+
+    /// Returns the maximum number of bytes that can be consumed for encoding/decoding an item.
+    pub fn max_bytes(&self) -> u64 {
+        self.max_bytes
+    }
+
+    /// Sets the maximum number of bytes that can be consumed for encoding/decoding an item.
+    pub fn set_max_bytes(&mut self, n: u64) {
+        self.max_bytes = n;
+    }
+
+    /// Returns a reference to the inner encoder or decoder.
+    pub fn inner_ref(&self) -> &C {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder or decoder.
+    pub fn inner_mut(&mut self) -> &mut C {
+        &mut self.inner
+    }
 }
 impl<D: Decode> Decode for MaxBytes<D> {
     type Item = D::Item;
