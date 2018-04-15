@@ -59,6 +59,7 @@ pub mod json_codec;
 pub mod io;
 pub mod marker;
 pub mod monolithic;
+pub mod tuple;
 pub mod value;
 
 mod byte_count;

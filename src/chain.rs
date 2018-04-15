@@ -528,23 +528,13 @@ where
     }
 
     fn has_terminated(&self) -> bool {
-        if self.a.item.is_none() {
-            self.a.has_terminated()
-        } else {
-            self.b.has_terminated()
-        }
+        self.a.has_terminated() || self.b.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        let a = self.a.requiring_bytes();
-        let b = self.b.requiring_bytes();
-        match (a, b) {
-            (ByteCount::Finite(a), ByteCount::Finite(b)) => ByteCount::Finite(a + b),
-            (ByteCount::Infinite, _) | (_, ByteCount::Infinite) => ByteCount::Infinite,
-            (ByteCount::Finite(a), _) => ByteCount::Finite(a),
-            (_, ByteCount::Finite(b)) => ByteCount::Finite(b),
-            (ByteCount::Unknown, ByteCount::Unknown) => ByteCount::Unknown,
-        }
+        self.a
+            .requiring_bytes()
+            .add_for_decoding(self.b.requiring_bytes())
     }
 }
 impl<A, B> Encode for Chain<A, B>
@@ -572,17 +562,13 @@ where
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        let a = self.a.requiring_bytes();
-        let b = self.b.requiring_bytes();
-        match (a, b) {
-            (ByteCount::Finite(a), ByteCount::Finite(b)) => ByteCount::Finite(a + b),
-            (ByteCount::Infinite, _) | (_, ByteCount::Infinite) => ByteCount::Infinite,
-            (ByteCount::Unknown, _) | (_, ByteCount::Unknown) => ByteCount::Unknown,
-        }
+        self.a
+            .requiring_bytes()
+            .add_for_decoding(self.b.requiring_bytes())
     }
 
     fn is_idle(&self) -> bool {
-        self.b.is_idle()
+        self.a.is_idle() && self.b.is_idle()
     }
 }
 impl<E0, E1> ExactBytesEncode for Chain<E0, E1>
@@ -622,6 +608,16 @@ impl<D: Decode> Buffered<D> {
     /// Takes the item decoded by the decoder in the last `decode` call.
     pub fn take_item(&mut self) -> Option<D::Item> {
         self.item.take()
+    }
+
+    /// Returns a reference to the inner decoder.
+    pub fn inner_ref(&self) -> &D {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner decoder.
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.inner
     }
 }
 impl<D: Decode + fmt::Debug> fmt::Debug for Buffered<D> {

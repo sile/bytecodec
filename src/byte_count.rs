@@ -38,6 +38,54 @@ impl ByteCount {
             None
         }
     }
+
+    /// Adds two `ByteCount` instances for decoding (i.e., `Decode::requiring_bytes` method).
+    ///
+    /// # Rule
+    ///
+    /// ```text
+    /// Finite(a) + Finite(b) = Finite(a + b)
+    /// Infinite  + _         = Infinite
+    /// _         + Infinite  = Infinite
+    /// Unknown   + Unknown   = Unknown
+    /// Finite(0) + Unknown   = Unknown
+    /// Unknown   + Finite(0) = Unknown
+    /// Finite(a) + Unknown   = Finite(a)
+    /// Unknown   + Finite(b) = Finite(b)
+    /// ```
+    pub fn add_for_decoding(self, other: Self) -> Self {
+        match (self, other) {
+            (ByteCount::Finite(a), ByteCount::Finite(b)) => ByteCount::Finite(a + b),
+            (ByteCount::Infinite, _) => ByteCount::Infinite,
+            (_, ByteCount::Infinite) => ByteCount::Infinite,
+            (ByteCount::Unknown, ByteCount::Unknown) => ByteCount::Unknown,
+            (ByteCount::Finite(0), ByteCount::Unknown) => ByteCount::Unknown,
+            (ByteCount::Unknown, ByteCount::Finite(0)) => ByteCount::Unknown,
+            (ByteCount::Finite(a), ByteCount::Unknown) => ByteCount::Finite(a),
+            (ByteCount::Unknown, ByteCount::Finite(b)) => ByteCount::Finite(b),
+        }
+    }
+
+    /// Adds two `ByteCount` instances for encoding (i.e., `Encode::requiring_bytes` method).
+    ///
+    /// # Rule
+    ///
+    /// ```text
+    /// Finite(a) + Finite(b) = Finite(a + b)
+    /// Infinite  + _         = Infinite
+    /// _         + Infinite  = Infinite
+    /// Unknown   + _         = Unknown
+    /// _         + Unknown   = Unknown
+    /// ```
+    pub fn add_for_encoding(self, other: Self) -> Self {
+        match (self, other) {
+            (ByteCount::Finite(a), ByteCount::Finite(b)) => ByteCount::Finite(a + b),
+            (ByteCount::Infinite, _) => ByteCount::Infinite,
+            (_, ByteCount::Infinite) => ByteCount::Infinite,
+            (_, ByteCount::Unknown) => ByteCount::Unknown,
+            (ByteCount::Unknown, _) => ByteCount::Unknown,
+        }
+    }
 }
 impl PartialOrd for ByteCount {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
