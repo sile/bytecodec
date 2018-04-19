@@ -577,6 +577,11 @@ impl<C> Length<C> {
     pub fn inner_mut(&mut self) -> &mut C {
         &mut self.inner
     }
+
+    /// Takes ownership of this instance and returns the inner encoder or decoder.
+    pub fn into_inner(self) -> C {
+        self.inner
+    }
 }
 impl<D: Decode> Decode for Length<D> {
     type Item = D::Item;
@@ -855,6 +860,11 @@ impl<C> MaxBytes<C> {
     /// Returns a mutable reference to the inner encoder or decoder.
     pub fn inner_mut(&mut self) -> &mut C {
         &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder or decoder.
+    pub fn into_inner(self) -> C {
+        self.inner
     }
 }
 impl<D: Decode> Decode for MaxBytes<D> {

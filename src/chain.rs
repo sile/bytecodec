@@ -661,6 +661,11 @@ impl<D: Decode> Buffered<D> {
     pub fn inner_mut(&mut self) -> &mut D {
         &mut self.inner
     }
+
+    /// Takes ownership of this instance and returns the inner decoder.
+    pub fn into_inner(self) -> D {
+        self.inner
+    }
 }
 impl<D: Decode + fmt::Debug> fmt::Debug for Buffered<D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
