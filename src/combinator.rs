@@ -124,6 +124,10 @@ where
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
     }
+
+    fn cancel(&mut self) -> Result<()> {
+        track!(self.inner.cancel())
+    }
 }
 impl<C, F, E> ExactBytesEncode for MapErr<C, F, E>
 where
@@ -250,6 +254,10 @@ where
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
     }
+
+    fn cancel(&mut self) -> Result<()> {
+        track!(self.inner.cancel())
+    }
 }
 impl<E, T, F> ExactBytesEncode for MapFrom<E, T, F>
 where
@@ -303,6 +311,10 @@ where
 
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
+    }
+
+    fn cancel(&mut self) -> Result<()> {
+        track!(self.inner.cancel())
     }
 }
 impl<C, T, E, F> ExactBytesEncode for TryMapFrom<C, T, E, F>
@@ -372,6 +384,12 @@ where
 
     fn is_idle(&self) -> bool {
         self.items.is_none()
+    }
+
+    fn cancel(&mut self) -> Result<()> {
+        self.items = None;
+        track!(self.inner.cancel())?;
+        Ok(())
     }
 }
 
@@ -448,6 +466,10 @@ impl<E: Encode> Encode for Optional<E> {
 
     fn is_idle(&self) -> bool {
         self.0.is_idle()
+    }
+
+    fn cancel(&mut self) -> Result<()> {
+        track!(self.0.cancel())
     }
 }
 impl<E: ExactBytesEncode> ExactBytesEncode for Optional<E> {
@@ -638,6 +660,12 @@ impl<E: Encode> Encode for Length<E> {
 
     fn is_idle(&self) -> bool {
         self.remaining_bytes == 0
+    }
+
+    fn cancel(&mut self) -> Result<()> {
+        track!(self.inner.cancel())?;
+        self.remaining_bytes = 0;
+        Ok(())
     }
 }
 impl<E: Encode> ExactBytesEncode for Length<E> {
@@ -878,6 +906,10 @@ impl<E: Encode> Encode for MaxBytes<E> {
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
     }
+
+    fn cancel(&mut self) -> Result<()> {
+        track!(self.inner.cancel())
+    }
 }
 impl<E: ExactBytesEncode> ExactBytesEncode for MaxBytes<E> {
     fn exact_requiring_bytes(&self) -> u64 {
@@ -968,6 +1000,11 @@ impl<E: Encode> Encode for Padding<E> {
     fn is_idle(&self) -> bool {
         self.eos_reached
     }
+
+    fn cancel(&mut self) -> Result<()> {
+        self.eos_reached = true;
+        Ok(())
+    }
 }
 
 /// Combinator for adding prefix items.
@@ -1025,6 +1062,12 @@ where
     fn is_idle(&self) -> bool {
         self.prefix_encoder.is_idle() && self.body_encoder.is_idle()
     }
+
+    fn cancel(&mut self) -> Result<()> {
+        track!(self.prefix_encoder.cancel())?;
+        track!(self.body_encoder.cancel())?;
+        Ok(())
+    }
 }
 impl<E0, E1, F> ExactBytesEncode for WithPrefix<E0, E1, F>
 where
@@ -1074,6 +1117,10 @@ impl<E: Encode> Encode for PreEncode<E> {
 
     fn is_idle(&self) -> bool {
         self.pre_encoded.is_idle()
+    }
+
+    fn cancel(&mut self) -> Result<()> {
+        track!(self.pre_encoded.cancel())
     }
 }
 impl<E: Encode> ExactBytesEncode for PreEncode<E> {
@@ -1159,6 +1206,10 @@ impl<E: Encode> Encode for Slice<E> {
     fn requiring_bytes(&self) -> ByteCount {
         self.inner.requiring_bytes()
     }
+
+    fn cancel(&mut self) -> Result<()> {
+        track!(self.inner.cancel())
+    }
 }
 impl<E: ExactBytesEncode> ExactBytesEncode for Slice<E> {
     fn exact_requiring_bytes(&self) -> u64 {
@@ -1193,6 +1244,10 @@ impl<E: Encode> Encode for Last<E> {
 
     fn requiring_bytes(&self) -> ByteCount {
         self.inner.requiring_bytes()
+    }
+
+    fn cancel(&mut self) -> Result<()> {
+        track!(self.inner.cancel())
     }
 }
 impl<E: ExactBytesEncode> ExactBytesEncode for Last<E> {

@@ -156,6 +156,11 @@ impl<E: MonolithicEncode> Encode for MonolithicEncoder<E> {
             self.buf.requiring_bytes()
         }
     }
+
+    fn cancel(&mut self) -> Result<()> {
+        self.item = None;
+        track!(self.buf.cancel())
+    }
 }
 
 #[derive(Debug)]

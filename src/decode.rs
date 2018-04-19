@@ -173,8 +173,8 @@ pub trait DecodeExt: Decode + Sized {
     /// UnexpectedEos (cause; assertion failed: `left == right`; \
     ///                assertion failed: `(left == right)` (left: `1`, right: `0`))
     /// HISTORY:
-    ///   [0] at src/bytes.rs:140
-    ///   [1] at src/fixnum.rs:196
+    ///   [0] at src/bytes.rs:146
+    ///   [1] at src/fixnum.rs:200
     ///   [2] at src/decode.rs:12 -- oops!
     ///   [3] at src/io.rs:44
     ///   [4] at src/decode.rs:16\n");
