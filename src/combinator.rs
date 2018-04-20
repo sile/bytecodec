@@ -1174,6 +1174,21 @@ impl<T> Slice<T> {
     pub fn is_suspended(&self) -> bool {
         self.consumable_bytes == 0
     }
+
+    /// Returns a reference to the inner encoder or decoder.
+    pub fn inner_ref(&self) -> &T {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder or decoder.
+    pub fn inner_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder or decoder.
+    pub fn into_inner(self) -> T {
+        self.inner
+    }
 }
 impl<D: Decode> Decode for Slice<D> {
     type Item = D::Item;
