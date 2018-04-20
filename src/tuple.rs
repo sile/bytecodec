@@ -905,12 +905,6 @@ where
     fn is_idle(&self) -> bool {
         self.e0.is_idle() && self.e1.is_idle()
     }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.e0.cancel())?;
-        track!(self.e1.cancel())?;
-        Ok(())
-    }
 }
 impl<E0, E1> ExactBytesEncode for Tuple2Encoder<E0, E1>
 where
@@ -992,13 +986,6 @@ where
 
     fn is_idle(&self) -> bool {
         self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.e0.cancel())?;
-        track!(self.e1.cancel())?;
-        track!(self.e2.cancel())?;
-        Ok(())
     }
 }
 impl<E0, E1, E2> ExactBytesEncode for Tuple3Encoder<E0, E1, E2>
@@ -1094,14 +1081,6 @@ where
 
     fn is_idle(&self) -> bool {
         self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle() && self.e3.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.e0.cancel())?;
-        track!(self.e1.cancel())?;
-        track!(self.e2.cancel())?;
-        track!(self.e3.cancel())?;
-        Ok(())
     }
 }
 impl<E0, E1, E2, E3> ExactBytesEncode for Tuple4Encoder<E0, E1, E2, E3>
@@ -1216,15 +1195,6 @@ where
     fn is_idle(&self) -> bool {
         self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle() && self.e3.is_idle()
             && self.e4.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.e0.cancel())?;
-        track!(self.e1.cancel())?;
-        track!(self.e2.cancel())?;
-        track!(self.e3.cancel())?;
-        track!(self.e4.cancel())?;
-        Ok(())
     }
 }
 impl<E0, E1, E2, E3, E4> ExactBytesEncode for Tuple5Encoder<E0, E1, E2, E3, E4>
@@ -1360,16 +1330,6 @@ where
     fn is_idle(&self) -> bool {
         self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle() && self.e3.is_idle()
             && self.e4.is_idle() && self.e5.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.e0.cancel())?;
-        track!(self.e1.cancel())?;
-        track!(self.e2.cancel())?;
-        track!(self.e3.cancel())?;
-        track!(self.e4.cancel())?;
-        track!(self.e5.cancel())?;
-        Ok(())
     }
 }
 impl<E0, E1, E2, E3, E4, E5> ExactBytesEncode for Tuple6Encoder<E0, E1, E2, E3, E4, E5>
@@ -1545,17 +1505,6 @@ where
     fn is_idle(&self) -> bool {
         self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle() && self.e3.is_idle()
             && self.e4.is_idle() && self.e5.is_idle() && self.e6.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.e0.cancel())?;
-        track!(self.e1.cancel())?;
-        track!(self.e2.cancel())?;
-        track!(self.e3.cancel())?;
-        track!(self.e4.cancel())?;
-        track!(self.e5.cancel())?;
-        track!(self.e6.cancel())?;
-        Ok(())
     }
 }
 impl<E0, E1, E2, E3, E4, E5, E6> ExactBytesEncode for Tuple7Encoder<E0, E1, E2, E3, E4, E5, E6>
@@ -1750,18 +1699,6 @@ where
         self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle() && self.e3.is_idle()
             && self.e4.is_idle() && self.e5.is_idle() && self.e6.is_idle()
             && self.e7.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.e0.cancel())?;
-        track!(self.e1.cancel())?;
-        track!(self.e2.cancel())?;
-        track!(self.e3.cancel())?;
-        track!(self.e4.cancel())?;
-        track!(self.e5.cancel())?;
-        track!(self.e6.cancel())?;
-        track!(self.e7.cancel())?;
-        Ok(())
     }
 }
 impl<E0, E1, E2, E3, E4, E5, E6, E7> ExactBytesEncode

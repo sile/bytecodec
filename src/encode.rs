@@ -58,18 +58,6 @@ pub trait Encode {
     ///
     /// If there are no items to be encoded, the encoder must return `ByteCount::Finite(0)`.
     fn requiring_bytes(&self) -> ByteCount;
-
-    /// Cancels the current encoding and makes the encoder's state idle.
-    ///
-    /// The default implementation calls `encode` method against temporary buffer and
-    /// discards the result.
-    fn cancel(&mut self) -> Result<()> {
-        let mut buf = [0; 1024];
-        while !self.is_idle() {
-            track!(self.encode(&mut buf, Eos::new(false)))?;
-        }
-        Ok(())
-    }
 }
 impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
     type Item = E::Item;
@@ -89,10 +77,6 @@ impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
     fn is_idle(&self) -> bool {
         (**self).is_idle()
     }
-
-    fn cancel(&mut self) -> Result<()> {
-        (**self).cancel()
-    }
 }
 impl<E: ?Sized + Encode> Encode for Box<E> {
     type Item = E::Item;
@@ -111,10 +95,6 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
 
     fn is_idle(&self) -> bool {
         (**self).is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        (**self).cancel()
     }
 }
 
@@ -179,7 +159,7 @@ pub trait EncodeExt: Encode + Sized {
     ///                buf.len()=0, size=0, self.offset=0, b.as_ref().len()=1)
     /// HISTORY:
     ///   [0] at src/bytes.rs:54
-    ///   [1] at src/fixnum.rs:117
+    ///   [1] at src/fixnum.rs:113
     ///   [2] at src/encode.rs:11 -- oops!
     ///   [3] at src/encode.rs:12\n");
     /// # }

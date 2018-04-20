@@ -47,10 +47,6 @@ macro_rules! impl_encode {
             fn is_idle(&self) -> bool {
                 self.0.is_idle()
             }
-
-            fn cancel(&mut self) -> Result<()> {
-                track!(self.0.cancel())
-            }
         }
         impl ExactBytesEncode for $ty {
             fn exact_requiring_bytes(&self) -> u64 {

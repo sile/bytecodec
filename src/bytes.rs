@@ -78,12 +78,6 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     fn is_idle(&self) -> bool {
         self.bytes.is_none()
     }
-
-    fn cancel(&mut self) -> Result<()> {
-        self.bytes = None;
-        self.offset = 0;
-        Ok(())
-    }
 }
 impl<B: AsRef<[u8]>> ExactBytesEncode for BytesEncoder<B> {
     fn exact_requiring_bytes(&self) -> u64 {
@@ -329,10 +323,6 @@ impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
 
     fn is_idle(&self) -> bool {
         self.0.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        self.0.cancel()
     }
 }
 impl<S: AsRef<str>> ExactBytesEncode for Utf8Encoder<S> {

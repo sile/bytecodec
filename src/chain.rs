@@ -271,10 +271,6 @@ impl Encode for StartEncoderChain {
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Finite(0)
     }
-
-    fn cancel(&mut self) -> Result<()> {
-        Ok(())
-    }
 }
 impl ExactBytesEncode for StartEncoderChain {
     fn exact_requiring_bytes(&self) -> u64 {
@@ -319,10 +315,6 @@ where
     fn is_idle(&self) -> bool {
         self.inner.b.is_idle()
     }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.inner.b.cancel())
-    }
 }
 impl<E0, E1, T0> Encode for EncoderChain<E0, E1, (T0,)>
 where
@@ -345,10 +337,6 @@ where
 
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.inner.cancel())
     }
 }
 impl<E0, E1, T0, T1> Encode for EncoderChain<E0, E1, (T0, T1)>
@@ -373,10 +361,6 @@ where
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
     }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.inner.cancel())
-    }
 }
 impl<E0, E1, T0, T1, T2> Encode for EncoderChain<E0, E1, (T0, T1, T2)>
 where
@@ -399,10 +383,6 @@ where
 
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.inner.cancel())
     }
 }
 impl<E0, E1, T0, T1, T2, T3> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3)>
@@ -427,10 +407,6 @@ where
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
     }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.inner.cancel())
-    }
 }
 impl<E0, E1, T0, T1, T2, T3, T4> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3, T4)>
 where
@@ -453,10 +429,6 @@ where
 
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.inner.cancel())
     }
 }
 impl<E0, E1, T0, T1, T2, T3, T4, T5> Encode for EncoderChain<E0, E1, (T0, T1, T2, T3, T4, T5)>
@@ -482,10 +454,6 @@ where
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
     }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.inner.cancel())
-    }
 }
 impl<E0, E1, T0, T1, T2, T3, T4, T5, T6> Encode
     for EncoderChain<E0, E1, (T0, T1, T2, T3, T4, T5, T6)>
@@ -510,10 +478,6 @@ where
 
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.inner.cancel())
     }
 }
 impl<E0, E1, T> ExactBytesEncode for EncoderChain<E0, E1, T>
@@ -605,12 +569,6 @@ where
 
     fn is_idle(&self) -> bool {
         self.a.is_idle() && self.b.is_idle()
-    }
-
-    fn cancel(&mut self) -> Result<()> {
-        track!(self.a.cancel())?;
-        track!(self.b.cancel())?;
-        Ok(())
     }
 }
 impl<E0, E1> ExactBytesEncode for Chain<E0, E1>
