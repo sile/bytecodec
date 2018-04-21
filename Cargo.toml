@@ -1,6 +1,6 @@
 [package]
 name = "bytecodec"
-version = "0.2.12"
+version = "0.2.13"
 authors = ["Takeru Ohta <phjgt308@gmail.com>"]
 description = "A tiny framework for implementing encoders/decoders of byte-oriented protocols"
 homepage = "https://github.com/sile/bytecodec"
