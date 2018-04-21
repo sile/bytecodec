@@ -214,6 +214,18 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
         self.inner
     }
 }
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Read for ReadBuf<B> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let size = cmp::min(buf.len(), self.len());
+        (&mut buf[..size]).copy_from_slice(&self.inner.as_ref()[self.head..][..size]);
+        self.head += size;
+        if self.head == self.tail {
+            self.head = 0;
+            self.tail = 0;
+        }
+        Ok(size)
+    }
+}
 
 /// Write buffer.
 #[derive(Debug)]
@@ -323,9 +335,23 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
         self.inner
     }
 }
+impl<B: AsRef<[u8]> + AsMut<[u8]>> Write for WriteBuf<B> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let size = cmp::min(buf.len(), self.room());
+        (&mut self.inner.as_mut()[self.tail..][..size]).copy_from_slice(&buf[..size]);
+        self.tail += size;
+        Ok(size)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod test {
+    use std::io::{Read, Write};
+
     use EncodeExt;
     use bytes::{Utf8Decoder, Utf8Encoder};
     use super::*;
@@ -343,11 +369,37 @@ mod test {
     }
 
     #[test]
+    fn read_from_read_buf_works() {
+        let mut rbuf = ReadBuf::new(vec![0; 1024]);
+        track_try_unwrap!(rbuf.fill(b"foo".as_ref()));
+        assert_eq!(rbuf.len(), 3);
+        assert_eq!(rbuf.stream_state(), StreamState::Eos);
+
+        let mut buf = Vec::new();
+        rbuf.read_to_end(&mut buf).unwrap();
+        assert_eq!(buf, b"foo");
+        assert_eq!(rbuf.len(), 0);
+    }
+
+    #[test]
     fn encode_to_write_buf_works() {
         let mut encoder = track_try_unwrap!(Utf8Encoder::with_item("foo"));
 
         let mut buf = WriteBuf::new(vec![0; 1024]);
         track_try_unwrap!(encoder.encode_to_write_buf(&mut buf));
+        assert_eq!(buf.len(), 3);
+
+        let mut v = Vec::new();
+        track_try_unwrap!(buf.flush(&mut v));
+        assert_eq!(buf.len(), 0);
+        assert_eq!(buf.stream_state(), StreamState::Normal);
+        assert_eq!(v, b"foo");
+    }
+
+    #[test]
+    fn write_to_write_buf_works() {
+        let mut buf = WriteBuf::new(vec![0; 1024]);
+        buf.write_all(b"foo").unwrap();
         assert_eq!(buf.len(), 3);
 
         let mut v = Vec::new();
