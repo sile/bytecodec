@@ -124,6 +124,21 @@ impl<B> CopyableBytesDecoder<B> {
     pub fn new(bytes: B) -> Self {
         CopyableBytesDecoder { bytes, offset: 0 }
     }
+
+    /// Returns a reference to the inner bytes.
+    pub fn inner_ref(&self) -> &B {
+        &self.bytes
+    }
+
+    /// Returns a mutable reference to the inner bytes.
+    pub fn inner_mut(&mut self) -> &mut B {
+        &mut self.bytes
+    }
+
+    /// Takes ownership of this instance and returns the inner bytes.
+    pub fn into_inner(self) -> B {
+        self.bytes
+    }
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
     type Item = B;
