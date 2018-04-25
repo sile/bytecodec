@@ -380,6 +380,21 @@ where
     pub fn with_bytes_decoder(bytes_decoder: D) -> Self {
         Utf8Decoder(bytes_decoder)
     }
+
+    /// Returns a reference to the inner bytes decoder.
+    pub fn inner_ref(&self) -> &D {
+        &self.0
+    }
+
+    /// Returns a mutable reference to the inner bytes decoder.
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.0
+    }
+
+    /// Takes ownership of this instance and returns the inner bytes decoder.
+    pub fn into_inner(self) -> D {
+        self.0
+    }
 }
 impl<D> Decode for Utf8Decoder<D>
 where

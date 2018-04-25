@@ -661,6 +661,39 @@ pub struct Take<D> {
     decoded_items: usize,
 }
 impl<D> Take<D> {
+    /// Returns the maximum number of items allowed to be decoded.
+    pub fn limit(&self) -> usize {
+        self.limit
+    }
+
+    /// Resets the maximum number of items allowed to be decoded.
+    ///
+    /// The count of items have been decoded so far also will be reset to `0`.
+    pub fn reset_limit(&mut self, n: usize) {
+        self.limit = n;
+        self.decoded_items = 0;
+    }
+
+    /// Returns the number of items have been decoded.
+    pub fn decoded_items(&self) -> usize {
+        self.decoded_items
+    }
+
+    /// Returns a reference to the inner decoder.
+    pub fn inner_ref(&self) -> &D {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner decoder.
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner decoder.
+    pub fn into_inner(self) -> D {
+        self.inner
+    }
+
     pub(crate) fn new(inner: D, count: usize) -> Self {
         Take {
             inner,
@@ -751,6 +784,21 @@ pub struct SkipRemaining<D: Decode> {
 impl<D: Decode> SkipRemaining<D> {
     pub(crate) fn new(inner: D) -> Self {
         SkipRemaining { inner, item: None }
+    }
+
+    /// Returns a reference to the inner decoder.
+    pub fn inner_ref(&self) -> &D {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner decoder.
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner decoder.
+    pub fn into_inner(self) -> D {
+        self.inner
     }
 }
 impl<D: Decode> Decode for SkipRemaining<D> {
@@ -942,6 +990,21 @@ pub struct Padding<E> {
     eos_reached: bool,
 }
 impl<E> Padding<E> {
+    /// Returns a reference to the inner encoder.
+    pub fn inner_ref(&self) -> &E {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder.
+    pub fn inner_mut(&mut self) -> &mut E {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder.
+    pub fn into_inner(self) -> E {
+        self.inner
+    }
+
     pub(crate) fn new(inner: E, padding_byte: u8) -> Self {
         Padding {
             inner,
@@ -1197,6 +1260,21 @@ pub struct Last<E> {
     inner: E,
 }
 impl<E> Last<E> {
+    /// Returns a reference to the inner encoder.
+    pub fn inner_ref(&self) -> &E {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder.
+    pub fn inner_mut(&mut self) -> &mut E {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder.
+    pub fn into_inner(self) -> E {
+        self.inner
+    }
+
     pub(crate) fn new(inner: E) -> Self {
         Last { inner }
     }
