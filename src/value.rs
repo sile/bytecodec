@@ -41,3 +41,57 @@ impl<T> Decode for DecodedValue<T> {
         ByteCount::Finite(0)
     }
 }
+
+/// `NullDecoder` always and immediately returns `()` as the decoded items.
+#[derive(Debug, Default)]
+struct NullDecoder;
+impl Decode for NullDecoder {
+    type Item = ();
+
+    fn decode(&mut self, _buf: &[u8], _eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        Ok((0, Some(())))
+    }
+
+    fn has_terminated(&self) -> bool {
+        false
+    }
+
+    fn requiring_bytes(&self) -> ByteCount {
+        ByteCount::Finite(0)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use {Decode, Eos, ErrorKind};
+    use super::*;
+
+    #[test]
+    fn decoded_value_works() {
+        let mut decoder = DecodedValue::new(3);
+        assert_eq!(
+            decoder.decode(&[][..], Eos::new(false)).unwrap(),
+            (0, Some(3))
+        );
+        assert_eq!(
+            decoder
+                .decode(&[][..], Eos::new(false))
+                .err()
+                .map(|e| *e.kind()),
+            Some(ErrorKind::DecoderTerminated)
+        );
+    }
+
+    #[test]
+    fn null_decoder_works() {
+        let mut decoder = NullDecoder;
+        assert_eq!(
+            decoder.decode(&[][..], Eos::new(false)).unwrap(),
+            (0, Some(()))
+        );
+        assert_eq!(
+            decoder.decode(&[][..], Eos::new(false)).unwrap(),
+            (0, Some(()))
+        );
+    }
+}
