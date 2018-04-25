@@ -44,7 +44,7 @@ impl<T> Decode for DecodedValue<T> {
 
 /// `NullDecoder` always and immediately returns `()` as the decoded items.
 #[derive(Debug, Default)]
-struct NullDecoder;
+pub struct NullDecoder;
 impl Decode for NullDecoder {
     type Item = ();
 
