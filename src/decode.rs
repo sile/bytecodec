@@ -2,7 +2,7 @@ use std;
 
 use {ByteCount, Eos, Error, Result};
 use combinator::{AndThen, Assert, Buffered, Collect, DecoderChain, Length, Map, MapErr, MaxBytes,
-                 Omit, SkipRemaining, Slice, Take, TryMap};
+                 Omittable, SkipRemaining, Slice, Take, TryMap};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {
@@ -324,8 +324,8 @@ pub trait DecodeExt: Decode + Sized {
     /// let item = decoder.decode_exact(&mut input).unwrap();
     /// assert_eq!(item, Some(b'f'));
     /// ```
-    fn omit(self, do_omit: bool) -> Omit<Self> {
-        Omit::new(self, do_omit)
+    fn omit(self, do_omit: bool) -> Omittable<Self> {
+        Omittable::new(self, do_omit)
     }
 
     /// Creates a decoder for skipping the remaining bytes in an input byte sequence

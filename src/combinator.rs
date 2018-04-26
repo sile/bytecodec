@@ -375,47 +375,76 @@ where
     }
 }
 
+/// An alias of `Omittable`.
+#[deprecated(since = "0.2.16", note = "please use `Omittable` instead")]
+pub type Omit<D> = Omittable<D>;
+
 /// Combinator for representing optional decoders.
 ///
 /// This is created by calling `DecodeExt::omit` method.
 #[derive(Debug, Default)]
-pub struct Omit<D>(Option<D>);
-impl<D> Omit<D> {
+pub struct Omittable<D> {
+    inner: D,
+    do_omit: bool,
+}
+impl<D> Omittable<D> {
+    /// Returns a reference to the inner decoder.
+    pub fn inner_ref(&self) -> &D {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner decoder.
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner decoder.
+    pub fn into_inner(self) -> D {
+        self.inner
+    }
+
+    /// If `true` is specified, the decoder will consume no bytes and
+    /// return `Ok((0, None))` when `decode` method is called.
+    pub fn do_omit(&mut self, b: bool) {
+        self.do_omit = b;
+    }
+
+    /// Returns `true` if the decoder will omit to decode items, otherwise `false`.
+    pub fn will_omit(&self) -> bool {
+        self.do_omit
+    }
+
     pub(crate) fn new(inner: D, do_omit: bool) -> Self {
-        if do_omit {
-            Omit(None)
-        } else {
-            Omit(Some(inner))
-        }
+        Omittable { inner, do_omit }
     }
 }
-impl<D: Decode> Decode for Omit<D> {
+impl<D: Decode> Decode for Omittable<D> {
     type Item = Option<D::Item>;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        if let Some(ref mut d) = self.0 {
-            match track!(d.decode(buf, eos))? {
+        if self.do_omit {
+            Ok((0, Some(None)))
+        } else {
+            match track!(self.inner.decode(buf, eos))? {
                 (size, Some(item)) => Ok((size, Some(Some(item)))),
                 (size, None) => Ok((size, None)),
             }
-        } else {
-            Ok((0, Some(None)))
         }
     }
 
     fn has_terminated(&self) -> bool {
-        if let Some(ref d) = self.0 {
-            d.has_terminated()
-        } else {
+        if self.do_omit {
             false
+        } else {
+            self.inner.has_terminated()
         }
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        if let Some(ref d) = self.0 {
-            d.requiring_bytes()
-        } else {
+        if self.do_omit {
             ByteCount::Finite(0)
+        } else {
+            self.inner.requiring_bytes()
         }
     }
 }
