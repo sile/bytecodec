@@ -319,7 +319,7 @@ where
 /// Combinator for repeating encoding of `E::Item`.
 ///
 /// This is created by calling `EncodeExt::repeat` method.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Repeat<E, I> {
     inner: E,
     items: Option<I>,
@@ -372,6 +372,11 @@ where
 
     fn is_idle(&self) -> bool {
         self.items.is_none()
+    }
+}
+impl<E: Default, I> Default for Repeat<E, I> {
+    fn default() -> Self {
+        Self::new(E::default())
     }
 }
 
