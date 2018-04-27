@@ -186,7 +186,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
 /// assert_eq!(item.as_ref(), b"foo");
 /// assert_eq!(decoder.requiring_bytes().to_u64(), Some(0)); // no more items are decoded
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BytesDecoder<B> {
     bytes: Option<B>,
     offset: usize,
@@ -198,6 +198,12 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> BytesDecoder<B> {
             bytes: Some(bytes),
             offset: 0,
         }
+    }
+
+    /// Sets the byte slice to be filled.
+    pub fn set_bytes(&mut self, bytes: B) {
+        self.bytes = Some(bytes);
+        self.offset = 0;
     }
 
     fn exact_requiring_bytes(&self) -> u64 {
