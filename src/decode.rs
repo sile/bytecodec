@@ -170,8 +170,8 @@ pub trait DecodeExt: Decode + Sized {
     /// let error = track!(decoder.decode_exact(input.as_ref())).err().unwrap();
     ///
     /// assert_eq!(error.to_string(), "\
-    /// UnexpectedEos (cause; assertion failed: `left == right`; \
-    ///                assertion failed: `(left == right)` (left: `1`, right: `0`))
+    /// UnexpectedEos (cause; assertion failed: `!eos.is_reached()`; \
+    ///                self.offset=1, self.bytes.as_ref().len()=2)
     /// HISTORY:
     ///   [0] at src/bytes.rs:155
     ///   [1] at src/fixnum.rs:196

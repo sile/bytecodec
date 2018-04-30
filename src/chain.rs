@@ -648,7 +648,7 @@ impl<D: Decode> Decode for Buffered<D> {
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         if self.item.is_none() {
-            let (size, item) = track!(self.inner.decode(buf, eos))?;
+            let (size, item) = self.inner.decode(buf, eos)?;
             self.item = item;
             Ok((size, None))
         } else {

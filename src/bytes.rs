@@ -151,10 +151,9 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
         if self.offset == self.bytes.as_mut().len() {
             self.offset = 0;
             Ok((size, Some(self.bytes)))
-        } else if eos.is_reached() {
-            track_assert_eq!(self.offset, 0, ErrorKind::UnexpectedEos);
-            Ok((size, None))
         } else {
+            track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos;
+                          self.offset, self.bytes.as_ref().len());
             Ok((size, None))
         }
     }

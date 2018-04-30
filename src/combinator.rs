@@ -1338,12 +1338,69 @@ impl<E: ExactBytesEncode> ExactBytesEncode for Last<E> {
     }
 }
 
+/// Combinator for allowing EOS reached before decoding starts.
+#[derive(Debug, Default)]
+pub struct MaybeEos<D> {
+    inner: D,
+    started: bool,
+}
+impl<D> MaybeEos<D> {
+    /// Makes a new `MaybeEos` instance.
+    pub fn new(inner: D) -> Self {
+        MaybeEos {
+            inner,
+            started: false,
+        }
+    }
+
+    /// Returns a reference to the inner decoder.
+    pub fn inner_ref(&self) -> &D {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner decoder.
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner decoder.
+    pub fn into_inner(self) -> D {
+        self.inner
+    }
+}
+impl<D: Decode> Decode for MaybeEos<D> {
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &[u8], mut eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        if !self.started && eos.is_reached() {
+            eos = Eos::new(false);
+        }
+        let (size, item) = track!(self.inner.decode(buf, eos))?;
+        if let Some(item) = item {
+            self.started = false;
+            Ok((size, Some(item)))
+        } else {
+            self.started |= size > 0;
+            Ok((size, None))
+        }
+    }
+
+    fn has_terminated(&self) -> bool {
+        self.inner.has_terminated()
+    }
+
+    fn requiring_bytes(&self) -> ByteCount {
+        self.inner.requiring_bytes()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use {Decode, DecodeExt, Encode, EncodeExt, Eos, ErrorKind};
     use bytes::{Utf8Decoder, Utf8Encoder};
-    use fixnum::{U8Decoder, U8Encoder};
+    use fixnum::{U16beDecoder, U8Decoder, U8Encoder};
     use io::{IoDecodeExt, IoEncodeExt};
+    use super::*;
 
     #[test]
     fn collect_works() {
@@ -1491,5 +1548,18 @@ mod test {
             U8Decoder::new().and_then(|len| Utf8Decoder::new().length(u64::from(len)));
         let (_, item) = track_try_unwrap!(decoder.decode(b"\x03foo", Eos::new(false)));
         assert_eq!(item, Some("foo".to_owned()));
+    }
+
+    #[test]
+    fn maybe_eos_works() {
+        let mut decoder = U16beDecoder::new();
+        assert!(decoder.decode(&[][..], Eos::new(true)).is_err());
+
+        let mut decoder = MaybeEos::new(U16beDecoder::new());
+        assert!(decoder.decode(&[][..], Eos::new(true)).is_ok());
+
+        let mut decoder = MaybeEos::new(U16beDecoder::new());
+        assert!(decoder.decode(&[1][..], Eos::new(false)).is_ok());
+        assert!(decoder.decode(&[][..], Eos::new(true)).is_err());
     }
 }
