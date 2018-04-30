@@ -1289,6 +1289,8 @@ impl<E: ExactBytesEncode> ExactBytesEncode for Slice<E> {
 }
 
 /// Combinator for representing encoders that cannot accept any more items.
+///
+/// This is created by calling `EncodeExt::last`.
 #[derive(Debug, Default)]
 pub struct Last<E> {
     inner: E,
@@ -1335,6 +1337,66 @@ impl<E: Encode> Encode for Last<E> {
 impl<E: ExactBytesEncode> ExactBytesEncode for Last<E> {
     fn exact_requiring_bytes(&self) -> u64 {
         self.inner.exact_requiring_bytes()
+    }
+}
+
+/// Combinator for representing encoders that accepts only one additional item.
+///
+/// This is created by calling `EncodeExt::last_item`.
+#[derive(Debug, Default)]
+pub struct LastItem<E: Encode> {
+    inner: E,
+    item: Option<E::Item>,
+}
+impl<E: Encode> LastItem<E> {
+    /// Returns a reference to the inner encoder.
+    pub fn inner_ref(&self) -> &E {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder.
+    pub fn inner_mut(&mut self) -> &mut E {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder.
+    pub fn into_inner(self) -> E {
+        self.inner
+    }
+
+    pub(crate) fn new(inner: E, item: E::Item) -> Self {
+        LastItem {
+            inner,
+            item: Some(item),
+        }
+    }
+}
+impl<E: Encode> Encode for LastItem<E> {
+    type Item = Never;
+
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
+        if self.inner.is_idle() {
+            if let Some(item) = self.item.take() {
+                track!(self.inner.start_encoding(item))?;
+            }
+        }
+        track!(self.inner.encode(buf, eos))
+    }
+
+    fn start_encoding(&mut self, _item: Self::Item) -> Result<()> {
+        unreachable!()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.item.is_none() && self.inner.is_idle()
+    }
+
+    fn requiring_bytes(&self) -> ByteCount {
+        if self.item.is_some() {
+            ByteCount::Unknown
+        } else {
+            self.inner.requiring_bytes()
+        }
     }
 }
 
