@@ -348,6 +348,79 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Write for WriteBuf<B> {
     }
 }
 
+/// Buffered I/O stream.
+#[derive(Debug)]
+pub struct BufferedIo<T> {
+    stream: T,
+    rbuf: ReadBuf<Vec<u8>>,
+    wbuf: WriteBuf<Vec<u8>>,
+}
+impl<T: Read + Write> BufferedIo<T> {
+    /// Makes a new `BufferedIo` instance.
+    pub fn new(stream: T, read_buf_size: usize, write_buf_size: usize) -> Self {
+        BufferedIo {
+            stream,
+            rbuf: ReadBuf::new(vec![0; read_buf_size]),
+            wbuf: WriteBuf::new(vec![0; write_buf_size]),
+        }
+    }
+
+    /// Executes an I/O operation on the inner stream.
+    ///
+    /// "I/O operation" means "filling the read buffer" and "flushing the write buffer".
+    pub fn execute_io(&mut self) -> Result<()> {
+        track!(self.rbuf.fill(&mut self.stream))?;
+        track!(self.wbuf.flush(&mut self.stream))?;
+        Ok(())
+    }
+
+    /// Returns `true` if the inner stream reaches EOS, otherwise `false`.
+    pub fn is_eos(&self) -> bool {
+        self.rbuf.stream_state().is_eos() || self.wbuf.stream_state().is_eos()
+    }
+
+    /// Returns `true` if the previous I/O operation on the inner stream would block, otherwise `false`.
+    pub fn would_block(&self) -> bool {
+        self.rbuf.stream_state().would_block()
+            && (self.wbuf.is_empty() || self.wbuf.stream_state().would_block())
+    }
+
+    /// Returns a reference to the read buffer of the instance.
+    pub fn read_buf_ref(&self) -> &ReadBuf<Vec<u8>> {
+        &self.rbuf
+    }
+
+    /// Returns a mutable reference to the read buffer of the instance.
+    pub fn read_buf_mut(&mut self) -> &mut ReadBuf<Vec<u8>> {
+        &mut self.rbuf
+    }
+
+    /// Returns a reference to the write buffer of the instance.
+    pub fn write_buf_ref(&self) -> &WriteBuf<Vec<u8>> {
+        &self.wbuf
+    }
+
+    /// Returns a mutable reference to the write buffer of the instance.
+    pub fn write_buf_mut(&mut self) -> &mut WriteBuf<Vec<u8>> {
+        &mut self.wbuf
+    }
+
+    /// Returns a reference to the inner stream of the instance.
+    pub fn stream_ref(&self) -> &T {
+        &self.stream
+    }
+
+    /// Returns a mutable reference to the inner stream of the instance.
+    pub fn stream_mut(&mut self) -> &mut T {
+        &mut self.stream
+    }
+
+    /// Takes ownership of the instance, and returns the inner stream.
+    pub fn into_stream(self) -> T {
+        self.stream
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::io::{Read, Write};
