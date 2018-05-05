@@ -376,10 +376,6 @@ impl<E: Default, I> Default for Repeat<E, I> {
     }
 }
 
-/// An alias of `Omittable`.
-#[deprecated(since = "0.2.16", note = "please use `Omittable` instead")]
-pub type Omit<D> = Omittable<D>;
-
 /// Combinator for representing optional decoders.
 ///
 /// This is created by calling `DecodeExt::omit` method.
