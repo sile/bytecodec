@@ -49,6 +49,9 @@ pub use encode::{Encode, EncodeExt, ExactBytesEncode};
 pub use eos::Eos;
 pub use error::{Error, ErrorKind};
 
+#[macro_use]
+mod macros;
+
 #[cfg(feature = "bincode_codec")]
 pub mod bincode_codec;
 pub mod bytes;

@@ -880,13 +880,8 @@ where
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let mut offset = 0;
-        if !self.e0.is_idle() {
-            offset += track!(self.e0.encode(buf, eos))?;
-            if !self.e0.is_idle() {
-                return Ok(offset);
-            }
-        }
-        offset += track!(self.e1.encode(&mut buf[offset..], eos))?;
+        bytecodec_try_encode!(self.e0, offset, buf, eos);
+        bytecodec_try_encode!(self.e1, offset, buf, eos);
         Ok(offset)
     }
 
@@ -954,19 +949,9 @@ where
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let mut offset = 0;
-        if !self.e0.is_idle() {
-            offset += track!(self.e0.encode(buf, eos))?;
-            if !self.e0.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e1.is_idle() {
-            offset += track!(self.e1.encode(&mut buf[offset..], eos))?;
-            if !self.e1.is_idle() {
-                return Ok(offset);
-            }
-        }
-        offset += track!(self.e2.encode(&mut buf[offset..], eos))?;
+        bytecodec_try_encode!(self.e0, offset, buf, eos);
+        bytecodec_try_encode!(self.e1, offset, buf, eos);
+        bytecodec_try_encode!(self.e2, offset, buf, eos);
         Ok(offset)
     }
 
@@ -1041,25 +1026,10 @@ where
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let mut offset = 0;
-        if !self.e0.is_idle() {
-            offset += track!(self.e0.encode(buf, eos))?;
-            if !self.e0.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e1.is_idle() {
-            offset += track!(self.e1.encode(&mut buf[offset..], eos))?;
-            if !self.e1.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e2.is_idle() {
-            offset += track!(self.e2.encode(&mut buf[offset..], eos))?;
-            if !self.e2.is_idle() {
-                return Ok(offset);
-            }
-        }
-        offset += track!(self.e3.encode(&mut buf[offset..], eos))?;
+        bytecodec_try_encode!(self.e0, offset, buf, eos);
+        bytecodec_try_encode!(self.e1, offset, buf, eos);
+        bytecodec_try_encode!(self.e2, offset, buf, eos);
+        bytecodec_try_encode!(self.e3, offset, buf, eos);
         Ok(offset)
     }
 
@@ -1146,31 +1116,11 @@ where
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let mut offset = 0;
-        if !self.e0.is_idle() {
-            offset += track!(self.e0.encode(buf, eos))?;
-            if !self.e0.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e1.is_idle() {
-            offset += track!(self.e1.encode(&mut buf[offset..], eos))?;
-            if !self.e1.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e2.is_idle() {
-            offset += track!(self.e2.encode(&mut buf[offset..], eos))?;
-            if !self.e2.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e3.is_idle() {
-            offset += track!(self.e3.encode(&mut buf[offset..], eos))?;
-            if !self.e3.is_idle() {
-                return Ok(offset);
-            }
-        }
-        offset += track!(self.e4.encode(&mut buf[offset..], eos))?;
+        bytecodec_try_encode!(self.e0, offset, buf, eos);
+        bytecodec_try_encode!(self.e1, offset, buf, eos);
+        bytecodec_try_encode!(self.e2, offset, buf, eos);
+        bytecodec_try_encode!(self.e3, offset, buf, eos);
+        bytecodec_try_encode!(self.e4, offset, buf, eos);
         Ok(offset)
     }
 
@@ -1273,37 +1223,12 @@ where
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let mut offset = 0;
-        if !self.e0.is_idle() {
-            offset += track!(self.e0.encode(buf, eos))?;
-            if !self.e0.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e1.is_idle() {
-            offset += track!(self.e1.encode(&mut buf[offset..], eos))?;
-            if !self.e1.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e2.is_idle() {
-            offset += track!(self.e2.encode(&mut buf[offset..], eos))?;
-            if !self.e2.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e3.is_idle() {
-            offset += track!(self.e3.encode(&mut buf[offset..], eos))?;
-            if !self.e3.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e4.is_idle() {
-            offset += track!(self.e4.encode(&mut buf[offset..], eos))?;
-            if !self.e4.is_idle() {
-                return Ok(offset);
-            }
-        }
-        offset += track!(self.e5.encode(&mut buf[offset..], eos))?;
+        bytecodec_try_encode!(self.e0, offset, buf, eos);
+        bytecodec_try_encode!(self.e1, offset, buf, eos);
+        bytecodec_try_encode!(self.e2, offset, buf, eos);
+        bytecodec_try_encode!(self.e3, offset, buf, eos);
+        bytecodec_try_encode!(self.e4, offset, buf, eos);
+        bytecodec_try_encode!(self.e5, offset, buf, eos);
         Ok(offset)
     }
 
@@ -1440,43 +1365,13 @@ where
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let mut offset = 0;
-        if !self.e0.is_idle() {
-            offset += track!(self.e0.encode(buf, eos))?;
-            if !self.e0.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e1.is_idle() {
-            offset += track!(self.e1.encode(&mut buf[offset..], eos))?;
-            if !self.e1.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e2.is_idle() {
-            offset += track!(self.e2.encode(&mut buf[offset..], eos))?;
-            if !self.e2.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e3.is_idle() {
-            offset += track!(self.e3.encode(&mut buf[offset..], eos))?;
-            if !self.e3.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e4.is_idle() {
-            offset += track!(self.e4.encode(&mut buf[offset..], eos))?;
-            if !self.e4.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e5.is_idle() {
-            offset += track!(self.e5.encode(&mut buf[offset..], eos))?;
-            if !self.e5.is_idle() {
-                return Ok(offset);
-            }
-        }
-        offset += track!(self.e6.encode(&mut buf[offset..], eos))?;
+        bytecodec_try_encode!(self.e0, offset, buf, eos);
+        bytecodec_try_encode!(self.e1, offset, buf, eos);
+        bytecodec_try_encode!(self.e2, offset, buf, eos);
+        bytecodec_try_encode!(self.e3, offset, buf, eos);
+        bytecodec_try_encode!(self.e4, offset, buf, eos);
+        bytecodec_try_encode!(self.e5, offset, buf, eos);
+        bytecodec_try_encode!(self.e6, offset, buf, eos);
         Ok(offset)
     }
 
@@ -1625,49 +1520,14 @@ where
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let mut offset = 0;
-        if !self.e0.is_idle() {
-            offset += track!(self.e0.encode(buf, eos))?;
-            if !self.e0.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e1.is_idle() {
-            offset += track!(self.e1.encode(&mut buf[offset..], eos))?;
-            if !self.e1.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e2.is_idle() {
-            offset += track!(self.e2.encode(&mut buf[offset..], eos))?;
-            if !self.e2.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e3.is_idle() {
-            offset += track!(self.e3.encode(&mut buf[offset..], eos))?;
-            if !self.e3.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e4.is_idle() {
-            offset += track!(self.e4.encode(&mut buf[offset..], eos))?;
-            if !self.e4.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e5.is_idle() {
-            offset += track!(self.e5.encode(&mut buf[offset..], eos))?;
-            if !self.e5.is_idle() {
-                return Ok(offset);
-            }
-        }
-        if !self.e6.is_idle() {
-            offset += track!(self.e6.encode(&mut buf[offset..], eos))?;
-            if !self.e6.is_idle() {
-                return Ok(offset);
-            }
-        }
-        offset += track!(self.e7.encode(&mut buf[offset..], eos))?;
+        bytecodec_try_encode!(self.e0, offset, buf, eos);
+        bytecodec_try_encode!(self.e1, offset, buf, eos);
+        bytecodec_try_encode!(self.e2, offset, buf, eos);
+        bytecodec_try_encode!(self.e3, offset, buf, eos);
+        bytecodec_try_encode!(self.e4, offset, buf, eos);
+        bytecodec_try_encode!(self.e5, offset, buf, eos);
+        bytecodec_try_encode!(self.e6, offset, buf, eos);
+        bytecodec_try_encode!(self.e7, offset, buf, eos);
         Ok(offset)
     }
 

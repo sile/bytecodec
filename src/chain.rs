@@ -546,12 +546,8 @@ where
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         let mut offset = 0;
-        if !self.a.is_idle() {
-            offset += track!(self.a.encode(buf, eos))?;
-        }
-        if self.a.is_idle() {
-            offset += track!(self.b.encode(&mut buf[offset..], eos))?;
-        }
+        bytecodec_try_encode!(self.a, offset, buf, eos);
+        bytecodec_try_encode!(self.b, offset, buf, eos);
         Ok(offset)
     }
 

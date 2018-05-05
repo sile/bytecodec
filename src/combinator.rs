@@ -1051,15 +1051,14 @@ impl<E: Encode> Encode for Padding<E> {
     type Item = E::Item;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        if !self.inner.is_idle() {
-            self.inner.encode(buf, eos)
-        } else {
-            for b in buf.iter_mut() {
-                *b = self.padding_byte;
-            }
-            self.eos_reached = eos.is_reached();
-            Ok(buf.len())
+        let mut offset = 0;
+        bytecodec_try_encode!(self.inner, offset, buf, eos);
+
+        for b in (&mut buf[offset..]).iter_mut() {
+            *b = self.padding_byte;
         }
+        self.eos_reached = eos.is_reached();
+        Ok(buf.len())
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
@@ -1104,11 +1103,10 @@ where
     type Item = E0::Item;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        if !self.prefix_encoder.is_idle() {
-            track!(self.prefix_encoder.encode(buf, eos))
-        } else {
-            track!(self.body_encoder.encode(buf, eos))
-        }
+        let mut offset = 0;
+        bytecodec_try_encode!(self.prefix_encoder, offset, buf, eos);
+        bytecodec_try_encode!(self.body_encoder, offset, buf, eos);
+        Ok(offset)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
