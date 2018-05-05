@@ -2,7 +2,7 @@ use std;
 
 use {ByteCount, Eos, Error, Result};
 use combinator::{AndThen, Assert, Buffered, Collect, CollectN, DecoderChain, Length, Map, MapErr,
-                 MaxBytes, Omittable, SkipRemaining, Slice, TryMap};
+                 MaxBytes, MaybeEos, Omittable, SkipRemaining, Slice, TryMap};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {
@@ -444,6 +444,27 @@ pub trait DecodeExt: Decode + Sized {
     /// ```
     fn buffered(self) -> Buffered<Self> {
         Buffered::new(self)
+    }
+
+    /// Creates a decoder that ignores EOS if there is no item being decoded.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeExt, Eos};
+    /// use bytecodec::fixnum::U16beDecoder;
+    ///
+    /// let mut decoder = U16beDecoder::new();
+    /// assert!(decoder.decode(&[][..], Eos::new(true)).is_err()); // UnexpectedEos
+    ///
+    /// let mut decoder = U16beDecoder::new().maybe_eos();
+    /// assert!(decoder.decode(&[][..], Eos::new(true)).is_ok()); // EOS is ignored
+    ///
+    /// let mut decoder = U16beDecoder::new().maybe_eos();
+    /// assert!(decoder.decode(&[1][..], Eos::new(true)).is_err()); // UnexpectedEos
+    /// ```
+    fn maybe_eos(self) -> MaybeEos<Self> {
+        MaybeEos::new(self)
     }
 }
 impl<T: Decode> DecodeExt for T {}
