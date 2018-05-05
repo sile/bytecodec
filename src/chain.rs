@@ -509,15 +509,8 @@ where
     type Item = (A::Item, B::Item);
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        let offset = if self.a.item.is_none() {
-            let (size, _always_none) = track!(self.a.decode(buf, eos))?;
-            if self.a.item.is_none() {
-                return Ok((size, None));
-            }
-            size
-        } else {
-            0
-        };
+        let mut offset = 0;
+        bytecodec_try_decode!(self.a, offset, buf, eos);
 
         let (size, item) = track!(self.b.decode(&buf[offset..], eos))?;
         let item = item.map(|b| {

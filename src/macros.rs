@@ -1,4 +1,4 @@
-/// Tries to encode item to the given buffer.
+/// Tries to encode items to the given buffer.
 ///
 /// This macro is expanded to the following expression.
 ///
@@ -22,15 +22,36 @@ macro_rules! bytecodec_try_encode {
     }
 }
 
-// TODO
-// #[macro_export]
-// macro_rules! bytecodec_try_decode {
-//     ($decoder:expr, $offset:expr, $buf:expr, $eos:expr) => {
-//         let (size, item) = track!($decoder.decode(&$buf[$offset..], $eos))?;
-//         $offset += size;
-//         if item.is_none() {
-//             return Ok($offset);
-//         }
-//         item
-//     }
-// }
+/// Tries to decode an item from the given buffer.
+///
+/// Note that this macro assumes `$decoder` is an instance of `Buffered<_>`.
+///
+/// This macro is expanded to the following expression.
+///
+/// ```ignore
+/// if !$decoder.has_item() {
+///     $offset += track!($decoder.decode(&$buf[$offset..], $eos))?.0;
+///     if let Some(item) = $decoder.get_item() {
+///         Some(item)
+///     } else {
+///         return Ok(($offset, None));
+///     }
+/// } else {
+///     None
+/// }
+/// ```
+#[macro_export]
+macro_rules! bytecodec_try_decode {
+    ($decoder:expr, $offset:expr, $buf:expr, $eos:expr) => {
+        if !$decoder.has_item() {
+            $offset += track!($decoder.decode(&$buf[$offset..], $eos))?.0;
+            if let Some(item) = $decoder.get_item() {
+                Some(item)
+            } else {
+                return Ok(($offset, None));
+            }
+        } else {
+            None
+        }
+    }
+}
