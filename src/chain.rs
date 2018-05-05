@@ -40,10 +40,6 @@ impl Decode for StartDecoderChain {
         track_panic!(ErrorKind::Other)
     }
 
-    fn has_terminated(&self) -> bool {
-        false
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Unknown
     }
@@ -69,10 +65,6 @@ where
         self.0.b.decode(buf, eos).map(|(n, i)| (n, i.map(|i| (i,))))
     }
 
-    fn has_terminated(&self) -> bool {
-        self.0.b.has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.0.b.requiring_bytes()
     }
@@ -88,10 +80,6 @@ where
         self.0
             .decode(buf, eos)
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, i))))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.0.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -111,10 +99,6 @@ where
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, i))))
     }
 
-    fn has_terminated(&self) -> bool {
-        self.0.has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.0.requiring_bytes()
     }
@@ -130,10 +114,6 @@ where
         self.0
             .decode(buf, eos)
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, i))))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.0.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -153,10 +133,6 @@ where
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, i))))
     }
 
-    fn has_terminated(&self) -> bool {
-        self.0.has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.0.requiring_bytes()
     }
@@ -172,10 +148,6 @@ where
         self.0
             .decode(buf, eos)
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, i))))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.0.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -195,10 +167,6 @@ where
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, i))))
     }
 
-    fn has_terminated(&self) -> bool {
-        self.0.has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.0.requiring_bytes()
     }
@@ -215,10 +183,6 @@ where
         self.0
             .decode(buf, eos)
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, t.6, i))))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.0.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -527,10 +491,6 @@ where
         Ok((offset + size, item))
     }
 
-    fn has_terminated(&self) -> bool {
-        self.a.has_terminated() || self.b.has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.a
             .requiring_bytes()
@@ -649,14 +609,6 @@ impl<D: Decode> Decode for Buffered<D> {
             Ok((size, None))
         } else {
             Ok((0, None))
-        }
-    }
-
-    fn has_terminated(&self) -> bool {
-        if self.item.is_some() {
-            false
-        } else {
-            self.inner.has_terminated()
         }
     }
 

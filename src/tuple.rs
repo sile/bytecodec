@@ -57,10 +57,6 @@ where
         Ok((offset, item))
     }
 
-    fn has_terminated(&self) -> bool {
-        self.d0.has_terminated() || self.d1.has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.d0
             .requiring_bytes()
@@ -134,10 +130,6 @@ where
             (d0, d1, d2)
         });
         Ok((offset, item))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.d0.has_terminated() || self.d1.has_terminated() || self.d2.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -235,11 +227,6 @@ where
             (d0, d1, d2, d3)
         });
         Ok((offset, item))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.d0.has_terminated() || self.d1.has_terminated() || self.d2.has_terminated()
-            || self.d3.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -351,11 +338,6 @@ where
             (d0, d1, d2, d3, d4)
         });
         Ok((offset, item))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.d0.has_terminated() || self.d1.has_terminated() || self.d2.has_terminated()
-            || self.d3.has_terminated() || self.d4.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -481,12 +463,6 @@ where
             (d0, d1, d2, d3, d4, d5)
         });
         Ok((offset, item))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.d0.has_terminated() || self.d1.has_terminated() || self.d2.has_terminated()
-            || self.d3.has_terminated() || self.d4.has_terminated()
-            || self.d5.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -644,12 +620,6 @@ where
             (d0, d1, d2, d3, d4, d5, d6)
         });
         Ok((offset, item))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.d0.has_terminated() || self.d1.has_terminated() || self.d2.has_terminated()
-            || self.d3.has_terminated() || self.d4.has_terminated()
-            || self.d5.has_terminated() || self.d6.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -823,13 +793,6 @@ where
             (d0, d1, d2, d3, d4, d5, d6, d7)
         });
         Ok((offset, item))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.d0.has_terminated() || self.d1.has_terminated() || self.d2.has_terminated()
-            || self.d3.has_terminated() || self.d4.has_terminated()
-            || self.d5.has_terminated() || self.d6.has_terminated()
-            || self.d7.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {

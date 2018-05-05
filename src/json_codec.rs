@@ -55,10 +55,6 @@ where
         track!(self.0.decode(buf, eos))
     }
 
-    fn has_terminated(&self) -> bool {
-        self.0.has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.0.requiring_bytes()
     }

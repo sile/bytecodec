@@ -14,10 +14,6 @@ macro_rules! impl_decode {
                 Ok((size, item.map(Self::decode_item)))
             }
 
-            fn has_terminated(&self) -> bool {
-                false
-            }
-
             fn requiring_bytes(&self) -> ByteCount {
                 self.0.requiring_bytes()
             }

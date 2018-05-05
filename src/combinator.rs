@@ -44,10 +44,6 @@ where
         track!(self.inner.decode(buf, eos)).map(|(n, r)| (n, r.map(&self.map)))
     }
 
-    fn has_terminated(&self) -> bool {
-        self.inner.has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.inner.requiring_bytes()
     }
@@ -87,10 +83,6 @@ where
         self.inner
             .decode(buf, eos)
             .map_err(|e| (self.map_err)(e).into())
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.inner.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -189,14 +181,6 @@ where
             Ok((offset + size, item))
         } else {
             Ok((offset, None))
-        }
-    }
-
-    fn has_terminated(&self) -> bool {
-        if let Some(ref d) = self.inner1 {
-            d.has_terminated()
-        } else {
-            self.inner0.has_terminated()
         }
     }
 
@@ -437,14 +421,6 @@ impl<D: Decode> Decode for Omittable<D> {
         }
     }
 
-    fn has_terminated(&self) -> bool {
-        if self.do_omit {
-            false
-        } else {
-            self.inner.has_terminated()
-        }
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         if self.do_omit {
             ByteCount::Finite(0)
@@ -516,7 +492,10 @@ where
         if self.items.is_none() {
             self.items = Some(T::default());
         }
-        if (buf.is_empty() && eos.is_reached()) || self.inner.has_terminated() {
+
+        let is_eos_reached = buf.is_empty() && eos.is_reached();
+        let is_decoder_terminated = self.inner.requiring_bytes() == ByteCount::Finite(0); // TODO: && self.innder.is_idle()
+        if is_eos_reached || is_decoder_terminated {
             return Ok((0, self.items.take()));
         }
 
@@ -524,10 +503,6 @@ where
         let (size, item) = track!(self.inner.decode(buf, eos))?;
         items.extend(item);
         Ok((size, None))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.inner.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -615,24 +590,14 @@ impl<D: Decode> Decode for Length<D> {
                 "Decoder consumes too few bytes"
             );
             self.remaining_bytes = self.expected_bytes
+        } else {
+            track_assert_ne!(self.remaining_bytes, 0, ErrorKind::Other);
         }
         Ok((size, item))
     }
 
-    fn has_terminated(&self) -> bool {
-        if self.remaining_bytes == self.expected_bytes {
-            self.inner.has_terminated()
-        } else {
-            false
-        }
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
-        if self.has_terminated() {
-            ByteCount::Finite(0)
-        } else {
-            ByteCount::Finite(self.remaining_bytes)
-        }
+        ByteCount::Finite(self.remaining_bytes)
     }
 }
 impl<E: Encode> Encode for Length<E> {
@@ -750,12 +715,8 @@ impl<D: Decode> Decode for Take<D> {
         }
     }
 
-    fn has_terminated(&self) -> bool {
-        self.inner.has_terminated() || self.decoded_items == self.limit
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
-        if self.has_terminated() {
+        if self.decoded_items == self.limit {
             ByteCount::Finite(0)
         } else {
             self.inner.requiring_bytes()
@@ -797,10 +758,6 @@ where
             }
             (size, None) => Ok((size, None)),
         }
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.inner.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -853,14 +810,6 @@ impl<D: Decode> Decode for SkipRemaining<D> {
             Ok((buf.len(), self.item.take()))
         } else {
             Ok((buf.len(), None))
-        }
-    }
-
-    fn has_terminated(&self) -> bool {
-        if self.item.is_none() {
-            self.inner.has_terminated()
-        } else {
-            false
         }
     }
 
@@ -936,10 +885,6 @@ impl<D: Decode> Decode for MaxBytes<D> {
         Ok((size, item))
     }
 
-    fn has_terminated(&self) -> bool {
-        self.inner.has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.inner.requiring_bytes()
     }
@@ -1002,10 +947,6 @@ where
             track_assert!((self.assert)(item), ErrorKind::InvalidInput);
         }
         Ok((size, item))
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.inner.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -1249,10 +1190,6 @@ impl<D: Decode> Decode for Slice<D> {
         Ok((size, item))
     }
 
-    fn has_terminated(&self) -> bool {
-        self.inner.has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.inner.requiring_bytes()
     }
@@ -1443,10 +1380,6 @@ impl<D: Decode> Decode for MaybeEos<D> {
             self.started |= size > 0;
             Ok((size, None))
         }
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.inner.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {

@@ -63,10 +63,6 @@ impl<D: MonolithicDecode> Decode for MonolithicDecoder<D> {
         }
     }
 
-    fn has_terminated(&self) -> bool {
-        false
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Unknown
     }

@@ -158,10 +158,6 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
         }
     }
 
-    fn has_terminated(&self) -> bool {
-        false
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Finite((self.bytes.as_ref().len() - self.offset) as u64)
     }
@@ -234,10 +230,6 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
         }
     }
 
-    fn has_terminated(&self) -> bool {
-        self.bytes.is_none()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Finite(self.exact_requiring_bytes())
     }
@@ -284,10 +276,6 @@ impl Decode for RemainingBytesDecoder {
         } else {
             Ok((buf.len(), None))
         }
-    }
-
-    fn has_terminated(&self) -> bool {
-        false
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -416,10 +404,6 @@ where
             }
             None => Ok((size, None)),
         }
-    }
-
-    fn has_terminated(&self) -> bool {
-        self.0.has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {

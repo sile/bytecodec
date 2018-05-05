@@ -41,12 +41,6 @@ pub trait Decode {
     ///   - Other errors
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)>;
 
-    /// Returns `true` if the decoder cannot decode items anymore, otherwise `false`.
-    ///
-    /// If it returns `true`, the next invocation of `decode` method
-    /// must return an `ErrorKind::DecoderTerminated` error, and vice versa.
-    fn has_terminated(&self) -> bool;
-
     /// Returns the lower bound of the number of bytes needed to decode the next item.
     ///
     /// If the decoder does not know the value, it will return `ByteCount::Unknown`
@@ -66,10 +60,6 @@ impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
         (**self).decode(buf, eos)
     }
 
-    fn has_terminated(&self) -> bool {
-        (**self).has_terminated()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         (**self).requiring_bytes()
     }
@@ -79,10 +69,6 @@ impl<D: ?Sized + Decode> Decode for Box<D> {
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         (**self).decode(buf, eos)
-    }
-
-    fn has_terminated(&self) -> bool {
-        (**self).has_terminated()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
