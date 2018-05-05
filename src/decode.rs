@@ -41,9 +41,6 @@ pub trait Decode {
     ///   - Other errors
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)>;
 
-    /// Returns `true` if there is no item being decoded by the decoder, otherwise `false`.
-    fn is_idle(&self) -> bool;
-
     /// Returns the lower bound of the number of bytes needed to decode the next item.
     ///
     /// If the decoder does not know the value, it will return `ByteCount::Unknown`
@@ -52,10 +49,8 @@ pub trait Decode {
     /// If the decoder returns `ByteCount::Finite(0)`, it means one of the followings:
     /// - (a) There is an already decoded item
     ///   - The next invocation of `decode()` will return it without consuming any bytes
-    ///   - In this case, the invocation of `Decode::is_idle` method must return `false`.
     /// - (b) There are no decodable items
     ///   - All decodable items have been decoded, and the decoder cannot do any further works
-    ///   - In this case, the invocation of `Decode::is_idle` method must return `true`.
     fn requiring_bytes(&self) -> ByteCount;
 }
 impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
@@ -63,10 +58,6 @@ impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         (**self).decode(buf, eos)
-    }
-
-    fn is_idle(&self) -> bool {
-        (**self).is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -78,10 +69,6 @@ impl<D: ?Sized + Decode> Decode for Box<D> {
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         (**self).decode(buf, eos)
-    }
-
-    fn is_idle(&self) -> bool {
-        (**self).is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -173,7 +160,7 @@ pub trait DecodeExt: Decode + Sized {
     ///                self.offset=1, self.bytes.as_ref().len()=2)
     /// HISTORY:
     ///   [0] at src/bytes.rs:155
-    ///   [1] at src/fixnum.rs:196
+    ///   [1] at src/fixnum.rs:192
     ///   [2] at src/decode.rs:12 -- oops!
     ///   [3] at src/io.rs:44
     ///   [4] at src/decode.rs:16\n");

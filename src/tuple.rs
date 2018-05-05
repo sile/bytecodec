@@ -54,10 +54,6 @@ where
         Ok((offset, item))
     }
 
-    fn is_idle(&self) -> bool {
-        self.d0.is_idle()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.d0
             .requiring_bytes()
@@ -124,10 +120,6 @@ where
             (d0, d1, d2)
         });
         Ok((offset, item))
-    }
-
-    fn is_idle(&self) -> bool {
-        self.d0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -214,10 +206,6 @@ where
             (d0, d1, d2, d3)
         });
         Ok((offset, item))
-    }
-
-    fn is_idle(&self) -> bool {
-        self.d0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -314,10 +302,6 @@ where
             (d0, d1, d2, d3, d4)
         });
         Ok((offset, item))
-    }
-
-    fn is_idle(&self) -> bool {
-        self.d0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -424,10 +408,6 @@ where
             (d0, d1, d2, d3, d4, d5)
         });
         Ok((offset, item))
-    }
-
-    fn is_idle(&self) -> bool {
-        self.d0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -562,10 +542,6 @@ where
             (d0, d1, d2, d3, d4, d5, d6)
         });
         Ok((offset, item))
-    }
-
-    fn is_idle(&self) -> bool {
-        self.d0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -712,10 +688,6 @@ where
             (d0, d1, d2, d3, d4, d5, d6, d7)
         });
         Ok((offset, item))
-    }
-
-    fn is_idle(&self) -> bool {
-        self.d0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {

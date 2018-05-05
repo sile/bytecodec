@@ -44,10 +44,6 @@ where
         track!(self.inner.decode(buf, eos)).map(|(n, r)| (n, r.map(&self.map)))
     }
 
-    fn is_idle(&self) -> bool {
-        self.inner.is_idle()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.inner.requiring_bytes()
     }
@@ -87,10 +83,6 @@ where
         self.inner
             .decode(buf, eos)
             .map_err(|e| (self.map_err)(e).into())
-    }
-
-    fn is_idle(&self) -> bool {
-        self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -190,10 +182,6 @@ where
         } else {
             Ok((offset, None))
         }
-    }
-
-    fn is_idle(&self) -> bool {
-        self.inner0.is_idle() && self.inner1.is_none()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -429,10 +417,6 @@ impl<D: Decode> Decode for Omittable<D> {
         }
     }
 
-    fn is_idle(&self) -> bool {
-        self.do_omit || self.inner.is_idle()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         if self.do_omit {
             ByteCount::Finite(0)
@@ -515,10 +499,6 @@ where
             self.items.as_mut().map(|x| x.extend(item));
         }
         Ok((size, None))
-    }
-
-    fn is_idle(&self) -> bool {
-        self.items.is_none()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -610,10 +590,6 @@ impl<D: Decode> Decode for Length<D> {
             track_assert_ne!(self.remaining_bytes, 0, ErrorKind::Other);
         }
         Ok((size, item))
-    }
-
-    fn is_idle(&self) -> bool {
-        self.remaining_bytes == self.expected_bytes
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -739,10 +715,6 @@ where
         Ok((size, None))
     }
 
-    fn is_idle(&self) -> bool {
-        self.items.is_none()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         if self.remaining_items == 0 {
             ByteCount::Finite(0)
@@ -786,10 +758,6 @@ where
             }
             (size, None) => Ok((size, None)),
         }
-    }
-
-    fn is_idle(&self) -> bool {
-        self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -843,10 +811,6 @@ impl<D: Decode> Decode for SkipRemaining<D> {
         } else {
             Ok((buf.len(), None))
         }
-    }
-
-    fn is_idle(&self) -> bool {
-        self.item.is_none() && self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -950,10 +914,6 @@ impl<D: Decode> Decode for MaxBytes<D> {
         Ok((size, item))
     }
 
-    fn is_idle(&self) -> bool {
-        self.inner.is_idle()
-    }
-
     fn requiring_bytes(&self) -> ByteCount {
         self.inner.requiring_bytes()
     }
@@ -1016,10 +976,6 @@ where
             track_assert!((self.assert)(item), ErrorKind::InvalidInput);
         }
         Ok((size, item))
-    }
-
-    fn is_idle(&self) -> bool {
-        self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -1261,10 +1217,6 @@ impl<D: Decode> Decode for Slice<D> {
         let (size, item) = track!(self.inner.decode(&buf[..limit], eos))?;
         self.consumable_bytes -= size as u64;
         Ok((size, item))
-    }
-
-    fn is_idle(&self) -> bool {
-        self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
