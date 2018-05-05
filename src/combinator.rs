@@ -44,6 +44,10 @@ where
         track!(self.inner.decode(buf, eos)).map(|(n, r)| (n, r.map(&self.map)))
     }
 
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         self.inner.requiring_bytes()
     }
@@ -83,6 +87,10 @@ where
         self.inner
             .decode(buf, eos)
             .map_err(|e| (self.map_err)(e).into())
+    }
+
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -182,6 +190,10 @@ where
         } else {
             Ok((offset, None))
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.inner0.is_idle() && self.inner1.is_none()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -421,6 +433,10 @@ impl<D: Decode> Decode for Omittable<D> {
         }
     }
 
+    fn is_idle(&self) -> bool {
+        self.do_omit || self.inner.is_idle()
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         if self.do_omit {
             ByteCount::Finite(0)
@@ -466,6 +482,7 @@ impl<E: ExactBytesEncode> ExactBytesEncode for Optional<E> {
     }
 }
 
+// TODO: CollectN
 /// Combinator for collecting decoded items.
 ///
 /// This is created by calling `DecodeExt::collect` method.
@@ -503,6 +520,10 @@ where
         let (size, item) = track!(self.inner.decode(buf, eos))?;
         items.extend(item);
         Ok((size, None))
+    }
+
+    fn is_idle(&self) -> bool {
+        self.items.is_none()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -594,6 +615,10 @@ impl<D: Decode> Decode for Length<D> {
             track_assert_ne!(self.remaining_bytes, 0, ErrorKind::Other);
         }
         Ok((size, item))
+    }
+
+    fn is_idle(&self) -> bool {
+        self.remaining_bytes == self.expected_bytes
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -715,6 +740,10 @@ impl<D: Decode> Decode for Take<D> {
         }
     }
 
+    fn is_idle(&self) -> bool {
+        panic!("TODO")
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         if self.decoded_items == self.limit {
             ByteCount::Finite(0)
@@ -758,6 +787,10 @@ where
             }
             (size, None) => Ok((size, None)),
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -811,6 +844,10 @@ impl<D: Decode> Decode for SkipRemaining<D> {
         } else {
             Ok((buf.len(), None))
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.item.is_none() && self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -874,6 +911,7 @@ impl<D: Decode> Decode for MaxBytes<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        // TODO: check self.requiring_bytes() or eos
         let (size, item) = track!(self.inner.decode(buf, eos))?;
         self.consumed_bytes += size as u64;
         track_assert!(self.consumed_bytes <= self.max_bytes,
@@ -883,6 +921,10 @@ impl<D: Decode> Decode for MaxBytes<D> {
             self.consumed_bytes = 0;
         }
         Ok((size, item))
+    }
+
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -947,6 +989,10 @@ where
             track_assert!((self.assert)(item), ErrorKind::InvalidInput);
         }
         Ok((size, item))
+    }
+
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -1190,6 +1236,10 @@ impl<D: Decode> Decode for Slice<D> {
         Ok((size, item))
     }
 
+    fn is_idle(&self) -> bool {
+        self.inner.is_idle()
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         self.inner.requiring_bytes()
     }
@@ -1335,65 +1385,12 @@ impl<E: Encode> Encode for LastItem<E> {
     }
 }
 
-/// Combinator for allowing EOS reached before decoding starts.
-#[derive(Debug, Default)]
-pub struct MaybeEos<D> {
-    inner: D,
-    started: bool,
-}
-impl<D> MaybeEos<D> {
-    /// Makes a new `MaybeEos` instance.
-    pub fn new(inner: D) -> Self {
-        MaybeEos {
-            inner,
-            started: false,
-        }
-    }
-
-    /// Returns a reference to the inner decoder.
-    pub fn inner_ref(&self) -> &D {
-        &self.inner
-    }
-
-    /// Returns a mutable reference to the inner decoder.
-    pub fn inner_mut(&mut self) -> &mut D {
-        &mut self.inner
-    }
-
-    /// Takes ownership of this instance and returns the inner decoder.
-    pub fn into_inner(self) -> D {
-        self.inner
-    }
-}
-impl<D: Decode> Decode for MaybeEos<D> {
-    type Item = D::Item;
-
-    fn decode(&mut self, buf: &[u8], mut eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        if !self.started && eos.is_reached() {
-            eos = Eos::new(false);
-        }
-        let (size, item) = track!(self.inner.decode(buf, eos))?;
-        if let Some(item) = item {
-            self.started = false;
-            Ok((size, Some(item)))
-        } else {
-            self.started |= size > 0;
-            Ok((size, None))
-        }
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        self.inner.requiring_bytes()
-    }
-}
-
 #[cfg(test)]
 mod test {
     use {Decode, DecodeExt, Encode, EncodeExt, Eos, ErrorKind};
     use bytes::{Utf8Decoder, Utf8Encoder};
-    use fixnum::{U16beDecoder, U8Decoder, U8Encoder};
+    use fixnum::{U8Decoder, U8Encoder};
     use io::{IoDecodeExt, IoEncodeExt};
-    use super::*;
 
     #[test]
     fn collect_works() {
@@ -1541,18 +1538,5 @@ mod test {
             U8Decoder::new().and_then(|len| Utf8Decoder::new().length(u64::from(len)));
         let (_, item) = track_try_unwrap!(decoder.decode(b"\x03foo", Eos::new(false)));
         assert_eq!(item, Some("foo".to_owned()));
-    }
-
-    #[test]
-    fn maybe_eos_works() {
-        let mut decoder = U16beDecoder::new();
-        assert!(decoder.decode(&[][..], Eos::new(true)).is_err());
-
-        let mut decoder = MaybeEos::new(U16beDecoder::new());
-        assert!(decoder.decode(&[][..], Eos::new(true)).is_ok());
-
-        let mut decoder = MaybeEos::new(U16beDecoder::new());
-        assert!(decoder.decode(&[1][..], Eos::new(false)).is_ok());
-        assert!(decoder.decode(&[][..], Eos::new(true)).is_err());
     }
 }

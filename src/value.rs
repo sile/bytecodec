@@ -33,6 +33,10 @@ impl<T> Decode for DecodedValue<T> {
         Ok((0, Some(item)))
     }
 
+    fn is_idle(&self) -> bool {
+        self.0.is_none()
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Finite(0)
     }
@@ -46,6 +50,10 @@ impl Decode for NullDecoder {
 
     fn decode(&mut self, _buf: &[u8], _eos: Eos) -> Result<(usize, Option<Self::Item>)> {
         Ok((0, Some(())))
+    }
+
+    fn is_idle(&self) -> bool {
+        false
     }
 
     fn requiring_bytes(&self) -> ByteCount {

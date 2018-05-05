@@ -21,3 +21,16 @@ macro_rules! bytecodec_try_encode {
         }
     }
 }
+
+// TODO
+// #[macro_export]
+// macro_rules! bytecodec_try_decode {
+//     ($decoder:expr, $offset:expr, $buf:expr, $eos:expr) => {
+//         let (size, item) = track!($decoder.decode(&$buf[$offset..], $eos))?;
+//         $offset += size;
+//         if item.is_none() {
+//             return Ok($offset);
+//         }
+//         item
+//     }
+// }

@@ -158,6 +158,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
         }
     }
 
+    fn is_idle(&self) -> bool {
+        self.offset == 0
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Finite((self.bytes.as_ref().len() - self.offset) as u64)
     }
@@ -223,11 +227,16 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
             size
         };
         if self.exact_requiring_bytes() == 0 {
+            self.offset = 0;
             Ok((size, self.bytes.take()))
         } else {
             track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos; self.offset, self.buf_len());
             Ok((size, None))
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.bytes.is_none()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -276,6 +285,10 @@ impl Decode for RemainingBytesDecoder {
         } else {
             Ok((buf.len(), None))
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_empty()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -404,6 +417,10 @@ where
             }
             None => Ok((size, None)),
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {

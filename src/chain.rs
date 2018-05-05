@@ -40,6 +40,10 @@ impl Decode for StartDecoderChain {
         track_panic!(ErrorKind::Other)
     }
 
+    fn is_idle(&self) -> bool {
+        true
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Unknown
     }
@@ -65,6 +69,10 @@ where
         self.0.b.decode(buf, eos).map(|(n, i)| (n, i.map(|i| (i,))))
     }
 
+    fn is_idle(&self) -> bool {
+        self.0.b.is_idle()
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         self.0.b.requiring_bytes()
     }
@@ -80,6 +88,10 @@ where
         self.0
             .decode(buf, eos)
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, i))))
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -99,6 +111,10 @@ where
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, i))))
     }
 
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         self.0.requiring_bytes()
     }
@@ -114,6 +130,10 @@ where
         self.0
             .decode(buf, eos)
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, i))))
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -133,6 +153,10 @@ where
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, i))))
     }
 
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         self.0.requiring_bytes()
     }
@@ -148,6 +172,10 @@ where
         self.0
             .decode(buf, eos)
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, i))))
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -167,6 +195,10 @@ where
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, i))))
     }
 
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         self.0.requiring_bytes()
     }
@@ -183,6 +215,10 @@ where
         self.0
             .decode(buf, eos)
             .map(|(n, x)| (n, x.map(|(t, i)| (t.0, t.1, t.2, t.3, t.4, t.5, t.6, i))))
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -491,6 +527,10 @@ where
         Ok((offset + size, item))
     }
 
+    fn is_idle(&self) -> bool {
+        self.a.is_idle()
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         self.a
             .requiring_bytes()
@@ -610,6 +650,10 @@ impl<D: Decode> Decode for Buffered<D> {
         } else {
             Ok((0, None))
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.item.is_none() && self.inner.is_idle()
     }
 
     fn requiring_bytes(&self) -> ByteCount {

@@ -63,6 +63,10 @@ impl<D: MonolithicDecode> Decode for MonolithicDecoder<D> {
         }
     }
 
+    fn is_idle(&self) -> bool {
+        self.buf.is_empty()
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Unknown
     }
