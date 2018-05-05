@@ -861,6 +861,8 @@ impl<D: Decode> Decode for SkipRemaining<D> {
 /// Combinator that will fail if the number of consumed bytes exceeds the specified size.
 ///
 /// This is created by calling `{DecodeExt, EncodeExt}::max_bytes` method.
+///
+/// Note that `MaxBytes` assumes the inner decoder will consume all the bytes in the target stream.
 #[derive(Debug, Default)]
 pub struct MaxBytes<C> {
     inner: C,
@@ -887,8 +889,19 @@ impl<C> MaxBytes<C> {
     }
 
     /// Sets the maximum number of bytes that can be consumed for encoding/decoding an item.
-    pub fn set_max_bytes(&mut self, n: u64) {
+    ///
+    /// # Error
+    ///
+    /// If `n` is smaller than `self.consumed_bytes()`, an `ErrorKind::InvalidInput` error will be returned.
+    pub fn set_max_bytes(&mut self, n: u64) -> Result<()> {
+        track_assert!(
+            self.consumed_bytes <= n,
+            ErrorKind::InvalidInput;
+            self.consumed_bytes,
+            n
+        );
         self.max_bytes = n;
+        Ok(())
     }
 
     /// Returns a reference to the inner encoder or decoder.
@@ -910,12 +923,27 @@ impl<D: Decode> Decode for MaxBytes<D> {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        // TODO: check self.requiring_bytes() or eos
+        match eos.remaining_bytes() {
+            ByteCount::Infinite => {
+                track_panic!(ErrorKind::InvalidInput, "Max bytes limit exceeded";
+                             self.consumed_bytes, self.max_bytes)
+            }
+            ByteCount::Unknown => {
+                let consumable_bytes = self.max_bytes - self.consumed_bytes;
+                track_assert!((buf.len() as u64) <= consumable_bytes,
+                              ErrorKind::InvalidInput, "Max bytes limit exceeded";
+                              buf.len(), self.consumed_bytes, self.max_bytes);
+            }
+            ByteCount::Finite(remaining_bytes) => {
+                let consumable_bytes = self.max_bytes - self.consumed_bytes;
+                track_assert!((buf.len() as u64) + remaining_bytes <= consumable_bytes,
+                              ErrorKind::InvalidInput, "Max bytes limit exceeded";
+                              buf.len(), remaining_bytes, self.consumed_bytes, self.max_bytes)
+            }
+        }
+
         let (size, item) = track!(self.inner.decode(buf, eos))?;
         self.consumed_bytes += size as u64;
-        track_assert!(self.consumed_bytes <= self.max_bytes,
-                      ErrorKind::InvalidInput, "Max bytes limit exceeded";
-                      self.consumed_bytes, self.max_bytes);
         if item.is_some() {
             self.consumed_bytes = 0;
         }
