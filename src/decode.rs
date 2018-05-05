@@ -1,8 +1,8 @@
 use std;
 
 use {ByteCount, Eos, Error, Result};
-use combinator::{AndThen, Assert, Buffered, Collect, DecoderChain, Length, Map, MapErr, MaxBytes,
-                 Omittable, SkipRemaining, Slice, Take, TryMap};
+use combinator::{AndThen, Assert, Buffered, Collect, CollectN, DecoderChain, Length, Map, MapErr,
+                 MaxBytes, Omittable, SkipRemaining, Slice, TryMap};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {
@@ -262,6 +262,26 @@ pub trait DecodeExt: Decode + Sized {
         Collect::new(self)
     }
 
+    /// Creates a decoder that decodes `n` items by using `self` and collecting the result.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeExt};
+    /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::io::IoDecodeExt;
+    ///
+    /// let mut decoder = U8Decoder::new().collectn::<Vec<_>>(2);
+    /// let item = decoder.decode_exact(b"foo".as_ref()).unwrap();
+    /// assert_eq!(item, vec![b'f', b'o']);
+    /// ```
+    fn collectn<T>(self, n: usize) -> CollectN<Self, T>
+    where
+        T: Extend<Self::Item> + Default,
+    {
+        CollectN::new(self, n)
+    }
+
     /// Creates a decoder that consumes the specified number of bytes exactly.
     ///
     /// # Examples
@@ -285,23 +305,6 @@ pub trait DecodeExt: Decode + Sized {
     /// ```
     fn length(self, expected_bytes: u64) -> Length<Self> {
         Length::new(self, expected_bytes)
-    }
-
-    /// Creates a decoder that decodes `n` items by using `self`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bytecodec::{Decode, DecodeExt};
-    /// use bytecodec::fixnum::U8Decoder;
-    /// use bytecodec::io::IoDecodeExt;
-    ///
-    /// let mut decoder = U8Decoder::new().take(2).collect::<Vec<_>>();
-    /// let item = decoder.decode_exact(b"foo".as_ref()).unwrap();
-    /// assert_eq!(item, vec![b'f', b'o']);
-    /// ```
-    fn take(self, n: usize) -> Take<Self> {
-        Take::new(self, n)
     }
 
     /// Creates a decoder that will omit decoding items if `do_omit = true` is specified.

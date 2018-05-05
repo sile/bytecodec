@@ -482,12 +482,12 @@ impl<E: ExactBytesEncode> ExactBytesEncode for Optional<E> {
     }
 }
 
-// TODO: CollectN
 /// Combinator for collecting decoded items.
 ///
-/// This is created by calling `DecodeExt::collect` method.
+/// `Collect` decodes all items until it reaches EOS
+/// and returns the collected items as the single decoded item.
 ///
-/// Note that this is a oneshot decoder (i.e., it decodes only one item).
+/// This is created by calling `DecodeExt::collect` method.
 #[derive(Debug, Default)]
 pub struct Collect<D, T> {
     inner: D,
@@ -510,15 +510,14 @@ where
             self.items = Some(T::default());
         }
 
-        let is_eos_reached = buf.is_empty() && eos.is_reached();
-        let is_decoder_terminated = self.inner.requiring_bytes() == ByteCount::Finite(0); // TODO: && self.innder.is_idle()
-        if is_eos_reached || is_decoder_terminated {
+        if buf.is_empty() && eos.is_reached() {
             return Ok((0, self.items.take()));
         }
 
-        let items = self.items.as_mut().expect("Never fails");
         let (size, item) = track!(self.inner.decode(buf, eos))?;
-        items.extend(item);
+        if item.is_some() {
+            self.items.as_mut().map(|x| x.extend(item));
+        }
         Ok((size, None))
     }
 
@@ -675,32 +674,24 @@ impl<E: Encode> ExactBytesEncode for Length<E> {
     }
 }
 
-/// Combinator for decoding the specified number of items.
+/// Combinator for decoding the specified number of items and collecting the result.
 ///
-/// This is created by calling `DecodeExt::take` method.
+/// This is created by calling `DecodeExt::collectn` method.
 #[derive(Debug, Default)]
-pub struct Take<D> {
+pub struct CollectN<D, T> {
     inner: D,
-    limit: usize,
-    decoded_items: usize,
+    remaining_items: usize,
+    items: Option<T>,
 }
-impl<D> Take<D> {
-    /// Returns the maximum number of items allowed to be decoded.
-    pub fn limit(&self) -> usize {
-        self.limit
+impl<D, T> CollectN<D, T> {
+    /// Returns the number of remaining items expected to be decoded.
+    pub fn remaining_items(&self) -> usize {
+        self.remaining_items
     }
 
-    /// Resets the maximum number of items allowed to be decoded.
-    ///
-    /// The count of items have been decoded so far also will be reset to `0`.
-    pub fn reset_limit(&mut self, n: usize) {
-        self.limit = n;
-        self.decoded_items = 0;
-    }
-
-    /// Returns the number of items have been decoded.
-    pub fn decoded_items(&self) -> usize {
-        self.decoded_items
+    /// Sets the number of remaining items expected to be decoded.
+    pub fn set_remaining_items(&mut self, n: usize) {
+        self.remaining_items = n;
     }
 
     /// Returns a reference to the inner decoder.
@@ -719,33 +710,45 @@ impl<D> Take<D> {
     }
 
     pub(crate) fn new(inner: D, count: usize) -> Self {
-        Take {
+        CollectN {
             inner,
-            limit: count,
-            decoded_items: 0,
+            remaining_items: count,
+            items: None,
         }
     }
 }
-impl<D: Decode> Decode for Take<D> {
-    type Item = D::Item;
+impl<D, T> Decode for CollectN<D, T>
+where
+    D: Decode,
+    T: Default + Extend<D::Item>,
+{
+    type Item = T;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        track_assert_ne!(self.decoded_items, self.limit, ErrorKind::DecoderTerminated);
-        match track!(self.inner.decode(buf, eos))? {
-            (size, Some(item)) => {
-                self.decoded_items += 1;
-                Ok((size, Some(item)))
+        if self.items.is_none() {
+            if self.remaining_items == 0 {
+                return Ok((0, Some(T::default())));
             }
-            (size, None) => Ok((size, None)),
+            self.items = Some(T::default());
         }
+
+        let (size, item) = track!(self.inner.decode(buf, eos))?;
+        if item.is_some() {
+            self.items.as_mut().map(|x| x.extend(item));
+            self.remaining_items -= 1;
+            if self.remaining_items == 0 {
+                return Ok((size, self.items.take()));
+            }
+        }
+        Ok((size, None))
     }
 
     fn is_idle(&self) -> bool {
-        panic!("TODO")
+        self.items.is_none()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        if self.decoded_items == self.limit {
+        if self.remaining_items == 0 {
             ByteCount::Finite(0)
         } else {
             self.inner.requiring_bytes()
@@ -1400,10 +1403,19 @@ mod test {
     }
 
     #[test]
-    fn take_works() {
-        let mut decoder = U8Decoder::new().take(2).collect::<Vec<_>>();
+    fn collectn_works() {
+        let mut decoder = U8Decoder::new().collectn::<Vec<_>>(2);
         let item = track_try_unwrap!(decoder.decode_exact(b"foo".as_ref()));
         assert_eq!(item, vec![b'f', b'o']);
+
+        let mut decoder = U8Decoder::new().collectn::<Vec<_>>(4);
+        assert_eq!(
+            decoder
+                .decode_exact(b"foo".as_ref())
+                .err()
+                .map(|e| *e.kind()),
+            Some(ErrorKind::UnexpectedEos)
+        );
     }
 
     #[test]
