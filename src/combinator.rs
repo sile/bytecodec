@@ -7,10 +7,10 @@ use std::marker::PhantomData;
 
 pub use chain::{Buffered, DecoderChain, EncoderChain};
 
-use {ByteCount, Decode, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
 use bytes::BytesEncoder;
 use io::IoEncodeExt;
 use marker::Never;
+use {ByteCount, Decode, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
 
 /// Combinator for converting decoded items to other values.
 ///
@@ -309,6 +309,21 @@ pub struct Repeat<E, I> {
     items: Option<I>,
 }
 impl<E, I> Repeat<E, I> {
+    /// Returns a reference to the inner encoder.
+    pub fn inner_ref(&self) -> &E {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder.
+    pub fn inner_mut(&mut self) -> &mut E {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder.
+    pub fn into_inner(self) -> E {
+        self.inner
+    }
+
     pub(crate) fn new(inner: E) -> Self {
         Repeat { inner, items: None }
     }
@@ -430,6 +445,21 @@ impl<D: Decode> Decode for Omittable<D> {
 #[derive(Debug, Default)]
 pub struct Optional<E>(E);
 impl<E> Optional<E> {
+    /// Returns a reference to the inner encoder.
+    pub fn inner_ref(&self) -> &E {
+        &self.0
+    }
+
+    /// Returns a mutable reference to the inner encoder.
+    pub fn inner_mut(&mut self) -> &mut E {
+        &mut self.0
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder.
+    pub fn into_inner(self) -> E {
+        self.0
+    }
+
     pub(crate) fn new(inner: E) -> Self {
         Optional(inner)
     }
@@ -474,6 +504,21 @@ pub struct Collect<D, T> {
     items: Option<T>,
 }
 impl<D, T> Collect<D, T> {
+    /// Returns a reference to the inner decoder.
+    pub fn inner_ref(&self) -> &D {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner decoder.
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner decoder.
+    pub fn into_inner(self) -> D {
+        self.inner
+    }
+
     pub(crate) fn new(inner: D) -> Self {
         Collect { inner, items: None }
     }
@@ -1422,10 +1467,10 @@ impl<D: Decode> Decode for MaybeEos<D> {
 
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeExt, Encode, EncodeExt, Eos, ErrorKind};
     use bytes::{Utf8Decoder, Utf8Encoder};
     use fixnum::{U16beDecoder, U8Decoder, U8Encoder};
     use io::{IoDecodeExt, IoEncodeExt};
+    use {Decode, DecodeExt, Encode, EncodeExt, Eos, ErrorKind};
 
     #[test]
     fn collect_works() {
