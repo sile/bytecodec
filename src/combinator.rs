@@ -502,6 +502,7 @@ impl<E: ExactBytesEncode> ExactBytesEncode for Optional<E> {
 pub struct Collect<D, T> {
     inner: D,
     items: Option<T>,
+    is_decoding: bool,
 }
 impl<D, T> Collect<D, T> {
     /// Returns a reference to the inner decoder.
@@ -520,7 +521,11 @@ impl<D, T> Collect<D, T> {
     }
 
     pub(crate) fn new(inner: D) -> Self {
-        Collect { inner, items: None }
+        Collect {
+            inner,
+            items: None,
+            is_decoding: false,
+        }
     }
 }
 impl<D, T: Default> Decode for Collect<D, T>
@@ -535,15 +540,27 @@ where
             self.items = Some(T::default());
         }
 
-        if buf.is_empty() && eos.is_reached() {
-            return Ok((0, self.items.take()));
-        }
+        let mut offset = 0;
+        while offset < buf.len() {
+            let (size, item) = track!(self.inner.decode(&buf[offset..], eos))?;
+            offset += size;
+            if size != 0 {
+                self.is_decoding = true;
+            }
 
-        let (size, item) = track!(self.inner.decode(buf, eos))?;
-        if item.is_some() {
-            self.items.as_mut().map(|x| x.extend(item));
+            if item.is_some() {
+                self.items.as_mut().map(|x| x.extend(item));
+                self.is_decoding = false;
+            } else {
+                break;
+            }
         }
-        Ok((size, None))
+        if offset == buf.len() && eos.is_reached() {
+            track_assert!(!self.is_decoding, ErrorKind::UnexpectedEos);
+            Ok((offset, self.items.take()))
+        } else {
+            Ok((offset, None))
+        }
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -749,15 +766,23 @@ where
             self.items = Some(T::default());
         }
 
-        let (size, item) = track!(self.inner.decode(buf, eos))?;
-        if item.is_some() {
-            self.items.as_mut().map(|x| x.extend(item));
-            self.remaining_items -= 1;
-            if self.remaining_items == 0 {
-                return Ok((size, self.items.take()));
+        let mut offset = 0;
+        while offset < buf.len() {
+            let (size, item) = track!(self.inner.decode(&buf[offset..], eos))?;
+            offset += size;
+
+            if item.is_some() {
+                self.items.as_mut().map(|x| x.extend(item));
+                self.remaining_items -= 1;
+                if self.remaining_items == 0 {
+                    return Ok((offset, self.items.take()));
+                }
+            } else {
+                break;
             }
         }
-        Ok((size, None))
+        track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos);
+        Ok((offset, None))
     }
 
     fn requiring_bytes(&self) -> ByteCount {
