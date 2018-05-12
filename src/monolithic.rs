@@ -1,8 +1,8 @@
 //! Monolithic encoder and decoder.
 use std::io::{self, Read, Write};
 
-use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 use bytes::BytesEncoder;
+use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 
 /// This trait allows for decoding items monolithically from a source byte stream.
 ///

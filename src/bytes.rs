@@ -414,9 +414,9 @@ where
 
 #[cfg(test)]
 mod test {
-    use {Encode, EncodeExt, ErrorKind};
-    use io::{IoDecodeExt, IoEncodeExt};
     use super::*;
+    use io::{IoDecodeExt, IoEncodeExt};
+    use {Encode, EncodeExt, ErrorKind};
 
     #[test]
     fn bytes_decoder_works() {

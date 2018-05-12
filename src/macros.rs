@@ -19,7 +19,7 @@ macro_rules! bytecodec_try_encode {
                 return Ok($offset);
             }
         }
-    }
+    };
 }
 
 /// Tries to decode an item from the given buffer.
@@ -53,5 +53,5 @@ macro_rules! bytecodec_try_decode {
         } else {
             None
         }
-    }
+    };
 }

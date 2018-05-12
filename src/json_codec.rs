@@ -1,14 +1,14 @@
 //! `#[cfg(feature = "json_codec")]` JSON encoder and decoder that use [serde_json] internally.
 //!
 //! [serde_json]: https://crates.io/crates/serde_json
-use std::io::{Read, Write};
-use std::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::io::{Read, Write};
+use std::marker::PhantomData;
 use trackable::error::ErrorKindExt;
 
-use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 use monolithic::{MonolithicDecode, MonolithicDecoder, MonolithicEncode, MonolithicEncoder};
+use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 
 /// JSON decoder.
 ///
@@ -157,9 +157,9 @@ where
 mod test {
     use serde_json::Value;
 
-    use {Decode, Encode, EncodeExt, Eos};
-    use json_codec::JsonDecoder;
     use super::*;
+    use json_codec::JsonDecoder;
+    use {Decode, Encode, EncodeExt, Eos};
 
     #[test]
     fn json_decoder_works() {

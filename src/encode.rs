@@ -1,8 +1,8 @@
 use std;
 
-use {ByteCount, Eos, Error, Result};
 use combinator::{EncoderChain, Last, LastItem, Length, MapErr, MapFrom, MaxBytes, Optional,
                  Padding, PreEncode, Repeat, Slice, TryMapFrom, WithPrefix};
+use {ByteCount, Eos, Error, Result};
 
 /// This trait allows for encoding items into a byte sequence incrementally.
 pub trait Encode {

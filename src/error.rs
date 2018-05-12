@@ -1,6 +1,6 @@
 use std;
-use trackable::error::{Failure, TrackableError};
 use trackable::error::{ErrorKind as TrackableErrorKind, ErrorKindExt};
+use trackable::error::{Failure, TrackableError};
 
 /// This crate specific `Error` type.
 #[derive(Debug, Clone)]

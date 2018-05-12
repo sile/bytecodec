@@ -425,9 +425,9 @@ impl<T: Read + Write> BufferedIo<T> {
 mod test {
     use std::io::{Read, Write};
 
+    use super::*;
     use EncodeExt;
     use bytes::{Utf8Decoder, Utf8Encoder};
-    use super::*;
 
     #[test]
     fn decode_from_read_buf_works() {

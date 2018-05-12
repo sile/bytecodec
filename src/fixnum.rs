@@ -1,8 +1,8 @@
 //! Encoders and decoders for numbers which have fixed length binary representation.
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-use {ByteCount, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 use bytes::{BytesEncoder, CopyableBytesDecoder};
+use {ByteCount, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 
 macro_rules! impl_decode {
     ($ty:ty, $item:ty) => {
@@ -18,7 +18,7 @@ macro_rules! impl_decode {
                 self.0.requiring_bytes()
             }
         }
-    }
+    };
 }
 
 macro_rules! impl_encode {
@@ -49,7 +49,7 @@ macro_rules! impl_encode {
                 self.0.exact_requiring_bytes()
             }
         }
-    }
+    };
 }
 
 /// Decoder which decodes `u8` values.
@@ -1556,9 +1556,9 @@ impl_encode!(F64leEncoder, f64);
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use Encode;
     use io::{IoDecodeExt, IoEncodeExt};
-    use super::*;
 
     macro_rules! assert_encode_decode {
         ($encoder:ident, $decoder:ident, $item:expr, $bytes:expr) => {
@@ -1571,7 +1571,7 @@ mod test {
             let mut decoder = $decoder::new();
             let item = track_try_unwrap!(decoder.decode_exact(&$bytes[..]));
             assert_eq!(item, $item);
-        }
+        };
     }
 
     #[test]

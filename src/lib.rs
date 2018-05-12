@@ -57,9 +57,9 @@ pub mod bincode_codec;
 pub mod bytes;
 pub mod combinator;
 pub mod fixnum;
+pub mod io;
 #[cfg(feature = "json_codec")]
 pub mod json_codec;
-pub mod io;
 pub mod marker;
 pub mod monolithic;
 pub mod tuple;

@@ -616,9 +616,9 @@ impl<D: Decode> Decode for Buffered<D> {
 
 #[cfg(test)]
 mod test {
-    use {Decode, DecodeExt, Encode, EncodeExt, Eos, StartDecoderChain, StartEncoderChain};
     use fixnum::{U8Decoder, U8Encoder};
     use io::IoDecodeExt;
+    use {Decode, DecodeExt, Encode, EncodeExt, Eos, StartDecoderChain, StartEncoderChain};
 
     #[test]
     fn decoder_chain_works() {

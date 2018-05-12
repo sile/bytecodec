@@ -1,8 +1,8 @@
 use std;
 
-use {ByteCount, Eos, Error, Result};
 use combinator::{AndThen, Assert, Buffered, Collect, CollectN, DecoderChain, Length, Map, MapErr,
                  MaxBytes, MaybeEos, Omittable, SkipRemaining, Slice, TryMap};
+use {ByteCount, Eos, Error, Result};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {

@@ -1,7 +1,7 @@
 //! Encoders and decoders for tuples.
 #![cfg_attr(feature = "cargo-clippy", allow(type_complexity, too_many_arguments))]
-use {ByteCount, Decode, DecodeExt, Encode, Eos, ExactBytesEncode, Result};
 use combinator::Buffered;
+use {ByteCount, Decode, DecodeExt, Encode, Eos, ExactBytesEncode, Result};
 
 /// Decoder for 2-elements tuples.
 #[derive(Debug, Default)]
@@ -1441,10 +1441,10 @@ where
 
 #[cfg(test)]
 mod test {
-    use {Encode, EncodeExt};
+    use super::*;
     use fixnum::{U8Decoder, U8Encoder};
     use io::{IoDecodeExt, IoEncodeExt};
-    use super::*;
+    use {Encode, EncodeExt};
 
     #[test]
     fn tuple2_decoder_works() {
@@ -1563,9 +1563,9 @@ mod test {
 
     #[test]
     fn tuple4_encoder_works() {
-        let mut encoder = Tuple4Encoder::<U8Encoder, U8Encoder, U8Encoder, U8Encoder>::with_item(
-            (0, 1, 2, 3),
-        ).unwrap();
+        let mut encoder =
+            Tuple4Encoder::<U8Encoder, U8Encoder, U8Encoder, U8Encoder>::with_item((0, 1, 2, 3))
+                .unwrap();
         let mut buf = Vec::new();
         encoder.encode_all(&mut buf).unwrap();
         assert_eq!(buf, [0, 1, 2, 3]);

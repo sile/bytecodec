@@ -55,8 +55,8 @@ impl Decode for NullDecoder {
 
 #[cfg(test)]
 mod test {
-    use {Decode, Eos, ErrorKind};
     use super::*;
+    use {Decode, Eos, ErrorKind};
 
     #[test]
     fn decoded_value_works() {

@@ -1,14 +1,14 @@
 //! `#[cfg(feature = "bincode_codec")]` JSON encoder and decoder that use [bincode] internally.
 //!
 //! [bincode]: https://crates.io/crates/bincode
-use std::io::{Read, Write};
-use std::marker::PhantomData;
 use bincode;
 use serde::{Deserialize, Serialize};
+use std::io::{Read, Write};
+use std::marker::PhantomData;
 use trackable::error::ErrorKindExt;
 
-use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 use monolithic::{MonolithicDecode, MonolithicDecoder, MonolithicEncode, MonolithicEncoder};
+use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 
 /// Bincode decoder.
 ///
@@ -137,9 +137,9 @@ where
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use EncodeExt;
     use io::{IoDecodeExt, IoEncodeExt};
-    use super::*;
 
     #[test]
     fn bincode_works() {
