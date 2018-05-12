@@ -4,6 +4,7 @@
 use std;
 use std::cmp;
 use std::marker::PhantomData;
+use std::mem;
 
 pub use chain::{Buffered, DecoderChain, EncoderChain};
 
@@ -501,10 +502,10 @@ impl<E: ExactBytesEncode> ExactBytesEncode for Optional<E> {
 #[derive(Debug, Default)]
 pub struct Collect<D, T> {
     inner: D,
-    items: Option<T>,
+    items: T,
     is_decoding: bool,
 }
-impl<D, T> Collect<D, T> {
+impl<D, T: Default> Collect<D, T> {
     /// Returns a reference to the inner decoder.
     pub fn inner_ref(&self) -> &D {
         &self.inner
@@ -523,7 +524,7 @@ impl<D, T> Collect<D, T> {
     pub(crate) fn new(inner: D) -> Self {
         Collect {
             inner,
-            items: None,
+            items: T::default(),
             is_decoding: false,
         }
     }
@@ -536,10 +537,6 @@ where
     type Item = T;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        if self.items.is_none() {
-            self.items = Some(T::default());
-        }
-
         let mut offset = 0;
         while offset < buf.len() {
             let (size, item) = track!(self.inner.decode(&buf[offset..], eos))?;
@@ -549,7 +546,7 @@ where
             }
 
             if item.is_some() {
-                self.items.as_mut().map(|x| x.extend(item));
+                self.items.extend(item);
                 self.is_decoding = false;
             } else {
                 break;
@@ -557,7 +554,8 @@ where
         }
         if offset == buf.len() && eos.is_reached() {
             track_assert!(!self.is_decoding, ErrorKind::UnexpectedEos);
-            Ok((offset, self.items.take()))
+            let items = mem::replace(&mut self.items, T::default());
+            Ok((offset, Some(items)))
         } else {
             Ok((offset, None))
         }
@@ -715,9 +713,9 @@ impl<E: Encode> ExactBytesEncode for Length<E> {
 pub struct CollectN<D, T> {
     inner: D,
     remaining_items: usize,
-    items: Option<T>,
+    items: T,
 }
-impl<D, T> CollectN<D, T> {
+impl<D, T: Default> CollectN<D, T> {
     /// Returns the number of remaining items expected to be decoded.
     pub fn remaining_items(&self) -> usize {
         self.remaining_items
@@ -747,7 +745,7 @@ impl<D, T> CollectN<D, T> {
         CollectN {
             inner,
             remaining_items: count,
-            items: None,
+            items: T::default(),
         }
     }
 }
@@ -759,11 +757,8 @@ where
     type Item = T;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        if self.items.is_none() {
-            if self.remaining_items == 0 {
-                return Ok((0, Some(T::default())));
-            }
-            self.items = Some(T::default());
+        if self.remaining_items == 0 {
+            return Ok((0, Some(T::default())));
         }
 
         let mut offset = 0;
@@ -772,10 +767,11 @@ where
             offset += size;
 
             if item.is_some() {
-                self.items.as_mut().map(|x| x.extend(item));
+                self.items.extend(item);
                 self.remaining_items -= 1;
                 if self.remaining_items == 0 {
-                    return Ok((offset, self.items.take()));
+                    let items = mem::replace(&mut self.items, T::default());
+                    return Ok((offset, Some(items)));
                 }
             } else {
                 break;
