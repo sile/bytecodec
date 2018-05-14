@@ -2,7 +2,7 @@ use std;
 
 use combinator::{AndThen, Assert, Buffered, Collect, CollectN, DecoderChain, Length, Map, MapErr,
                  MaxBytes, MaybeEos, Omittable, SkipRemaining, Slice, TryMap};
-use {ByteCount, Eos, Error, Result};
+use {ByteCount, Eos, Error, ErrorKind, Result};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {
@@ -466,5 +466,41 @@ pub trait DecodeExt: Decode + Sized {
     fn maybe_eos(self) -> MaybeEos<Self> {
         MaybeEos::new(self)
     }
+
+    /// Decodes an item by consuming the whole part of the given bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::DecodeExt;
+    /// use bytecodec::fixnum::U16beDecoder;
+    ///
+    /// let mut decoder = U16beDecoder::new();
+    /// assert_eq!(
+    ///     decoder.decode_from_bytes(&[0x12, 0x34][..]).unwrap(),
+    ///     0x1234
+    /// );
+    /// ```
+    fn decode_from_bytes(&mut self, buf: &[u8]) -> Result<Self::Item> {
+        let (size, item) = track!(self.decode(buf, Eos::new(true)))?;
+        track_assert_eq!(size, buf.len(), ErrorKind::InvalidInput);
+        let item = track_assert_some!(item, ErrorKind::InvalidInput);
+        Ok(item)
+    }
 }
 impl<T: Decode> DecodeExt for T {}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use fixnum::U16beDecoder;
+
+    #[test]
+    fn decode_from_bytes_works() {
+        let mut decoder = U16beDecoder::new();
+        assert_eq!(
+            decoder.decode_from_bytes(&[0x12, 0x34][..]).unwrap(),
+            0x1234
+        );
+    }
+}

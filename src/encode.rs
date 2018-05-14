@@ -2,7 +2,7 @@ use std;
 
 use combinator::{EncoderChain, Last, LastItem, Length, MapErr, MapFrom, MaxBytes, Optional,
                  Padding, PreEncode, Repeat, Slice, TryMapFrom, WithPrefix};
-use {ByteCount, Eos, Error, Result};
+use {ByteCount, Eos, Error, ErrorKind, Result};
 
 /// This trait allows for encoding items into a byte sequence incrementally.
 pub trait Encode {
@@ -479,5 +479,43 @@ pub trait EncodeExt: Encode + Sized {
     fn last_item(self, item: Self::Item) -> LastItem<Self> {
         LastItem::new(self, item)
     }
+
+    /// Encodes the given item and returns the resulting bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::EncodeExt;
+    /// use bytecodec::fixnum::U16beEncoder;
+    ///
+    /// let mut encoder = U16beEncoder::new();
+    /// assert_eq!(encoder.encode_into_bytes(0x1234).unwrap(), [0x12, 0x34]);
+    /// ```
+    fn encode_into_bytes(&mut self, item: Self::Item) -> Result<Vec<u8>>
+    where
+        Self: ExactBytesEncode,
+    {
+        track!(self.start_encoding(item))?;
+
+        let size = self.exact_requiring_bytes();
+        track_assert!(size <= std::usize::MAX as u64, ErrorKind::Other; size);
+
+        let mut buf = vec![0; size as usize];
+        track!(self.encode(&mut buf, Eos::new(true)))?;
+        track_assert!(self.is_idle(), ErrorKind::Other);
+        Ok(buf)
+    }
 }
 impl<T: Encode> EncodeExt for T {}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use fixnum::U16beEncoder;
+
+    #[test]
+    fn encode_into_bytes_works() {
+        let mut encoder = U16beEncoder::new();
+        assert_eq!(encoder.encode_into_bytes(0x1234).unwrap(), [0x12, 0x34]);
+    }
+}
