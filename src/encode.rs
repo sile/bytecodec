@@ -2,6 +2,7 @@ use std;
 
 use combinator::{EncoderChain, Last, LastItem, Length, MapErr, MapFrom, MaxBytes, Optional,
                  Padding, PreEncode, Repeat, Slice, TryMapFrom, WithPrefix};
+use io::IoEncodeExt;
 use {ByteCount, Eos, Error, ErrorKind, Result};
 
 /// This trait allows for encoding items into a byte sequence incrementally.
@@ -491,19 +492,25 @@ pub trait EncodeExt: Encode + Sized {
     /// let mut encoder = U16beEncoder::new();
     /// assert_eq!(encoder.encode_into_bytes(0x1234).unwrap(), [0x12, 0x34]);
     /// ```
-    fn encode_into_bytes(&mut self, item: Self::Item) -> Result<Vec<u8>>
-    where
-        Self: ExactBytesEncode,
-    {
+    fn encode_into_bytes(&mut self, item: Self::Item) -> Result<Vec<u8>> {
         track!(self.start_encoding(item))?;
 
-        let size = self.exact_requiring_bytes();
-        track_assert!(size <= std::usize::MAX as u64, ErrorKind::Other; size);
+        match self.requiring_bytes() {
+            ByteCount::Finite(size) => {
+                track_assert!(size <= std::usize::MAX as u64, ErrorKind::Other; size);
 
-        let mut buf = vec![0; size as usize];
-        track!(self.encode(&mut buf, Eos::new(true)))?;
-        track_assert!(self.is_idle(), ErrorKind::Other);
-        Ok(buf)
+                let mut buf = vec![0; size as usize];
+                track!(self.encode(&mut buf, Eos::new(true)))?;
+                track_assert!(self.is_idle(), ErrorKind::Other);
+                Ok(buf)
+            }
+            ByteCount::Unknown => {
+                let mut buf = Vec::new();
+                track!(self.encode_all(&mut buf))?;
+                Ok(buf)
+            }
+            ByteCount::Infinite => track_panic!(ErrorKind::InvalidInput),
+        }
     }
 }
 impl<T: Encode> EncodeExt for T {}
