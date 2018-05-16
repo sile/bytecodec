@@ -74,7 +74,9 @@ pub trait IoEncodeExt: Encode {
         while !self.is_idle() {
             let size = track!(self.encode(&mut buf[..], Eos::new(false)))?;
             track!(writer.write_all(&buf[..size]).map_err(Error::from))?;
-            track_assert_ne!(size, 0, ErrorKind::Other);
+            if !self.is_idle() {
+                track_assert_ne!(size, 0, ErrorKind::Other);
+            }
         }
         Ok(())
     }
