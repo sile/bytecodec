@@ -165,7 +165,7 @@ pub trait EncodeExt: Encode + Sized {
     ///   [3] at src/encode.rs:12\n");
     /// # }
     /// ```
-    fn map_err<F, E>(self, f: F) -> MapErr<Self, F, E>
+    fn map_err<E, F>(self, f: F) -> MapErr<Self, E, F>
     where
         F: Fn(Error) -> E,
         Error: From<E>,

@@ -22,6 +22,21 @@ pub struct Map<D, T, F> {
     _item: PhantomData<T>,
 }
 impl<D: Decode, T, F> Map<D, T, F> {
+    /// Returns a reference to the inner decoder.
+    pub fn inner_ref(&self) -> &D {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner decoder.
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner decoder.
+    pub fn into_inner(self) -> D {
+        self.inner
+    }
+
     pub(crate) fn new(inner: D, map: F) -> Self
     where
         F: Fn(D::Item) -> T,
@@ -53,12 +68,27 @@ where
 ///
 /// This is created by calling `{DecodeExt, EncodeExt}::map_err` method.
 #[derive(Debug)]
-pub struct MapErr<C, F, E> {
+pub struct MapErr<C, E, F> {
     inner: C,
     map_err: F,
     _error: PhantomData<E>,
 }
-impl<C, F, E> MapErr<C, F, E> {
+impl<C, E, F> MapErr<C, E, F> {
+    /// Returns a reference to the inner encoder or decoder.
+    pub fn inner_ref(&self) -> &C {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder or decoder.
+    pub fn inner_mut(&mut self) -> &mut C {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder or decoder.
+    pub fn into_inner(self) -> C {
+        self.inner
+    }
+
     pub(crate) fn new(inner: C, map_err: F) -> Self
     where
         F: Fn(Error) -> E,
@@ -71,7 +101,7 @@ impl<C, F, E> MapErr<C, F, E> {
         }
     }
 }
-impl<D, F, E> Decode for MapErr<D, F, E>
+impl<D, E, F> Decode for MapErr<D, E, F>
 where
     D: Decode,
     F: Fn(Error) -> E,
@@ -89,7 +119,7 @@ where
         self.inner.requiring_bytes()
     }
 }
-impl<C, F, E> Encode for MapErr<C, F, E>
+impl<C, E, F> Encode for MapErr<C, E, F>
 where
     C: Encode,
     F: Fn(Error) -> E,
@@ -117,7 +147,7 @@ where
         self.inner.is_idle()
     }
 }
-impl<C, F, E> ExactBytesEncode for MapErr<C, F, E>
+impl<C, E, F> ExactBytesEncode for MapErr<C, E, F>
 where
     C: ExactBytesEncode,
     F: Fn(Error) -> E,
@@ -204,6 +234,21 @@ pub struct MapFrom<E, T, F> {
     from: F,
 }
 impl<E, T, F> MapFrom<E, T, F> {
+    /// Returns a reference to the inner encoder.
+    pub fn inner_ref(&self) -> &E {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder.
+    pub fn inner_mut(&mut self) -> &mut E {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder.
+    pub fn into_inner(self) -> E {
+        self.inner
+    }
+
     pub(crate) fn new(inner: E, from: F) -> Self {
         MapFrom {
             inner,
@@ -256,6 +301,21 @@ pub struct TryMapFrom<C, T, E, F> {
     _phantom: PhantomData<(T, E)>,
 }
 impl<C, T, E, F> TryMapFrom<C, T, E, F> {
+    /// Returns a reference to the inner encoder.
+    pub fn inner_ref(&self) -> &C {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder.
+    pub fn inner_mut(&mut self) -> &mut C {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder.
+    pub fn into_inner(self) -> C {
+        self.inner
+    }
+
     pub(crate) fn new(inner: C, try_from: F) -> Self {
         TryMapFrom {
             inner,
@@ -793,12 +853,27 @@ where
 ///
 /// This is created by calling `DecodeExt::try_map` method.
 #[derive(Debug)]
-pub struct TryMap<D, F, T, E> {
+pub struct TryMap<D, T, E, F> {
     inner: D,
     try_map: F,
     _phantom: PhantomData<(T, E)>,
 }
-impl<D, F, T, E> TryMap<D, F, T, E> {
+impl<D, T, E, F> TryMap<D, T, E, F> {
+    /// Returns a reference to the inner decoder.
+    pub fn inner_ref(&self) -> &D {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner decoder.
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner decoder.
+    pub fn into_inner(self) -> D {
+        self.inner
+    }
+
     pub(crate) fn new(inner: D, try_map: F) -> Self {
         TryMap {
             inner,
@@ -807,7 +882,7 @@ impl<D, F, T, E> TryMap<D, F, T, E> {
         }
     }
 }
-impl<D, F, T, E> Decode for TryMap<D, F, T, E>
+impl<D, T, E, F> Decode for TryMap<D, T, E, F>
 where
     D: Decode,
     F: Fn(D::Item) -> std::result::Result<T, E>,
@@ -1186,6 +1261,21 @@ pub struct PreEncode<E> {
     pre_encoded: BytesEncoder<Vec<u8>>,
 }
 impl<E> PreEncode<E> {
+    /// Returns a reference to the inner encoder.
+    pub fn inner_ref(&self) -> &E {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder.
+    pub fn inner_mut(&mut self) -> &mut E {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder.
+    pub fn into_inner(self) -> E {
+        self.inner
+    }
+
     pub(crate) fn new(inner: E) -> Self {
         PreEncode {
             inner,

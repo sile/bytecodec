@@ -124,7 +124,7 @@ pub trait DecodeExt: Decode + Sized {
     /// assert_eq!(item, 8);
     /// # }
     /// ```
-    fn try_map<F, T, E>(self, f: F) -> TryMap<Self, F, T, E>
+    fn try_map<T, E, F>(self, f: F) -> TryMap<Self, T, E, F>
     where
         F: Fn(Self::Item) -> std::result::Result<T, E>,
         Error: From<E>,
@@ -166,7 +166,7 @@ pub trait DecodeExt: Decode + Sized {
     ///   [4] at src/decode.rs:16\n");
     /// # }
     /// ```
-    fn map_err<F, E>(self, f: F) -> MapErr<Self, F, E>
+    fn map_err<E, F>(self, f: F) -> MapErr<Self, E, F>
     where
         F: Fn(Error) -> E,
         Error: From<E>,
