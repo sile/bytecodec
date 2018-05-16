@@ -9,9 +9,8 @@ use std::mem;
 pub use chain::{Buffered, DecoderChain, EncoderChain};
 
 use bytes::BytesEncoder;
-use io::IoEncodeExt;
 use marker::Never;
-use {ByteCount, Decode, Encode, Eos, Error, ErrorKind, ExactBytesEncode, Result};
+use {ByteCount, Decode, Encode, EncodeExt, Eos, Error, ErrorKind, ExactBytesEncode, Result};
 
 /// Combinator for converting decoded items to other values.
 ///
@@ -1202,9 +1201,7 @@ impl<E: Encode> Encode for PreEncode<E> {
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        let mut buf = Vec::new();
-        track!(self.inner.start_encoding(item))?;
-        track!(self.inner.encode_all(&mut buf))?;
+        let buf = track!(self.inner.encode_into_bytes(item))?;
         track!(self.pre_encoded.start_encoding(buf))?;
         Ok(())
     }
