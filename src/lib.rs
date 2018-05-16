@@ -43,9 +43,8 @@ extern crate serde_json;
 extern crate trackable;
 
 pub use byte_count::ByteCount;
-pub use chain::{StartDecoderChain, StartEncoderChain};
 pub use decode::{Decode, DecodeExt};
-pub use encode::{Encode, EncodeExt, ExactBytesEncode};
+pub use encode::{CalculateBytes, Encode, EncodeExt, ExactBytesEncode};
 pub use eos::Eos;
 pub use error::{Error, ErrorKind};
 
@@ -66,7 +65,6 @@ pub mod tuple;
 pub mod value;
 
 mod byte_count;
-mod chain;
 mod decode;
 mod encode;
 mod eos;

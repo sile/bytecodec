@@ -1,7 +1,7 @@
 //! Encoders and decoders for tuples.
 #![cfg_attr(feature = "cargo-clippy", allow(type_complexity, too_many_arguments))]
 use combinator::Buffered;
-use {ByteCount, Decode, DecodeExt, Encode, Eos, ExactBytesEncode, Result};
+use {ByteCount, CalculateBytes, Decode, DecodeExt, Encode, Eos, ExactBytesEncode, Result};
 
 /// Decoder for 2-elements tuples.
 #[derive(Debug, Default)]
@@ -703,741 +703,85 @@ where
     }
 }
 
-/// Encoder for 2-elements tuples.
+/// Encoder for tuples.
 #[derive(Debug, Default)]
-pub struct Tuple2Encoder<E0, E1> {
-    e0: E0,
-    e1: E1,
+pub struct TupleEncoder<E> {
+    inner: E,
 }
-impl<E0, E1> Tuple2Encoder<E0, E1>
-where
-    E0: Encode,
-    E1: Encode,
-{
-    /// Makes a new `Tuple2Encoder` instance.
-    pub fn new(e0: E0, e1: E1) -> Self {
-        Tuple2Encoder { e0, e1 }
+impl<E> TupleEncoder<E> {
+    /// Makes a new `TupleEncoder`.
+    pub fn new(inner: E) -> Self {
+        TupleEncoder { inner }
     }
 
-    /// Returns references to the inner decoders.
-    pub fn inner_ref(&self) -> (&E0, &E1) {
-        (&self.e0, &self.e1)
+    /// Returns a reference to the inner encoders.
+    pub fn inner_ref(&self) -> &E {
+        &self.inner
     }
 
-    /// Returns mutable references to the inner decoders.
-    pub fn inner_mut(&mut self) -> (&mut E0, &mut E1) {
-        (&mut self.e0, &mut self.e1)
-    }
-}
-impl<E0, E1> Encode for Tuple2Encoder<E0, E1>
-where
-    E0: Encode,
-    E1: Encode,
-{
-    type Item = (E0::Item, E1::Item);
-
-    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let mut offset = 0;
-        bytecodec_try_encode!(self.e0, offset, buf, eos);
-        bytecodec_try_encode!(self.e1, offset, buf, eos);
-        Ok(offset)
+    /// Returns a mutable reference to the inner encoders.
+    pub fn inner_mut(&mut self) -> &mut E {
+        &mut self.inner
     }
 
-    fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
-        track!(self.e0.start_encoding(t.0))?;
-        track!(self.e1.start_encoding(t.1))?;
-        Ok(())
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        self.e0
-            .requiring_bytes()
-            .add_for_encoding(self.e1.requiring_bytes())
-    }
-
-    fn is_idle(&self) -> bool {
-        self.e0.is_idle() && self.e1.is_idle()
-    }
-}
-impl<E0, E1> ExactBytesEncode for Tuple2Encoder<E0, E1>
-where
-    E0: ExactBytesEncode,
-    E1: ExactBytesEncode,
-{
-    fn exact_requiring_bytes(&self) -> u64 {
-        self.e0.exact_requiring_bytes() + self.e1.exact_requiring_bytes()
+    /// Takes ownership of this instance and returns the inner encoders.
+    pub fn into_inner(self) -> E {
+        self.inner
     }
 }
 
-/// Encoder for 3-elements tuples.
-#[derive(Debug, Default)]
-pub struct Tuple3Encoder<E0, E1, E2> {
-    e0: E0,
-    e1: E1,
-    e2: E2,
-}
-impl<E0, E1, E2> Tuple3Encoder<E0, E1, E2>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-{
-    /// Makes a new `Tuple3Encoder` instance.
-    pub fn new(e0: E0, e1: E1, e2: E2) -> Self {
-        Tuple3Encoder { e0, e1, e2 }
-    }
+macro_rules! impl_encode {
+    ([$($t:ident),*],[$($i:tt),*]) => {
+        impl<$($t),*> Encode for TupleEncoder<($($t),*,)>
+        where
+            $($t: Encode),*
+        {
+            type Item = ($($t::Item),*,);
 
-    /// Returns references to the inner decoders.
-    pub fn inner_ref(&self) -> (&E0, &E1, &E2) {
-        (&self.e0, &self.e1, &self.e2)
-    }
+            fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
+                let mut offset = 0;
+                $(bytecodec_try_encode!(self.inner.$i, offset, buf, eos, "i={}", $i);)*
+                Ok(offset)
+            }
 
-    /// Returns mutable references to the inner decoders.
-    pub fn inner_mut(&mut self) -> (&mut E0, &mut E1, &mut E2) {
-        (&mut self.e0, &mut self.e1, &mut self.e2)
-    }
-}
-impl<E0, E1, E2> Encode for Tuple3Encoder<E0, E1, E2>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-{
-    type Item = (E0::Item, E1::Item, E2::Item);
+            fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
+                $(track!(self.inner.$i.start_encoding(t.$i), "i={}", $i)?;)*
+                Ok(())
+            }
 
-    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let mut offset = 0;
-        bytecodec_try_encode!(self.e0, offset, buf, eos);
-        bytecodec_try_encode!(self.e1, offset, buf, eos);
-        bytecodec_try_encode!(self.e2, offset, buf, eos);
-        Ok(offset)
-    }
+            fn requiring_bytes(&self) -> ByteCount {
+                ByteCount::Finite(0)$(.add_for_encoding(self.inner.$i.requiring_bytes()))*
+            }
 
-    fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
-        track!(self.e0.start_encoding(t.0))?;
-        track!(self.e1.start_encoding(t.1))?;
-        track!(self.e2.start_encoding(t.2))?;
-        Ok(())
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        self.e0
-            .requiring_bytes()
-            .add_for_encoding(self.e1.requiring_bytes())
-            .add_for_encoding(self.e2.requiring_bytes())
-    }
-
-    fn is_idle(&self) -> bool {
-        self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle()
-    }
-}
-impl<E0, E1, E2> ExactBytesEncode for Tuple3Encoder<E0, E1, E2>
-where
-    E0: ExactBytesEncode,
-    E1: ExactBytesEncode,
-    E2: ExactBytesEncode,
-{
-    fn exact_requiring_bytes(&self) -> u64 {
-        self.e0.exact_requiring_bytes() + self.e1.exact_requiring_bytes()
-            + self.e2.exact_requiring_bytes()
-    }
-}
-
-/// Encoder for 4-elements tuples.
-#[derive(Debug, Default)]
-pub struct Tuple4Encoder<E0, E1, E2, E3> {
-    e0: E0,
-    e1: E1,
-    e2: E2,
-    e3: E3,
-}
-impl<E0, E1, E2, E3> Tuple4Encoder<E0, E1, E2, E3>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-    E3: Encode,
-{
-    /// Makes a new `Tuple4Encoder` instance.
-    pub fn new(e0: E0, e1: E1, e2: E2, e3: E3) -> Self {
-        Tuple4Encoder { e0, e1, e2, e3 }
-    }
-
-    /// Returns references to the inner decoders.
-    pub fn inner_ref(&self) -> (&E0, &E1, &E2, &E3) {
-        (&self.e0, &self.e1, &self.e2, &self.e3)
-    }
-
-    /// Returns mutable references to the inner decoders.
-    pub fn inner_mut(&mut self) -> (&mut E0, &mut E1, &mut E2, &mut E3) {
-        (&mut self.e0, &mut self.e1, &mut self.e2, &mut self.e3)
-    }
-}
-impl<E0, E1, E2, E3> Encode for Tuple4Encoder<E0, E1, E2, E3>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-    E3: Encode,
-{
-    type Item = (E0::Item, E1::Item, E2::Item, E3::Item);
-
-    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let mut offset = 0;
-        bytecodec_try_encode!(self.e0, offset, buf, eos);
-        bytecodec_try_encode!(self.e1, offset, buf, eos);
-        bytecodec_try_encode!(self.e2, offset, buf, eos);
-        bytecodec_try_encode!(self.e3, offset, buf, eos);
-        Ok(offset)
-    }
-
-    fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
-        track!(self.e0.start_encoding(t.0))?;
-        track!(self.e1.start_encoding(t.1))?;
-        track!(self.e2.start_encoding(t.2))?;
-        track!(self.e3.start_encoding(t.3))?;
-        Ok(())
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        self.e0
-            .requiring_bytes()
-            .add_for_encoding(self.e1.requiring_bytes())
-            .add_for_encoding(self.e2.requiring_bytes())
-            .add_for_encoding(self.e3.requiring_bytes())
-    }
-
-    fn is_idle(&self) -> bool {
-        self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle() && self.e3.is_idle()
-    }
-}
-impl<E0, E1, E2, E3> ExactBytesEncode for Tuple4Encoder<E0, E1, E2, E3>
-where
-    E0: ExactBytesEncode,
-    E1: ExactBytesEncode,
-    E2: ExactBytesEncode,
-    E3: ExactBytesEncode,
-{
-    fn exact_requiring_bytes(&self) -> u64 {
-        self.e0.exact_requiring_bytes() + self.e1.exact_requiring_bytes()
-            + self.e2.exact_requiring_bytes() + self.e3.exact_requiring_bytes()
-    }
-}
-
-/// Encoder for 5-elements tuples.
-#[derive(Debug, Default)]
-pub struct Tuple5Encoder<E0, E1, E2, E3, E4> {
-    e0: E0,
-    e1: E1,
-    e2: E2,
-    e3: E3,
-    e4: E4,
-}
-impl<E0, E1, E2, E3, E4> Tuple5Encoder<E0, E1, E2, E3, E4>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-    E3: Encode,
-    E4: Encode,
-{
-    /// Makes a new `Tuple5Encoder` instance.
-    pub fn new(e0: E0, e1: E1, e2: E2, e3: E3, e4: E4) -> Self {
-        Tuple5Encoder { e0, e1, e2, e3, e4 }
-    }
-
-    /// Returns references to the inner decoders.
-    pub fn inner_ref(&self) -> (&E0, &E1, &E2, &E3, &E4) {
-        (&self.e0, &self.e1, &self.e2, &self.e3, &self.e4)
-    }
-
-    /// Returns mutable references to the inner decoders.
-    pub fn inner_mut(&mut self) -> (&mut E0, &mut E1, &mut E2, &mut E3, &mut E4) {
-        (
-            &mut self.e0,
-            &mut self.e1,
-            &mut self.e2,
-            &mut self.e3,
-            &mut self.e4,
-        )
-    }
-}
-impl<E0, E1, E2, E3, E4> Encode for Tuple5Encoder<E0, E1, E2, E3, E4>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-    E3: Encode,
-    E4: Encode,
-{
-    type Item = (E0::Item, E1::Item, E2::Item, E3::Item, E4::Item);
-
-    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let mut offset = 0;
-        bytecodec_try_encode!(self.e0, offset, buf, eos);
-        bytecodec_try_encode!(self.e1, offset, buf, eos);
-        bytecodec_try_encode!(self.e2, offset, buf, eos);
-        bytecodec_try_encode!(self.e3, offset, buf, eos);
-        bytecodec_try_encode!(self.e4, offset, buf, eos);
-        Ok(offset)
-    }
-
-    fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
-        track!(self.e0.start_encoding(t.0))?;
-        track!(self.e1.start_encoding(t.1))?;
-        track!(self.e2.start_encoding(t.2))?;
-        track!(self.e3.start_encoding(t.3))?;
-        track!(self.e4.start_encoding(t.4))?;
-        Ok(())
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        self.e0
-            .requiring_bytes()
-            .add_for_encoding(self.e1.requiring_bytes())
-            .add_for_encoding(self.e2.requiring_bytes())
-            .add_for_encoding(self.e3.requiring_bytes())
-            .add_for_encoding(self.e4.requiring_bytes())
-    }
-
-    fn is_idle(&self) -> bool {
-        self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle() && self.e3.is_idle()
-            && self.e4.is_idle()
-    }
-}
-impl<E0, E1, E2, E3, E4> ExactBytesEncode for Tuple5Encoder<E0, E1, E2, E3, E4>
-where
-    E0: ExactBytesEncode,
-    E1: ExactBytesEncode,
-    E2: ExactBytesEncode,
-    E3: ExactBytesEncode,
-    E4: ExactBytesEncode,
-{
-    fn exact_requiring_bytes(&self) -> u64 {
-        self.e0.exact_requiring_bytes() + self.e1.exact_requiring_bytes()
-            + self.e2.exact_requiring_bytes() + self.e3.exact_requiring_bytes()
-            + self.e4.exact_requiring_bytes()
-    }
-}
-
-/// Encoder for 6-elements tuples.
-#[derive(Debug, Default)]
-pub struct Tuple6Encoder<E0, E1, E2, E3, E4, E5> {
-    e0: E0,
-    e1: E1,
-    e2: E2,
-    e3: E3,
-    e4: E4,
-    e5: E5,
-}
-impl<E0, E1, E2, E3, E4, E5> Tuple6Encoder<E0, E1, E2, E3, E4, E5>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-    E3: Encode,
-    E4: Encode,
-    E5: Encode,
-{
-    /// Makes a new `Tuple6Encoder` instance.
-    pub fn new(e0: E0, e1: E1, e2: E2, e3: E3, e4: E4, e5: E5) -> Self {
-        Tuple6Encoder {
-            e0,
-            e1,
-            e2,
-            e3,
-            e4,
-            e5,
+            fn is_idle(&self) -> bool {
+                $(self.inner.$i.is_idle())&&*
+            }
         }
-    }
-
-    /// Returns references to the inner decoders.
-    pub fn inner_ref(&self) -> (&E0, &E1, &E2, &E3, &E4, &E5) {
-        (&self.e0, &self.e1, &self.e2, &self.e3, &self.e4, &self.e5)
-    }
-
-    /// Returns mutable references to the inner decoders.
-    pub fn inner_mut(&mut self) -> (&mut E0, &mut E1, &mut E2, &mut E3, &mut E4, &mut E5) {
-        (
-            &mut self.e0,
-            &mut self.e1,
-            &mut self.e2,
-            &mut self.e3,
-            &mut self.e4,
-            &mut self.e5,
-        )
-    }
-}
-impl<E0, E1, E2, E3, E4, E5> Encode for Tuple6Encoder<E0, E1, E2, E3, E4, E5>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-    E3: Encode,
-    E4: Encode,
-    E5: Encode,
-{
-    type Item = (E0::Item, E1::Item, E2::Item, E3::Item, E4::Item, E5::Item);
-
-    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let mut offset = 0;
-        bytecodec_try_encode!(self.e0, offset, buf, eos);
-        bytecodec_try_encode!(self.e1, offset, buf, eos);
-        bytecodec_try_encode!(self.e2, offset, buf, eos);
-        bytecodec_try_encode!(self.e3, offset, buf, eos);
-        bytecodec_try_encode!(self.e4, offset, buf, eos);
-        bytecodec_try_encode!(self.e5, offset, buf, eos);
-        Ok(offset)
-    }
-
-    fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
-        track!(self.e0.start_encoding(t.0))?;
-        track!(self.e1.start_encoding(t.1))?;
-        track!(self.e2.start_encoding(t.2))?;
-        track!(self.e3.start_encoding(t.3))?;
-        track!(self.e4.start_encoding(t.4))?;
-        track!(self.e5.start_encoding(t.5))?;
-        Ok(())
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        self.e0
-            .requiring_bytes()
-            .add_for_encoding(self.e1.requiring_bytes())
-            .add_for_encoding(self.e2.requiring_bytes())
-            .add_for_encoding(self.e3.requiring_bytes())
-            .add_for_encoding(self.e4.requiring_bytes())
-            .add_for_encoding(self.e5.requiring_bytes())
-    }
-
-    fn is_idle(&self) -> bool {
-        self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle() && self.e3.is_idle()
-            && self.e4.is_idle() && self.e5.is_idle()
-    }
-}
-impl<E0, E1, E2, E3, E4, E5> ExactBytesEncode for Tuple6Encoder<E0, E1, E2, E3, E4, E5>
-where
-    E0: ExactBytesEncode,
-    E1: ExactBytesEncode,
-    E2: ExactBytesEncode,
-    E3: ExactBytesEncode,
-    E4: ExactBytesEncode,
-    E5: ExactBytesEncode,
-{
-    fn exact_requiring_bytes(&self) -> u64 {
-        self.e0.exact_requiring_bytes() + self.e1.exact_requiring_bytes()
-            + self.e2.exact_requiring_bytes() + self.e3.exact_requiring_bytes()
-            + self.e4.exact_requiring_bytes() + self.e5.exact_requiring_bytes()
-    }
-}
-
-/// Encoder for 7-elements tuples.
-#[derive(Debug, Default)]
-pub struct Tuple7Encoder<E0, E1, E2, E3, E4, E5, E6> {
-    e0: E0,
-    e1: E1,
-    e2: E2,
-    e3: E3,
-    e4: E4,
-    e5: E5,
-    e6: E6,
-}
-impl<E0, E1, E2, E3, E4, E5, E6> Tuple7Encoder<E0, E1, E2, E3, E4, E5, E6>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-    E3: Encode,
-    E4: Encode,
-    E5: Encode,
-    E6: Encode,
-{
-    /// Makes a new `Tuple7Encoder` instance.
-    pub fn new(e0: E0, e1: E1, e2: E2, e3: E3, e4: E4, e5: E5, e6: E6) -> Self {
-        Tuple7Encoder {
-            e0,
-            e1,
-            e2,
-            e3,
-            e4,
-            e5,
-            e6,
+        impl<$($t),*> ExactBytesEncode for TupleEncoder<($($t),*,)>
+        where
+            $($t: ExactBytesEncode),*
+        {
+            fn exact_requiring_bytes(&self) -> u64 {
+                0 $(+ self.inner.$i.exact_requiring_bytes())*
+            }
         }
-    }
-
-    /// Returns references to the inner decoders.
-    pub fn inner_ref(&self) -> (&E0, &E1, &E2, &E3, &E4, &E5, &E6) {
-        (
-            &self.e0,
-            &self.e1,
-            &self.e2,
-            &self.e3,
-            &self.e4,
-            &self.e5,
-            &self.e6,
-        )
-    }
-
-    /// Returns mutable references to the inner decoders.
-    pub fn inner_mut(
-        &mut self,
-    ) -> (
-        &mut E0,
-        &mut E1,
-        &mut E2,
-        &mut E3,
-        &mut E4,
-        &mut E5,
-        &mut E6,
-    ) {
-        (
-            &mut self.e0,
-            &mut self.e1,
-            &mut self.e2,
-            &mut self.e3,
-            &mut self.e4,
-            &mut self.e5,
-            &mut self.e6,
-        )
-    }
-}
-impl<E0, E1, E2, E3, E4, E5, E6> Encode for Tuple7Encoder<E0, E1, E2, E3, E4, E5, E6>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-    E3: Encode,
-    E4: Encode,
-    E5: Encode,
-    E6: Encode,
-{
-    type Item = (
-        E0::Item,
-        E1::Item,
-        E2::Item,
-        E3::Item,
-        E4::Item,
-        E5::Item,
-        E6::Item,
-    );
-
-    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let mut offset = 0;
-        bytecodec_try_encode!(self.e0, offset, buf, eos);
-        bytecodec_try_encode!(self.e1, offset, buf, eos);
-        bytecodec_try_encode!(self.e2, offset, buf, eos);
-        bytecodec_try_encode!(self.e3, offset, buf, eos);
-        bytecodec_try_encode!(self.e4, offset, buf, eos);
-        bytecodec_try_encode!(self.e5, offset, buf, eos);
-        bytecodec_try_encode!(self.e6, offset, buf, eos);
-        Ok(offset)
-    }
-
-    fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
-        track!(self.e0.start_encoding(t.0))?;
-        track!(self.e1.start_encoding(t.1))?;
-        track!(self.e2.start_encoding(t.2))?;
-        track!(self.e3.start_encoding(t.3))?;
-        track!(self.e4.start_encoding(t.4))?;
-        track!(self.e5.start_encoding(t.5))?;
-        track!(self.e6.start_encoding(t.6))?;
-        Ok(())
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        self.e0
-            .requiring_bytes()
-            .add_for_encoding(self.e1.requiring_bytes())
-            .add_for_encoding(self.e2.requiring_bytes())
-            .add_for_encoding(self.e3.requiring_bytes())
-            .add_for_encoding(self.e4.requiring_bytes())
-            .add_for_encoding(self.e5.requiring_bytes())
-            .add_for_encoding(self.e6.requiring_bytes())
-    }
-
-    fn is_idle(&self) -> bool {
-        self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle() && self.e3.is_idle()
-            && self.e4.is_idle() && self.e5.is_idle() && self.e6.is_idle()
-    }
-}
-impl<E0, E1, E2, E3, E4, E5, E6> ExactBytesEncode for Tuple7Encoder<E0, E1, E2, E3, E4, E5, E6>
-where
-    E0: ExactBytesEncode,
-    E1: ExactBytesEncode,
-    E2: ExactBytesEncode,
-    E3: ExactBytesEncode,
-    E4: ExactBytesEncode,
-    E5: ExactBytesEncode,
-    E6: ExactBytesEncode,
-{
-    fn exact_requiring_bytes(&self) -> u64 {
-        self.e0.exact_requiring_bytes() + self.e1.exact_requiring_bytes()
-            + self.e2.exact_requiring_bytes() + self.e3.exact_requiring_bytes()
-            + self.e4.exact_requiring_bytes() + self.e5.exact_requiring_bytes()
-            + self.e6.exact_requiring_bytes()
-    }
-}
-
-/// Encoder for 8-elements tuples.
-#[derive(Debug, Default)]
-pub struct Tuple8Encoder<E0, E1, E2, E3, E4, E5, E6, E7> {
-    e0: E0,
-    e1: E1,
-    e2: E2,
-    e3: E3,
-    e4: E4,
-    e5: E5,
-    e6: E6,
-    e7: E7,
-}
-impl<E0, E1, E2, E3, E4, E5, E6, E7> Tuple8Encoder<E0, E1, E2, E3, E4, E5, E6, E7>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-    E3: Encode,
-    E4: Encode,
-    E5: Encode,
-    E6: Encode,
-    E7: Encode,
-{
-    /// Makes a new `Tuple8Encoder` instance.
-    pub fn new(e0: E0, e1: E1, e2: E2, e3: E3, e4: E4, e5: E5, e6: E6, e7: E7) -> Self {
-        Tuple8Encoder {
-            e0,
-            e1,
-            e2,
-            e3,
-            e4,
-            e5,
-            e6,
-            e7,
+        impl<$($t),*> CalculateBytes for TupleEncoder<($($t),*,)>
+        where
+            $($t: CalculateBytes),*
+        {
+            fn calculate_requiring_bytes(&self, t: &Self::Item) -> u64 {
+                0 $(+ self.inner.$i.calculate_requiring_bytes(&t.$i))*
+            }
         }
-    }
-
-    /// Returns references to the inner decoders.
-    pub fn inner_ref(&self) -> (&E0, &E1, &E2, &E3, &E4, &E5, &E6, &E7) {
-        (
-            &self.e0,
-            &self.e1,
-            &self.e2,
-            &self.e3,
-            &self.e4,
-            &self.e5,
-            &self.e6,
-            &self.e7,
-        )
-    }
-
-    /// Returns mutable references to the inner decoders.
-    pub fn inner_mut(
-        &mut self,
-    ) -> (
-        &mut E0,
-        &mut E1,
-        &mut E2,
-        &mut E3,
-        &mut E4,
-        &mut E5,
-        &mut E6,
-        &mut E7,
-    ) {
-        (
-            &mut self.e0,
-            &mut self.e1,
-            &mut self.e2,
-            &mut self.e3,
-            &mut self.e4,
-            &mut self.e5,
-            &mut self.e6,
-            &mut self.e7,
-        )
-    }
+    };
 }
-impl<E0, E1, E2, E3, E4, E5, E6, E7> Encode for Tuple8Encoder<E0, E1, E2, E3, E4, E5, E6, E7>
-where
-    E0: Encode,
-    E1: Encode,
-    E2: Encode,
-    E3: Encode,
-    E4: Encode,
-    E5: Encode,
-    E6: Encode,
-    E7: Encode,
-{
-    type Item = (
-        E0::Item,
-        E1::Item,
-        E2::Item,
-        E3::Item,
-        E4::Item,
-        E5::Item,
-        E6::Item,
-        E7::Item,
-    );
-
-    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let mut offset = 0;
-        bytecodec_try_encode!(self.e0, offset, buf, eos);
-        bytecodec_try_encode!(self.e1, offset, buf, eos);
-        bytecodec_try_encode!(self.e2, offset, buf, eos);
-        bytecodec_try_encode!(self.e3, offset, buf, eos);
-        bytecodec_try_encode!(self.e4, offset, buf, eos);
-        bytecodec_try_encode!(self.e5, offset, buf, eos);
-        bytecodec_try_encode!(self.e6, offset, buf, eos);
-        bytecodec_try_encode!(self.e7, offset, buf, eos);
-        Ok(offset)
-    }
-
-    fn start_encoding(&mut self, t: Self::Item) -> Result<()> {
-        track!(self.e0.start_encoding(t.0))?;
-        track!(self.e1.start_encoding(t.1))?;
-        track!(self.e2.start_encoding(t.2))?;
-        track!(self.e3.start_encoding(t.3))?;
-        track!(self.e4.start_encoding(t.4))?;
-        track!(self.e5.start_encoding(t.5))?;
-        track!(self.e6.start_encoding(t.6))?;
-        track!(self.e7.start_encoding(t.7))?;
-        Ok(())
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        self.e0
-            .requiring_bytes()
-            .add_for_encoding(self.e1.requiring_bytes())
-            .add_for_encoding(self.e2.requiring_bytes())
-            .add_for_encoding(self.e3.requiring_bytes())
-            .add_for_encoding(self.e4.requiring_bytes())
-            .add_for_encoding(self.e5.requiring_bytes())
-            .add_for_encoding(self.e6.requiring_bytes())
-            .add_for_encoding(self.e7.requiring_bytes())
-    }
-
-    fn is_idle(&self) -> bool {
-        self.e0.is_idle() && self.e1.is_idle() && self.e2.is_idle() && self.e3.is_idle()
-            && self.e4.is_idle() && self.e5.is_idle() && self.e6.is_idle()
-            && self.e7.is_idle()
-    }
-}
-impl<E0, E1, E2, E3, E4, E5, E6, E7> ExactBytesEncode
-    for Tuple8Encoder<E0, E1, E2, E3, E4, E5, E6, E7>
-where
-    E0: ExactBytesEncode,
-    E1: ExactBytesEncode,
-    E2: ExactBytesEncode,
-    E3: ExactBytesEncode,
-    E4: ExactBytesEncode,
-    E5: ExactBytesEncode,
-    E6: ExactBytesEncode,
-    E7: ExactBytesEncode,
-{
-    fn exact_requiring_bytes(&self) -> u64 {
-        self.e0.exact_requiring_bytes() + self.e1.exact_requiring_bytes()
-            + self.e2.exact_requiring_bytes() + self.e3.exact_requiring_bytes()
-            + self.e4.exact_requiring_bytes() + self.e5.exact_requiring_bytes()
-            + self.e6.exact_requiring_bytes() + self.e7.exact_requiring_bytes()
-    }
-}
+impl_encode!([E0, E1], [0, 1]);
+impl_encode!([E0, E1, E2], [0, 1, 2]);
+impl_encode!([E0, E1, E2, E3], [0, 1, 2, 3]);
+impl_encode!([E0, E1, E2, E3, E4], [0, 1, 2, 3, 4]);
+impl_encode!([E0, E1, E2, E3, E4, E5], [0, 1, 2, 3, 4, 5]);
+impl_encode!([E0, E1, E2, E3, E4, E5, E6], [0, 1, 2, 3, 4, 5, 6]);
+impl_encode!([E0, E1, E2, E3, E4, E5, E6, E7], [0, 1, 2, 3, 4, 5, 6, 7]);
 
 #[cfg(test)]
 mod test {
@@ -1546,7 +890,7 @@ mod test {
 
     #[test]
     fn tuple2_encoder_works() {
-        let mut encoder = Tuple2Encoder::<U8Encoder, U8Encoder>::with_item((0, 1)).unwrap();
+        let mut encoder = TupleEncoder::<(U8Encoder, U8Encoder)>::with_item((0, 1)).unwrap();
         let mut buf = Vec::new();
         encoder.encode_all(&mut buf).unwrap();
         assert_eq!(buf, [0, 1]);
@@ -1555,7 +899,7 @@ mod test {
     #[test]
     fn tuple3_encoder_works() {
         let mut encoder =
-            Tuple3Encoder::<U8Encoder, U8Encoder, U8Encoder>::with_item((0, 1, 2)).unwrap();
+            TupleEncoder::<(U8Encoder, U8Encoder, U8Encoder)>::with_item((0, 1, 2)).unwrap();
         let mut buf = Vec::new();
         encoder.encode_all(&mut buf).unwrap();
         assert_eq!(buf, [0, 1, 2]);
@@ -1563,9 +907,9 @@ mod test {
 
     #[test]
     fn tuple4_encoder_works() {
-        let mut encoder =
-            Tuple4Encoder::<U8Encoder, U8Encoder, U8Encoder, U8Encoder>::with_item((0, 1, 2, 3))
-                .unwrap();
+        let mut encoder = TupleEncoder::<(U8Encoder, U8Encoder, U8Encoder, U8Encoder)>::with_item(
+            (0, 1, 2, 3),
+        ).unwrap();
         let mut buf = Vec::new();
         encoder.encode_all(&mut buf).unwrap();
         assert_eq!(buf, [0, 1, 2, 3]);
@@ -1574,7 +918,7 @@ mod test {
     #[test]
     fn tuple5_encoder_works() {
         let mut encoder =
-            Tuple5Encoder::<U8Encoder, U8Encoder, U8Encoder, U8Encoder, U8Encoder>::default();
+            TupleEncoder::<(U8Encoder, U8Encoder, U8Encoder, U8Encoder, U8Encoder)>::default();
         encoder.start_encoding((0, 1, 2, 3, 4)).unwrap();
         let mut buf = Vec::new();
         encoder.encode_all(&mut buf).unwrap();
@@ -1583,14 +927,14 @@ mod test {
 
     #[test]
     fn tuple6_encoder_works() {
-        let mut encoder = Tuple6Encoder::<
+        let mut encoder = TupleEncoder::<(
             U8Encoder,
             U8Encoder,
             U8Encoder,
             U8Encoder,
             U8Encoder,
             U8Encoder,
-        >::default();
+        )>::default();
         encoder.start_encoding((0, 1, 2, 3, 4, 5)).unwrap();
         let mut buf = Vec::new();
         encoder.encode_all(&mut buf).unwrap();
@@ -1599,7 +943,7 @@ mod test {
 
     #[test]
     fn tuple7_encoder_works() {
-        let mut encoder = Tuple7Encoder::<
+        let mut encoder = TupleEncoder::<(
             U8Encoder,
             U8Encoder,
             U8Encoder,
@@ -1607,7 +951,7 @@ mod test {
             U8Encoder,
             U8Encoder,
             U8Encoder,
-        >::default();
+        )>::default();
         encoder.start_encoding((0, 1, 2, 3, 4, 5, 6)).unwrap();
         let mut buf = Vec::new();
         encoder.encode_all(&mut buf).unwrap();
@@ -1616,7 +960,7 @@ mod test {
 
     #[test]
     fn tuple8_encoder_works() {
-        let mut encoder = Tuple8Encoder::<
+        let mut encoder = TupleEncoder::<(
             U8Encoder,
             U8Encoder,
             U8Encoder,
@@ -1625,7 +969,7 @@ mod test {
             U8Encoder,
             U8Encoder,
             U8Encoder,
-        >::default();
+        )>::default();
         encoder.start_encoding((0, 1, 2, 3, 4, 5, 6, 7)).unwrap();
         let mut buf = Vec::new();
         encoder.encode_all(&mut buf).unwrap();

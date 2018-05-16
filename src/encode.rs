@@ -1,7 +1,7 @@
 use std;
 
-use combinator::{EncoderChain, Last, LastItem, Length, MapErr, MapFrom, MaxBytes, Optional,
-                 Padding, PreEncode, Repeat, Slice, TryMapFrom, WithPrefix};
+use combinator::{Last, LastItem, Length, MapErr, MapFrom, MaxBytes, Optional, Padding,
+                 PreCalculate, PreEncode, Repeat, Slice, TryMapFrom, WithPrefix};
 use io::IoEncodeExt;
 use {ByteCount, Eos, Error, ErrorKind, Result};
 
@@ -104,9 +104,33 @@ pub trait ExactBytesEncode: Encode {
     /// Returns the exact number of bytes required to encode all the items remaining in the encoder.
     fn exact_requiring_bytes(&self) -> u64;
 }
+impl<'a, E: ?Sized + ExactBytesEncode> ExactBytesEncode for &'a mut E {
+    fn exact_requiring_bytes(&self) -> u64 {
+        (**self).exact_requiring_bytes()
+    }
+}
 impl<E: ?Sized + ExactBytesEncode> ExactBytesEncode for Box<E> {
     fn exact_requiring_bytes(&self) -> u64 {
         (**self).exact_requiring_bytes()
+    }
+}
+
+/// This trait allows calculating the encoded size of items in advance.
+///
+/// Usually it is recommended to use `ExactBytesEncode` instead of this.
+/// But this trait may be useful for reducing memory copies when encoding huge complex data structures.
+pub trait CalculateBytes: Encode {
+    /// Returns the exact number of bytes required for encoding the given item.
+    fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64;
+}
+impl<'a, E: ?Sized + CalculateBytes> CalculateBytes for &'a mut E {
+    fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64 {
+        (**self).calculate_requiring_bytes(item)
+    }
+}
+impl<E: ?Sized + CalculateBytes> CalculateBytes for Box<E> {
+    fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64 {
+        (**self).calculate_requiring_bytes(item)
     }
 }
 
@@ -229,33 +253,6 @@ pub trait EncodeExt: Encode + Sized {
         Error: From<E>,
     {
         TryMapFrom::new(self, f)
-    }
-
-    /// Takes two encoders and creates a new encoder that encodes both items in sequence.
-    ///
-    /// Chains are started by calling `StartEncoderChain::chain` method.
-    ///
-    /// # Examples
-    ///
-    /// Encodes a length-prefixed UTF-8 string:
-    ///
-    /// ```
-    /// use bytecodec::{Encode, EncodeExt, StartEncoderChain};
-    /// use bytecodec::bytes::Utf8Encoder;
-    /// use bytecodec::fixnum::U8Encoder;
-    /// use bytecodec::io::IoEncodeExt;
-    ///
-    /// let mut output = Vec::new();
-    /// let mut encoder = StartEncoderChain
-    ///     .chain(U8Encoder::new())
-    ///     .chain(Utf8Encoder::new())
-    ///     .map_from(|s: String| (s.len() as u8, s));
-    /// encoder.start_encoding("foo".to_owned()).unwrap();
-    /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output, b"\x03foo");
-    /// ```
-    fn chain<E: Encode>(self, other: E) -> EncoderChain<Self, E, Self::Item> {
-        EncoderChain::new(self, other)
     }
 
     /// Creates an encoder that represents an optional encoder.
@@ -433,6 +430,15 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     fn pre_encode(self) -> PreEncode<Self> {
         PreEncode::new(self)
+    }
+
+    /// Creates an encoder that gives `ExactBytesEncode` trait to `self`
+    /// by calculating the exact number of bytes required for encoding items in advance.
+    fn pre_calculate(self) -> PreCalculate<Self>
+    where
+        Self: CalculateBytes,
+    {
+        PreCalculate::new(self)
     }
 
     /// Creates an encoder that makes it possible to slice the encoded byte sequence in arbitrary units.

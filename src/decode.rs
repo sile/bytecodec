@@ -1,7 +1,7 @@
 use std;
 
-use combinator::{AndThen, Assert, Buffered, Collect, CollectN, DecoderChain, Length, Map, MapErr,
-                 MaxBytes, MaybeEos, Omittable, SkipRemaining, Slice, TryMap};
+use combinator::{AndThen, Assert, Buffered, Collect, CollectN, Length, Map, MapErr, MaxBytes,
+                 MaybeEos, Omittable, SkipRemaining, Slice, TryMap};
 use {ByteCount, Eos, Error, ErrorKind, Result};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
@@ -199,34 +199,6 @@ pub trait DecodeExt: Decode + Sized {
         D: Decode,
     {
         AndThen::new(self, f)
-    }
-
-    /// Takes two decoders and creates a new decoder that decodes both items in sequence.
-    ///
-    /// Chains are started by calling `StartDecoderChain::chain` method.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bytecodec::{Decode, DecodeExt, StartDecoderChain};
-    /// use bytecodec::fixnum::U8Decoder;
-    /// use bytecodec::io::IoDecodeExt;
-    ///
-    /// let mut decoder = StartDecoderChain
-    ///     .chain(U8Decoder::new())
-    ///     .chain(U8Decoder::new())
-    ///     .chain(U8Decoder::new());
-    ///
-    /// let mut input = &b"foobar"[..];
-    ///
-    /// let item = decoder.decode_exact(&mut input).unwrap();
-    /// assert_eq!(item, (b'f', b'o', b'o'));
-    ///
-    /// let item = decoder.decode_exact(&mut input).unwrap();
-    /// assert_eq!(item, (b'b', b'a', b'r'));
-    /// ```
-    fn chain<D: Decode>(self, other: D) -> DecoderChain<Self, D, Self::Item> {
-        DecoderChain::new(self, other)
     }
 
     /// Creates a decoder for collecting decoded items.

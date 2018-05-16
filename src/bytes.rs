@@ -3,7 +3,7 @@ use std::cmp;
 use std::mem;
 use trackable::error::ErrorKindExt;
 
-use {ByteCount, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
+use {ByteCount, CalculateBytes, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 
 /// `BytesEncoder` writes the given bytes into an output byte sequence.
 ///
@@ -84,6 +84,11 @@ impl<B: AsRef<[u8]>> ExactBytesEncode for BytesEncoder<B> {
         self.bytes
             .as_ref()
             .map_or(0, |b| b.as_ref().len() - self.offset) as u64
+    }
+}
+impl<B: AsRef<[u8]>> CalculateBytes for BytesEncoder<B> {
+    fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64 {
+        item.as_ref().len() as u64
     }
 }
 
@@ -337,6 +342,11 @@ impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
 impl<S: AsRef<str>> ExactBytesEncode for Utf8Encoder<S> {
     fn exact_requiring_bytes(&self) -> u64 {
         self.0.exact_requiring_bytes()
+    }
+}
+impl<S: AsRef<str>> CalculateBytes for Utf8Encoder<S> {
+    fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64 {
+        item.as_ref().len() as u64
     }
 }
 impl<S> Default for Utf8Encoder<S> {

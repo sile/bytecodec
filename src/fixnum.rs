@@ -1,8 +1,9 @@
 //! Encoders and decoders for numbers which have fixed length binary representation.
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
+use std::mem;
 
 use bytes::{BytesEncoder, CopyableBytesDecoder};
-use {ByteCount, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
+use {ByteCount, CalculateBytes, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
 
 macro_rules! impl_decode {
     ($ty:ty, $item:ty) => {
@@ -47,6 +48,11 @@ macro_rules! impl_encode {
         impl ExactBytesEncode for $ty {
             fn exact_requiring_bytes(&self) -> u64 {
                 self.0.exact_requiring_bytes()
+            }
+        }
+        impl CalculateBytes for $ty {
+            fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64 {
+                mem::size_of_val(item) as u64
             }
         }
     };

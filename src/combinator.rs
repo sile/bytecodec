@@ -3,14 +3,14 @@
 //! These are mainly created via the methods provided by `EncodeExt` or `DecodeExt` traits.
 use std;
 use std::cmp;
+use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
 
-pub use chain::{Buffered, DecoderChain, EncoderChain};
-
 use bytes::BytesEncoder;
 use marker::Never;
-use {ByteCount, Decode, Encode, EncodeExt, Eos, Error, ErrorKind, ExactBytesEncode, Result};
+use {ByteCount, CalculateBytes, Decode, Encode, EncodeExt, Eos, Error, ErrorKind,
+     ExactBytesEncode, Result};
 
 /// Combinator for converting decoded items to other values.
 ///
@@ -1573,6 +1573,60 @@ impl<D: Decode> Decode for MaybeEos<D> {
     }
 }
 
+/// Combinator that gives `ExactBytesEncode` trait to `E` by calculating
+/// the exact number of bytes required for encoding items in advance.
+///
+/// This is created by calling `EncodeExt::pre_calculate`.
+#[derive(Debug, Default)]
+pub struct PreCalculate<E>(Length<E>);
+impl<E> PreCalculate<E> {
+    /// Returns a reference to the inner encoder.
+    pub fn inner_ref(&self) -> &E {
+        &self.0.inner
+    }
+
+    /// Returns a mutable reference to the inner encoder.
+    pub fn inner_mut(&mut self) -> &mut E {
+        &mut self.0.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner encoder.
+    pub fn into_inner(self) -> E {
+        self.0.inner
+    }
+
+    pub(crate) fn new(inner: E) -> Self {
+        PreCalculate(Length::new(inner, 0))
+    }
+}
+impl<E: CalculateBytes> Encode for PreCalculate<E> {
+    type Item = E::Item;
+
+    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
+        track!(self.0.encode(buf, eos))
+    }
+
+    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
+        let size = self.0.inner_ref().calculate_requiring_bytes(&item);
+        track!(self.0.start_encoding(item))?;
+        track!(self.0.set_expected_bytes(size))?;
+        Ok(())
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
+    }
+
+    fn requiring_bytes(&self) -> ByteCount {
+        self.0.requiring_bytes()
+    }
+}
+impl<E: CalculateBytes> ExactBytesEncode for PreCalculate<E> {
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.0.exact_requiring_bytes()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use bytes::{Utf8Decoder, Utf8Encoder};
@@ -1748,5 +1802,90 @@ mod test {
         let mut decoder = U16beDecoder::new().maybe_eos();
         assert!(decoder.decode(&[1][..], Eos::new(false)).is_ok());
         assert!(decoder.decode(&[][..], Eos::new(true)).is_err());
+    }
+}
+
+// TODO: delete
+/// Combinator that gives a buffer to the decoder.
+///
+/// Thsi is created by calling `DecodeExt::buffer` method.
+pub struct Buffered<D: Decode> {
+    inner: D,
+    item: Option<D::Item>,
+}
+impl<D: Decode> Buffered<D> {
+    pub(crate) fn new(inner: D) -> Self {
+        Buffered { inner, item: None }
+    }
+
+    /// Returns `true` if the decoder has a decoded item, other `false`.
+    ///
+    /// Note that the decoder cannot decode new items if this method returns `true`.
+    pub fn has_item(&self) -> bool {
+        self.item.is_some()
+    }
+
+    /// Returns a reference to the item decoded by the decoder in the last `decode` call.
+    pub fn get_item(&self) -> Option<&D::Item> {
+        self.item.as_ref()
+    }
+
+    /// Takes the item decoded by the decoder in the last `decode` call.
+    pub fn take_item(&mut self) -> Option<D::Item> {
+        self.item.take()
+    }
+
+    /// Returns a reference to the inner decoder.
+    pub fn inner_ref(&self) -> &D {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the inner decoder.
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.inner
+    }
+
+    /// Takes ownership of this instance and returns the inner decoder.
+    pub fn into_inner(self) -> D {
+        self.inner
+    }
+}
+impl<D: Decode + fmt::Debug> fmt::Debug for Buffered<D> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Buffered {{ inner: {:?}, item.is_some(): {:?} }}",
+            self.inner,
+            self.item.is_some()
+        )
+    }
+}
+impl<D: Decode + Default> Default for Buffered<D> {
+    fn default() -> Self {
+        Buffered {
+            inner: D::default(),
+            item: None,
+        }
+    }
+}
+impl<D: Decode> Decode for Buffered<D> {
+    type Item = D::Item;
+
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+        if self.item.is_none() {
+            let (size, item) = self.inner.decode(buf, eos)?;
+            self.item = item;
+            Ok((size, None))
+        } else {
+            Ok((0, None))
+        }
+    }
+
+    fn requiring_bytes(&self) -> ByteCount {
+        if self.item.is_some() {
+            ByteCount::Finite(0)
+        } else {
+            self.inner.requiring_bytes()
+        }
     }
 }
