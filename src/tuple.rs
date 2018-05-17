@@ -137,13 +137,13 @@ impl_encode!([E0, E1, E2, E3, E4, E5, E6, E7], [0, 1, 2, 3, 4, 5, 6, 7]);
 #[cfg(test)]
 mod test {
     use super::*;
+    use EncodeExt;
     use fixnum::{U8Decoder, U8Encoder};
     use io::{IoDecodeExt, IoEncodeExt};
-    use {Encode, EncodeExt};
 
     #[test]
-    fn tuple2_decoder_works() {
-        let mut decoder = Tuple2Decoder::new(U8Decoder::new(), U8Decoder::new());
+    fn tuple_decoder_works() {
+        let mut decoder = TupleDecoder::new((U8Decoder::new(), U8Decoder::new()));
         assert_eq!(
             track_try_unwrap!(decoder.decode_exact(b"foo".as_ref())),
             (b'f', b'o')
@@ -151,179 +151,10 @@ mod test {
     }
 
     #[test]
-    fn tuple3_decoder_works() {
-        let mut decoder = Tuple3Decoder::new(U8Decoder::new(), U8Decoder::new(), U8Decoder::new());
-        assert_eq!(
-            track_try_unwrap!(decoder.decode_exact(b"foo".as_ref())),
-            (b'f', b'o', b'o')
-        );
-    }
-
-    #[test]
-    fn tuple4_decoder_works() {
-        let mut decoder = Tuple4Decoder::new(
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-        );
-        assert_eq!(
-            track_try_unwrap!(decoder.decode_exact(b"foobar".as_ref())),
-            (b'f', b'o', b'o', b'b')
-        );
-    }
-
-    #[test]
-    fn tuple5_decoder_works() {
-        let mut decoder = Tuple5Decoder::new(
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-        );
-        assert_eq!(
-            track_try_unwrap!(decoder.decode_exact(b"foobar".as_ref())),
-            (b'f', b'o', b'o', b'b', b'a')
-        );
-    }
-
-    #[test]
-    fn tuple6_decoder_works() {
-        let mut decoder = Tuple6Decoder::new(
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-        );
-        assert_eq!(
-            track_try_unwrap!(decoder.decode_exact(b"foobar".as_ref())),
-            (b'f', b'o', b'o', b'b', b'a', b'r')
-        );
-    }
-
-    #[test]
-    fn tuple7_decoder_works() {
-        let mut decoder = Tuple7Decoder::new(
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-        );
-        assert_eq!(
-            track_try_unwrap!(decoder.decode_exact(b"foobarbaz".as_ref())),
-            (b'f', b'o', b'o', b'b', b'a', b'r', b'b')
-        );
-    }
-
-    #[test]
-    fn tuple8_decoder_works() {
-        let mut decoder = Tuple8Decoder::new(
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-            U8Decoder::new(),
-        );
-        assert_eq!(
-            track_try_unwrap!(decoder.decode_exact(b"foobarbaz".as_ref())),
-            (b'f', b'o', b'o', b'b', b'a', b'r', b'b', b'a')
-        );
-    }
-
-    #[test]
-    fn tuple2_encoder_works() {
+    fn tuple_encoder_works() {
         let mut encoder = TupleEncoder::<(U8Encoder, U8Encoder)>::with_item((0, 1)).unwrap();
         let mut buf = Vec::new();
         encoder.encode_all(&mut buf).unwrap();
         assert_eq!(buf, [0, 1]);
-    }
-
-    #[test]
-    fn tuple3_encoder_works() {
-        let mut encoder =
-            TupleEncoder::<(U8Encoder, U8Encoder, U8Encoder)>::with_item((0, 1, 2)).unwrap();
-        let mut buf = Vec::new();
-        encoder.encode_all(&mut buf).unwrap();
-        assert_eq!(buf, [0, 1, 2]);
-    }
-
-    #[test]
-    fn tuple4_encoder_works() {
-        let mut encoder = TupleEncoder::<(U8Encoder, U8Encoder, U8Encoder, U8Encoder)>::with_item(
-            (0, 1, 2, 3),
-        ).unwrap();
-        let mut buf = Vec::new();
-        encoder.encode_all(&mut buf).unwrap();
-        assert_eq!(buf, [0, 1, 2, 3]);
-    }
-
-    #[test]
-    fn tuple5_encoder_works() {
-        let mut encoder =
-            TupleEncoder::<(U8Encoder, U8Encoder, U8Encoder, U8Encoder, U8Encoder)>::default();
-        encoder.start_encoding((0, 1, 2, 3, 4)).unwrap();
-        let mut buf = Vec::new();
-        encoder.encode_all(&mut buf).unwrap();
-        assert_eq!(buf, [0, 1, 2, 3, 4]);
-    }
-
-    #[test]
-    fn tuple6_encoder_works() {
-        let mut encoder = TupleEncoder::<(
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-        )>::default();
-        encoder.start_encoding((0, 1, 2, 3, 4, 5)).unwrap();
-        let mut buf = Vec::new();
-        encoder.encode_all(&mut buf).unwrap();
-        assert_eq!(buf, [0, 1, 2, 3, 4, 5]);
-    }
-
-    #[test]
-    fn tuple7_encoder_works() {
-        let mut encoder = TupleEncoder::<(
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-        )>::default();
-        encoder.start_encoding((0, 1, 2, 3, 4, 5, 6)).unwrap();
-        let mut buf = Vec::new();
-        encoder.encode_all(&mut buf).unwrap();
-        assert_eq!(buf, [0, 1, 2, 3, 4, 5, 6]);
-    }
-
-    #[test]
-    fn tuple8_encoder_works() {
-        let mut encoder = TupleEncoder::<(
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-            U8Encoder,
-        )>::default();
-        encoder.start_encoding((0, 1, 2, 3, 4, 5, 6, 7)).unwrap();
-        let mut buf = Vec::new();
-        encoder.encode_all(&mut buf).unwrap();
-        assert_eq!(buf, [0, 1, 2, 3, 4, 5, 6, 7]);
     }
 }

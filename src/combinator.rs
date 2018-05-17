@@ -865,71 +865,6 @@ where
     }
 }
 
-/// Combinator for skipping the remaining bytes in an input byte sequence
-/// after decoding an item by using `D`.
-#[derive(Debug, Default)]
-pub struct SkipRemaining<D: Decode> {
-    inner: D,
-    eos: bool,
-}
-impl<D: Decode> SkipRemaining<D> {
-    pub(crate) fn new(inner: D) -> Self {
-        SkipRemaining { inner, eos: false }
-    }
-
-    /// Returns a reference to the inner decoder.
-    pub fn inner_ref(&self) -> &D {
-        &self.inner
-    }
-
-    /// Returns a mutable reference to the inner decoder.
-    pub fn inner_mut(&mut self) -> &mut D {
-        &mut self.inner
-    }
-
-    /// Takes ownership of this instance and returns the inner decoder.
-    pub fn into_inner(self) -> D {
-        self.inner
-    }
-}
-impl<D: Decode> Decode for SkipRemaining<D> {
-    type Item = D::Item;
-
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
-        track_assert!(
-            !eos.remaining_bytes().is_infinite(),
-            ErrorKind::InvalidInput,
-            "Cannot skip infinity byte stream"
-        );
-
-        if self.eos {
-            Ok(0)
-        } else if self.inner.is_idle() {
-            self.eos = eos.is_reached();
-            Ok(buf.len())
-        } else {
-            track!(self.inner.decode(buf, eos))
-        }
-    }
-
-    fn finish_decoding(&mut self) -> Result<Self::Item> {
-        track_assert!(self.eos, ErrorKind::IncompleteItem);
-        self.eos = false;
-
-        track!(self.inner.finish_decoding())
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        if self.eos {
-            ByteCount::Finite(0)
-        } else if self.inner.is_idle() {
-            ByteCount::Infinite
-        } else {
-            self.inner.requiring_bytes()
-        }
-    }
-}
-
 /// Combinator that will fail if the number of consumed bytes exceeds the specified size.
 ///
 /// This is created by calling `{DecodeExt, EncodeExt}::max_bytes` method.
@@ -1052,69 +987,6 @@ impl<E: Encode> Encode for MaxBytes<E> {
 
     fn is_idle(&self) -> bool {
         self.inner.is_idle()
-    }
-}
-
-/// Combinator that keeps writing padding byte until it reaches EOS
-/// after encoding of `E`'s item has been completed.
-///
-/// This is created by calling `EncodeExt::padding` method.
-#[derive(Debug, Default)]
-pub struct Padding<E> {
-    inner: E,
-    padding_byte: u8,
-    eos_reached: bool,
-}
-impl<E> Padding<E> {
-    /// Returns a reference to the inner encoder.
-    pub fn inner_ref(&self) -> &E {
-        &self.inner
-    }
-
-    /// Returns a mutable reference to the inner encoder.
-    pub fn inner_mut(&mut self) -> &mut E {
-        &mut self.inner
-    }
-
-    /// Takes ownership of this instance and returns the inner encoder.
-    pub fn into_inner(self) -> E {
-        self.inner
-    }
-
-    pub(crate) fn new(inner: E, padding_byte: u8) -> Self {
-        Padding {
-            inner,
-            padding_byte,
-            eos_reached: true,
-        }
-    }
-}
-impl<E: Encode> Encode for Padding<E> {
-    type Item = E::Item;
-
-    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        let mut offset = 0;
-        bytecodec_try_encode!(self.inner, offset, buf, eos);
-
-        for b in (&mut buf[offset..]).iter_mut() {
-            *b = self.padding_byte;
-        }
-        self.eos_reached = eos.is_reached();
-        Ok(buf.len())
-    }
-
-    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track_assert!(self.is_idle(), ErrorKind::EncoderFull);
-        self.eos_reached = false;
-        track!(self.inner.start_encoding(item))
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        ByteCount::Infinite
-    }
-
-    fn is_idle(&self) -> bool {
-        self.eos_reached
     }
 }
 
@@ -1497,15 +1369,6 @@ mod test {
     }
 
     #[test]
-    fn padding_works() {
-        let mut output = Vec::new();
-        let mut encoder = U8Encoder::new().padding(9).length(3);
-        encoder.start_encoding(3).unwrap();
-        track_try_unwrap!(encoder.encode_all(&mut output));
-        assert_eq!(output, [3, 9, 9]);
-    }
-
-    #[test]
     fn repeat_works() {
         let mut output = Vec::new();
         let mut encoder = U8Encoder::new().repeat();
@@ -1538,23 +1401,19 @@ mod test {
         let input = b"fboaor";
         let mut offset = 0;
 
-        let mut last_item0 = None;
-        let mut last_item1 = None;
         for _ in 0..3 {
             decoder0.set_consumable_bytes(1);
-            let (size, item) = track_try_unwrap!(decoder0.decode(&input[offset..], eos));
+            let size = track_try_unwrap!(decoder0.decode(&input[offset..], eos));
             offset += size;
-            last_item0 = item;
 
             decoder1.set_consumable_bytes(1);
-            let (size, item) = track_try_unwrap!(decoder1.decode(&input[offset..], eos));
+            let size = track_try_unwrap!(decoder1.decode(&input[offset..], eos));
             offset += size;
-            last_item1 = item;
         }
 
         assert_eq!(offset, input.len());
-        assert_eq!(last_item0, Some("foo".to_owned()));
-        assert_eq!(last_item1, Some("bar".to_owned()));
+        assert_eq!(decoder0.finish_decoding().ok(), Some("foo".to_owned()));
+        assert_eq!(decoder1.finish_decoding().ok(), Some("bar".to_owned()));
     }
 
     #[test]
@@ -1590,8 +1449,8 @@ mod test {
     fn and_then_works() {
         let mut decoder =
             U8Decoder::new().and_then(|len| Utf8Decoder::new().length(u64::from(len)));
-        let (_, item) = track_try_unwrap!(decoder.decode(b"\x03foo", Eos::new(false)));
-        assert_eq!(item, Some("foo".to_owned()));
+        track_try_unwrap!(decoder.decode(b"\x03foo", Eos::new(false)));
+        assert_eq!(track_try_unwrap!(decoder.finish_decoding()), "foo");
     }
 
     #[test]

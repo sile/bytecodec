@@ -1,7 +1,7 @@
 use std;
 
 use combinator::{AndThen, Buffered, Collect, CollectN, Length, Map, MapErr, MaxBytes, MaybeEos,
-                 Omittable, SkipRemaining, Slice, TryMap};
+                 Omittable, Slice, TryMap};
 use {ByteCount, Eos, Error, ErrorKind, Result};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
@@ -311,27 +311,6 @@ pub trait DecodeExt: Decode + Sized {
     /// ```
     fn omit(self, do_omit: bool) -> Omittable<Self> {
         Omittable::new(self, do_omit)
-    }
-
-    /// Creates a decoder for skipping the remaining bytes in an input byte sequence
-    /// after decoding an item by using `self`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bytecodec::{Decode, DecodeExt};
-    /// use bytecodec::fixnum::U8Decoder;
-    /// use bytecodec::io::IoDecodeExt;
-    ///
-    /// let mut input = &b"foo"[..];
-    ///
-    /// let mut decoder = U8Decoder::new().skip_remaining();
-    /// let item = decoder.decode_exact(&mut input).unwrap();
-    /// assert_eq!(item, b'f');
-    /// assert!(input.is_empty());
-    /// ```
-    fn skip_remaining(self) -> SkipRemaining<Self> {
-        SkipRemaining::new(self)
     }
 
     /// Creates a decoder that will fail if the number of consumed bytes exceeds `bytes`.

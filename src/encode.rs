@@ -1,7 +1,7 @@
 use std;
 
-use combinator::{Last, Length, MapErr, MapFrom, MaxBytes, Optional, Padding, PreCalculate,
-                 PreEncode, Repeat, Slice, TryMapFrom};
+use combinator::{Last, Length, MapErr, MapFrom, MaxBytes, Optional, PreCalculate, PreEncode,
+                 Repeat, Slice, TryMapFrom};
 use io::IoEncodeExt;
 use tuple::TupleEncoder;
 use {ByteCount, Eos, Error, ErrorKind, Result};
@@ -324,28 +324,6 @@ pub trait EncodeExt: Encode + Sized {
     /// TODO: doc
     fn chain<T: Encode>(self, other: T) -> TupleEncoder<(Self, T)> {
         TupleEncoder::new((self, other))
-    }
-
-    /// Creates an encoder that keeps writing padding byte until it reaches EOS
-    /// after encoding of `self`'s item has been completed.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bytecodec::{Encode, EncodeExt, ErrorKind};
-    /// use bytecodec::fixnum::U8Encoder;
-    /// use bytecodec::io::IoEncodeExt;
-    ///
-    /// let mut output = Vec::new();
-    /// let mut encoder = U8Encoder::new().padding(9).length(3);
-    /// encoder.start_encoding(3).unwrap();
-    /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output, [3, 9, 9]);
-    /// ```
-    fn padding(self, padding_byte: u8) -> Padding<Self> {
-        // TODO: suffix, prefixの仕組みの統合する (or header/trailer, prepend/append)
-        // => chain() => TupleEncoder<(_,_)>で良さそう
-        Padding::new(self, padding_byte)
     }
 
     // TODO: add iter(?)
