@@ -59,39 +59,27 @@ macro_rules! bytecodec_try_encode {
 #[macro_export]
 macro_rules! bytecodec_try_decode {
     ($decoder:expr, $offset:expr, $buf:expr, $eos:expr) => {
-        if !$decoder.has_item() {
-            $offset += track!($decoder.decode(&$buf[$offset..], $eos))?.0;
-            if let Some(item) = $decoder.get_item() {
-                Some(item)
-            } else {
-                return Ok(($offset, None));
+        if !$decoder.is_idle() {
+            $offset += track!($decoder.decode(&$buf[$offset..], $eos))?;
+            if !$decoder.is_idle() {
+                return Ok($offset);
             }
-        } else {
-            None
         }
     };
     ($decoder:expr, $offset:expr, $buf:expr, $eos:expr, $($track_arg:tt)*) => {
-        if !$decoder.has_item() {
-            $offset += track!($decoder.decode(&$buf[$offset..], $eos), $($track_arg)*)?.0;
-            if let Some(item) = $decoder.get_item() {
-                Some(item)
-            } else {
-                return Ok(($offset, None));
+        if !$decoder.is_idle() {
+            $offset += track!($decoder.decode(&$buf[$offset..], $eos), $($track_arg)*)?;
+            if !$decoder.is_idle() {
+                return Ok($offset);
             }
-        } else {
-            None
         }
     };
     ($decoder:expr, $offset:expr, $buf:expr, $eos:expr; $($track_arg:tt)*) => {
-        if !$decoder.has_item() {
-            $offset += track!($decoder.decode(&$buf[$offset..], $eos); $($track_arg)*)?.0;
-            if let Some(item) = $decoder.get_item() {
-                Some(item)
-            } else {
-                return Ok(($offset, None));
+        if !$decoder.is_idle() {
+            $offset += track!($decoder.decode(&$buf[$offset..], $eos); $($track_arg)*)?;
+            if !$decoder.is_idle() {
+                return Ok($offset);
             }
-        } else {
-            None
         }
     };
 }

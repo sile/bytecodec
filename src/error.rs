@@ -30,6 +30,7 @@ pub enum ErrorKind {
     UnexpectedEos,
     EncoderFull,
     DecoderTerminated,
+    IncompleteItem,
     Other,
 }
 impl TrackableErrorKind for ErrorKind {}

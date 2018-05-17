@@ -12,13 +12,17 @@ pub trait IoDecodeExt: Decode {
         B: AsRef<[u8]>,
     {
         let eos = Eos::new(buf.stream_state.is_eos());
-        let (size, item) = track!(self.decode(&buf.inner.as_ref()[buf.head..buf.tail], eos))?;
+        let size = track!(self.decode(&buf.inner.as_ref()[buf.head..buf.tail], eos))?;
         buf.head += size;
         if buf.head == buf.tail {
             buf.head = 0;
             buf.tail = 0;
         }
-        Ok(item)
+        if self.is_idle() {
+            track!(self.finish_decoding()).map(Some)
+        } else {
+            Ok(None)
+        }
     }
 
     /// Decodes an item from the given reader.
@@ -41,9 +45,10 @@ pub trait IoDecodeExt: Decode {
                 Eos::new(false)
             };
 
-            let (consumed, item) = track!(self.decode(&buf[..size], eos))?;
-            track_assert_eq!(consumed, size, ErrorKind::Other; item.is_some(), eos);
-            if let Some(item) = item {
+            let consumed = track!(self.decode(&buf[..size], eos))?;
+            track_assert_eq!(consumed, size, ErrorKind::Other; self.is_idle(), eos);
+            if self.is_idle() {
+                let item = track!(self.finish_decoding())?;
                 return Ok(item);
             }
         }

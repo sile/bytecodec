@@ -3,16 +3,19 @@ use byteorder::{BigEndian, ByteOrder, LittleEndian};
 use std::mem;
 
 use bytes::{BytesEncoder, CopyableBytesDecoder};
-use {ByteCount, CalculateBytes, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
+use {ByteCount, Decode, Encode, Eos, ErrorKind, Result, SizedEncode};
 
 macro_rules! impl_decode {
     ($ty:ty, $item:ty) => {
         impl Decode for $ty {
             type Item = $item;
 
-            fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-                let (size, item) = track!(self.0.decode(buf, eos))?;
-                Ok((size, item.map(Self::decode_item)))
+            fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
+                track!(self.0.decode(buf, eos))
+            }
+
+            fn finish_decoding(&mut self) -> Result<Self::Item> {
+                track!(self.0.finish_decoding()).map(Self::decode_item)
             }
 
             fn requiring_bytes(&self) -> ByteCount {
@@ -45,13 +48,8 @@ macro_rules! impl_encode {
                 self.0.is_idle()
             }
         }
-        impl ExactBytesEncode for $ty {
-            fn exact_requiring_bytes(&self) -> u64 {
-                self.0.exact_requiring_bytes()
-            }
-        }
-        impl CalculateBytes for $ty {
-            fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64 {
+        impl SizedEncode for $ty {
+            fn encoded_size_of(&self, item: &Self::Item) -> u64 {
                 mem::size_of_val(item) as u64
             }
         }

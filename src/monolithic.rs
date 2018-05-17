@@ -17,8 +17,9 @@ pub trait MonolithicDecode {
 
 /// Monolithic decoder that implements `Decode` trait.
 #[derive(Debug, Default)]
-pub struct MonolithicDecoder<D> {
+pub struct MonolithicDecoder<D: MonolithicDecode> {
     inner: D,
+    item: Option<D::Item>,
     buf: Vec<u8>,
 }
 impl<D: MonolithicDecode> MonolithicDecoder<D> {
@@ -26,6 +27,7 @@ impl<D: MonolithicDecode> MonolithicDecoder<D> {
     pub fn new(inner: D) -> Self {
         MonolithicDecoder {
             inner,
+            item: None,
             buf: Vec::new(),
         }
     }
@@ -48,7 +50,7 @@ impl<D: MonolithicDecode> MonolithicDecoder<D> {
 impl<D: MonolithicDecode> Decode for MonolithicDecoder<D> {
     type Item = D::Item;
 
-    fn decode(&mut self, mut buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+    fn decode(&mut self, mut buf: &[u8], eos: Eos) -> Result<usize> {
         if eos.is_reached() {
             let original_len = buf.len();
             let item = track!(
@@ -56,15 +58,25 @@ impl<D: MonolithicDecode> Decode for MonolithicDecoder<D> {
                 original_len, self.buf.len(), buf.len(), eos
             )?;
             self.buf.clear();
-            Ok((original_len - buf.len(), Some(item)))
+            self.item = Some(item);
+            Ok(original_len - buf.len())
         } else {
             self.buf.extend_from_slice(buf);
-            Ok((buf.len(), None))
+            Ok(buf.len())
         }
     }
 
+    fn finish_decoding(&mut self) -> Result<Self::Item> {
+        let item = track_assert_some!(self.item.take(), ErrorKind::IncompleteItem);
+        Ok(item)
+    }
+
     fn requiring_bytes(&self) -> ByteCount {
-        ByteCount::Unknown
+        if self.item.is_some() {
+            ByteCount::Finite(0)
+        } else {
+            ByteCount::Unknown
+        }
     }
 }
 

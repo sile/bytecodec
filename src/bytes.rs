@@ -3,7 +3,7 @@ use std::cmp;
 use std::mem;
 use trackable::error::ErrorKindExt;
 
-use {ByteCount, CalculateBytes, Decode, Encode, Eos, ErrorKind, ExactBytesEncode, Result};
+use {ByteCount, Decode, Encode, Eos, ErrorKind, Result, SizedEncode};
 
 /// `BytesEncoder` writes the given bytes into an output byte sequence.
 ///
@@ -72,22 +72,18 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        ByteCount::Finite(self.exact_requiring_bytes())
+        let n = self.bytes
+            .as_ref()
+            .map_or(0, |b| b.as_ref().len() - self.offset) as u64;
+        ByteCount::Finite(n)
     }
 
     fn is_idle(&self) -> bool {
         self.bytes.is_none()
     }
 }
-impl<B: AsRef<[u8]>> ExactBytesEncode for BytesEncoder<B> {
-    fn exact_requiring_bytes(&self) -> u64 {
-        self.bytes
-            .as_ref()
-            .map_or(0, |b| b.as_ref().len() - self.offset) as u64
-    }
-}
-impl<B: AsRef<[u8]>> CalculateBytes for BytesEncoder<B> {
-    fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64 {
+impl<B: AsRef<[u8]>> SizedEncode for BytesEncoder<B> {
+    fn encoded_size_of(&self, item: &Self::Item) -> u64 {
         item.as_ref().len() as u64
     }
 }
@@ -148,19 +144,24 @@ impl<B> CopyableBytesDecoder<B> {
 impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
     type Item = B;
 
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
         let size = cmp::min(buf.len(), self.bytes.as_ref().len() - self.offset);
         (&mut self.bytes.as_mut()[self.offset..][..size]).copy_from_slice(&buf[..size]);
         self.offset += size;
-
-        if self.offset == self.bytes.as_mut().len() {
-            self.offset = 0;
-            Ok((size, Some(self.bytes)))
-        } else {
-            track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos;
-                          self.offset, self.bytes.as_ref().len());
-            Ok((size, None))
+        if self.offset != self.bytes.as_mut().len() {
+            track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos; self.offset, self.bytes.as_ref().len());
         }
+        Ok(size)
+    }
+
+    fn finish_decoding(&mut self) -> Result<Self::Item> {
+        track_assert_eq!(
+            self.offset,
+            self.bytes.as_ref().len(),
+            ErrorKind::IncompleteItem
+        );
+        self.offset = 0;
+        Ok(self.bytes)
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -219,7 +220,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> BytesDecoder<B> {
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
     type Item = B;
 
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
         let size = {
             let mut bytes = track_assert_some!(self.bytes.as_mut(), ErrorKind::DecoderTerminated);
             let size = cmp::min(buf.len(), bytes.as_ref().len() - self.offset);
@@ -227,13 +228,16 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
             self.offset += size;
             size
         };
-        if self.exact_requiring_bytes() == 0 {
-            self.offset = 0;
-            Ok((size, self.bytes.take()))
-        } else {
+        if self.exact_requiring_bytes() != 0 {
             track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos; self.offset, self.buf_len());
-            Ok((size, None))
         }
+        Ok(size)
+    }
+
+    fn finish_decoding(&mut self) -> Result<Self::Item> {
+        track_assert_eq!(self.exact_requiring_bytes(), 0, ErrorKind::IncompleteItem);
+        let bytes = track_assert_some!(self.bytes.take(), ErrorKind::DecoderTerminated);
+        Ok(bytes)
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -261,7 +265,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
 /// assert_eq!(size, 3);
 /// ```
 #[derive(Debug, Default)]
-pub struct RemainingBytesDecoder(Vec<u8>);
+pub struct RemainingBytesDecoder {
+    buf: Vec<u8>,
+    eos: bool,
+}
 impl RemainingBytesDecoder {
     /// Makes a new `RemainingBytesDecoder` instance.
     pub fn new() -> Self {
@@ -271,21 +278,32 @@ impl RemainingBytesDecoder {
 impl Decode for RemainingBytesDecoder {
     type Item = Vec<u8>;
 
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        if let Some(remaining) = eos.remaining_bytes().to_u64() {
-            self.0.reserve_exact(buf.len() + remaining as usize);
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
+        if self.eos {
+            return Ok(0);
         }
 
-        self.0.extend_from_slice(buf);
-        if eos.is_reached() {
-            Ok((buf.len(), Some(mem::replace(&mut self.0, Vec::new()))))
-        } else {
-            Ok((buf.len(), None))
+        if let Some(remaining) = eos.remaining_bytes().to_u64() {
+            self.buf.reserve_exact(buf.len() + remaining as usize);
         }
+        self.buf.extend_from_slice(buf);
+        self.eos = eos.is_reached();
+        Ok(buf.len())
+    }
+
+    fn finish_decoding(&mut self) -> Result<Self::Item> {
+        track_assert!(self.eos, ErrorKind::IncompleteItem);
+        self.eos = false;
+        let bytes = mem::replace(&mut self.buf, Vec::new());
+        Ok(bytes)
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        ByteCount::Infinite
+        if self.eos {
+            ByteCount::Finite(0)
+        } else {
+            ByteCount::Infinite
+        }
     }
 }
 
@@ -339,13 +357,8 @@ impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
         self.0.is_idle()
     }
 }
-impl<S: AsRef<str>> ExactBytesEncode for Utf8Encoder<S> {
-    fn exact_requiring_bytes(&self) -> u64 {
-        self.0.exact_requiring_bytes()
-    }
-}
-impl<S: AsRef<str>> CalculateBytes for Utf8Encoder<S> {
-    fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64 {
+impl<S: AsRef<str>> SizedEncode for Utf8Encoder<S> {
+    fn encoded_size_of(&self, item: &Self::Item) -> u64 {
         item.as_ref().len() as u64
     }
 }
@@ -406,15 +419,14 @@ where
 {
     type Item = String;
 
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
-        let (size, item) = track!(self.0.decode(buf, eos))?;
-        match item {
-            Some(b) => {
-                let s = track!(String::from_utf8(b).map_err(|e| ErrorKind::InvalidInput.cause(e)))?;
-                Ok((size, Some(s)))
-            }
-            None => Ok((size, None)),
-        }
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
+        track!(self.0.decode(buf, eos))
+    }
+
+    fn finish_decoding(&mut self) -> Result<Self::Item> {
+        let b = track!(self.0.finish_decoding())?;
+        let s = track!(String::from_utf8(b).map_err(|e| ErrorKind::InvalidInput.cause(e)))?;
+        Ok(s)
     }
 
     fn requiring_bytes(&self) -> ByteCount {

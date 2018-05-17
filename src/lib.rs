@@ -44,7 +44,7 @@ extern crate trackable;
 
 pub use byte_count::ByteCount;
 pub use decode::{Decode, DecodeExt};
-pub use encode::{CalculateBytes, Encode, EncodeExt, ExactBytesEncode};
+pub use encode::{Encode, EncodeExt, SizedEncode};
 pub use eos::Eos;
 pub use error::{Error, ErrorKind};
 
@@ -62,7 +62,6 @@ pub mod json_codec;
 pub mod marker;
 pub mod monolithic;
 pub mod tuple;
-pub mod value;
 
 mod byte_count;
 mod decode;

@@ -1,7 +1,7 @@
 use std;
 
-use combinator::{AndThen, Assert, Buffered, Collect, CollectN, Length, Map, MapErr, MaxBytes,
-                 MaybeEos, Omittable, SkipRemaining, Slice, TryMap};
+use combinator::{AndThen, Buffered, Collect, CollectN, Length, Map, MapErr, MaxBytes, MaybeEos,
+                 Omittable, SkipRemaining, Slice, TryMap};
 use {ByteCount, Eos, Error, ErrorKind, Result};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
@@ -39,7 +39,15 @@ pub trait Decode {
     ///   - Invalid parameters were given to decoders
     /// - `ErrorKind::Error`:
     ///   - Other errors
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)>;
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize>;
+
+    /// TODO:
+    fn finish_decoding(&mut self) -> Result<Self::Item>;
+
+    /// TODO: doc
+    fn is_idle(&self) -> bool {
+        self.requiring_bytes() == ByteCount::Finite(0)
+    }
 
     /// Returns the lower bound of the number of bytes needed to decode the next item.
     ///
@@ -56,23 +64,39 @@ pub trait Decode {
 impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
     type Item = D::Item;
 
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
         (**self).decode(buf, eos)
+    }
+
+    fn finish_decoding(&mut self) -> Result<Self::Item> {
+        (**self).finish_decoding()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
         (**self).requiring_bytes()
+    }
+
+    fn is_idle(&self) -> bool {
+        (**self).is_idle()
     }
 }
 impl<D: ?Sized + Decode> Decode for Box<D> {
     type Item = D::Item;
 
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
         (**self).decode(buf, eos)
+    }
+
+    fn finish_decoding(&mut self) -> Result<Self::Item> {
+        (**self).finish_decoding()
     }
 
     fn requiring_bytes(&self) -> ByteCount {
         (**self).requiring_bytes()
+    }
+
+    fn is_idle(&self) -> bool {
+        (**self).is_idle()
     }
 }
 
@@ -331,31 +355,6 @@ pub trait DecodeExt: Decode + Sized {
         MaxBytes::new(self, bytes)
     }
 
-    /// Creates a decoder that will fail if the given assertion function returns `false`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bytecodec::{Decode, DecodeExt, ErrorKind};
-    /// use bytecodec::fixnum::U8Decoder;
-    /// use bytecodec::io::IoDecodeExt;
-    ///
-    /// let mut decoder = U8Decoder::new().assert(|&b| b == 3);
-    ///
-    /// let mut input = &[3, 4][..];
-    /// let item = decoder.decode_exact(&mut input).unwrap();
-    /// assert_eq!(item, 3);
-    ///
-    /// let error = decoder.decode_exact(&mut input).err();
-    /// assert_eq!(error.map(|e| *e.kind()), Some(ErrorKind::InvalidInput));
-    /// ```
-    fn assert<F>(self, f: F) -> Assert<Self, F>
-    where
-        F: for<'a> Fn(&'a Self::Item) -> bool,
-    {
-        Assert::new(self, f)
-    }
-
     /// Creates a decoder that makes it possible to slice the input byte sequence in arbitrary units.
     ///
     /// Slicing an input byte sequence makes it easier to demultiplex multiple sequences from it.
@@ -395,6 +394,7 @@ pub trait DecodeExt: Decode + Sized {
         Slice::new(self)
     }
 
+    // TODO: peekable
     /// Creates a decoder that buffers the last decoded item.
     ///
     /// # Examples
@@ -454,10 +454,9 @@ pub trait DecodeExt: Decode + Sized {
     /// );
     /// ```
     fn decode_from_bytes(&mut self, buf: &[u8]) -> Result<Self::Item> {
-        let (size, item) = track!(self.decode(buf, Eos::new(true)))?;
+        let size = track!(self.decode(buf, Eos::new(true)))?;
         track_assert_eq!(size, buf.len(), ErrorKind::InvalidInput);
-        let item = track_assert_some!(item, ErrorKind::InvalidInput);
-        Ok(item)
+        track!(self.finish_decoding())
     }
 }
 impl<T: Decode> DecodeExt for T {}

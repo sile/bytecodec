@@ -1,8 +1,9 @@
 use std;
 
-use combinator::{Last, LastItem, Length, MapErr, MapFrom, MaxBytes, Optional, Padding,
-                 PreCalculate, PreEncode, Repeat, Slice, TryMapFrom, WithPrefix};
+use combinator::{Last, Length, MapErr, MapFrom, MaxBytes, Optional, Padding, PreCalculate,
+                 PreEncode, Repeat, Slice, TryMapFrom};
 use io::IoEncodeExt;
+use tuple::TupleEncoder;
 use {ByteCount, Eos, Error, ErrorKind, Result};
 
 /// This trait allows for encoding items into a byte sequence incrementally.
@@ -52,8 +53,11 @@ pub trait Encode {
     ///   - Other errors has occurred
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
+    // TODO: make optional
     /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
-    fn is_idle(&self) -> bool;
+    fn is_idle(&self) -> bool; // {
+                               //     self.requiring_bytes() == ByteCount::Finite(0)
+                               // }
 
     /// Returns the number of bytes required to encode all the items in the encoder.
     ///
@@ -99,38 +103,19 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
     }
 }
 
-/// This trait indicates that the encoder always known the exact bytes required to encode remaining items.
-pub trait ExactBytesEncode: Encode {
-    /// Returns the exact number of bytes required to encode all the items remaining in the encoder.
-    fn exact_requiring_bytes(&self) -> u64;
+/// This trait allows for encoding items in length delimited formats.
+pub trait SizedEncode: Encode {
+    /// Calculates the exact number of bytes required for encoding the given item.
+    fn encoded_size_of(&self, item: &Self::Item) -> u64;
 }
-impl<'a, E: ?Sized + ExactBytesEncode> ExactBytesEncode for &'a mut E {
-    fn exact_requiring_bytes(&self) -> u64 {
-        (**self).exact_requiring_bytes()
+impl<'a, E: ?Sized + SizedEncode> SizedEncode for &'a mut E {
+    fn encoded_size_of(&self, item: &Self::Item) -> u64 {
+        (**self).encoded_size_of(item)
     }
 }
-impl<E: ?Sized + ExactBytesEncode> ExactBytesEncode for Box<E> {
-    fn exact_requiring_bytes(&self) -> u64 {
-        (**self).exact_requiring_bytes()
-    }
-}
-
-/// This trait allows calculating the encoded size of items in advance.
-///
-/// Usually it is recommended to use `ExactBytesEncode` instead of this.
-/// But this trait may be useful for reducing memory copies when encoding huge complex data structures.
-pub trait CalculateBytes: Encode {
-    /// Returns the exact number of bytes required for encoding the given item.
-    fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64;
-}
-impl<'a, E: ?Sized + CalculateBytes> CalculateBytes for &'a mut E {
-    fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64 {
-        (**self).calculate_requiring_bytes(item)
-    }
-}
-impl<E: ?Sized + CalculateBytes> CalculateBytes for Box<E> {
-    fn calculate_requiring_bytes(&self, item: &Self::Item) -> u64 {
-        (**self).calculate_requiring_bytes(item)
+impl<E: ?Sized + SizedEncode> SizedEncode for Box<E> {
+    fn encoded_size_of(&self, item: &Self::Item) -> u64 {
+        (**self).encoded_size_of(item)
     }
 }
 
@@ -336,6 +321,11 @@ pub trait EncodeExt: Encode + Sized {
         Length::new(self, n)
     }
 
+    /// TODO: doc
+    fn chain<T: Encode>(self, other: T) -> TupleEncoder<(Self, T)> {
+        TupleEncoder::new((self, other))
+    }
+
     /// Creates an encoder that keeps writing padding byte until it reaches EOS
     /// after encoding of `self`'s item has been completed.
     ///
@@ -353,9 +343,12 @@ pub trait EncodeExt: Encode + Sized {
     /// assert_eq!(output, [3, 9, 9]);
     /// ```
     fn padding(self, padding_byte: u8) -> Padding<Self> {
+        // TODO: suffix, prefixの仕組みの統合する (or header/trailer, prepend/append)
+        // => chain() => TupleEncoder<(_,_)>で良さそう
         Padding::new(self, padding_byte)
     }
 
+    // TODO: add iter(?)
     /// Creates an encoder that repeats encoding of `Self::Item`.
     ///
     /// # Examples
@@ -376,33 +369,6 @@ pub trait EncodeExt: Encode + Sized {
         I: Iterator<Item = Self::Item>,
     {
         Repeat::new(self)
-    }
-
-    /// Creates an encoder that has a prefixed item encoded by `E`.
-    ///
-    /// # Examples
-    ///
-    /// Encodes a length prefixed UTF-8 string:
-    ///
-    /// ```
-    /// use bytecodec::{Encode, EncodeExt, ExactBytesEncode};
-    /// use bytecodec::bytes::Utf8Encoder;
-    /// use bytecodec::fixnum::U8Encoder;
-    /// use bytecodec::io::IoEncodeExt;
-    ///
-    /// let mut output = Vec::new();
-    /// let mut encoder =
-    ///     Utf8Encoder::new().with_prefix(U8Encoder::new(), |body| body.exact_requiring_bytes() as u8);
-    /// encoder.start_encoding("foo").unwrap();
-    /// encoder.encode_all(&mut output).unwrap();
-    /// assert_eq!(output, [3, b'f', b'o', b'o']);
-    /// ```
-    fn with_prefix<E, F>(self, prefix: E, f: F) -> WithPrefix<Self, E, F>
-    where
-        F: Fn(&Self) -> E::Item,
-        E: Encode,
-    {
-        WithPrefix::new(self, prefix, f)
     }
 
     /// Creates an encoder that pre-encodes items when `start_encoding` method is called.
@@ -436,7 +402,7 @@ pub trait EncodeExt: Encode + Sized {
     /// by calculating the exact number of bytes required for encoding items in advance.
     fn pre_calculate(self) -> PreCalculate<Self>
     where
-        Self: CalculateBytes,
+        Self: SizedEncode,
     {
         PreCalculate::new(self)
     }
@@ -477,14 +443,9 @@ pub trait EncodeExt: Encode + Sized {
         Slice::new(self)
     }
 
-    /// Creates an encoder that cannot accept any more items.
-    fn last(self) -> Last<Self> {
-        Last::new(self)
-    }
-
     /// Creates an encoder that cannot accept any more items except the given one.
-    fn last_item(self, item: Self::Item) -> LastItem<Self> {
-        LastItem::new(self, item)
+    fn last(self, item: Self::Item) -> Last<Self> {
+        Last::new(self, item)
     }
 
     /// Encodes the given item and returns the resulting bytes.
