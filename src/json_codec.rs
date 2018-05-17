@@ -28,14 +28,16 @@ use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 /// let mut decoder = JsonDecoder::<Value>::new();
 ///
 /// decoder.decode(b"[1, 2", Eos::new(false)).unwrap();
-/// let (_, item) = decoder.decode(b", 3]", Eos::new(true)).unwrap();
-/// let json = item.unwrap();
+/// decoder.decode(b", 3]", Eos::new(true)).unwrap();
+/// let json = decoder.finish_decoding().unwrap();
 ///
 /// assert_eq!(json.to_string(), "[1,2,3]");
 /// # }
 /// ```
 #[derive(Debug)]
-pub struct JsonDecoder<T>(MonolithicDecoder<MonolithicJsonDecoder<T>>);
+pub struct JsonDecoder<T>(MonolithicDecoder<MonolithicJsonDecoder<T>>)
+where
+    T: for<'de> Deserialize<'de>;
 impl<T> JsonDecoder<T>
 where
     T: for<'de> Deserialize<'de>,
@@ -51,8 +53,12 @@ where
 {
     type Item = T;
 
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
         track!(self.0.decode(buf, eos))
+    }
+
+    fn finish_decoding(&mut self) -> Result<Self::Item> {
+        track!(self.0.finish_decoding())
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -165,9 +171,9 @@ mod test {
     fn json_decoder_works() {
         let mut decoder = JsonDecoder::<Value>::new();
 
-        decoder.decode(b"[1, 2", Eos::new(false)).unwrap();
-        let (_, item) = decoder.decode(b", 3]", Eos::new(true)).unwrap();
-        let json = item.unwrap();
+        track_try_unwrap!(decoder.decode(b"[1, 2", Eos::new(false)));
+        track_try_unwrap!(decoder.decode(b", 3]", Eos::new(true)));
+        let json = track_try_unwrap!(decoder.finish_decoding());
 
         assert_eq!(json.to_string(), "[1,2,3]");
     }

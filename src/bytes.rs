@@ -103,17 +103,19 @@ impl<B: AsRef<[u8]>> SizedEncode for BytesEncoder<B> {
 ///
 /// // Decodes first item
 /// assert_eq!(decoder.requiring_bytes().to_u64(), Some(3));
-/// let (_, item) = decoder.decode(&input[0..3], Eos::new(false)).unwrap();
-/// assert_eq!(item.as_ref(), Some(b"foo"));
+/// decoder.decode(&input[0..3], Eos::new(false)).unwrap();
+/// assert_eq!(decoder.is_idle(), true);
+/// assert_eq!(decoder.finish_decoding().unwrap(), *b"foo");
 ///
 /// // Decodes second item
 /// assert_eq!(decoder.requiring_bytes().to_u64(), Some(3));
-/// let (_, item) = decoder.decode(&input[3..5], Eos::new(false)).unwrap();
-/// assert_eq!(item, None);
+/// decoder.decode(&input[3..5], Eos::new(false)).unwrap();
+/// assert_eq!(decoder.is_idle(), false);
 /// assert_eq!(decoder.requiring_bytes().to_u64(), Some(1));
 ///
-/// let (_, item) = decoder.decode(&input[5..], Eos::new(true)).unwrap();
-/// assert_eq!(item.as_ref(), Some(b"bar"));
+/// decoder.decode(&input[5..], Eos::new(true)).unwrap();
+/// assert_eq!(decoder.is_idle(), true);
+/// assert_eq!(decoder.finish_decoding().unwrap(), *b"bar");
 /// ```
 #[derive(Debug, Default)]
 pub struct CopyableBytesDecoder<B> {
@@ -256,13 +258,14 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
 /// let mut decoder = RemainingBytesDecoder::new();
 /// assert_eq!(decoder.requiring_bytes().to_u64(), None);
 ///
-/// let (size, item) = decoder.decode(b"foo", Eos::new(false)).unwrap();
-/// assert_eq!(item, None);
+/// let size = decoder.decode(b"foo", Eos::new(false)).unwrap();
 /// assert_eq!(size, 3);
+/// assert_eq!(decoder.is_idle(), false);
 ///
-/// let (size, item) = decoder.decode(b"bar", Eos::new(true)).unwrap();
-/// assert_eq!(item, Some(b"foobar".to_vec()));
+/// let size = decoder.decode(b"bar", Eos::new(true)).unwrap();
 /// assert_eq!(size, 3);
+/// assert_eq!(decoder.is_idle(), true);
+/// assert_eq!(decoder.finish_decoding().unwrap(), b"foobar");
 /// ```
 #[derive(Debug, Default)]
 pub struct RemainingBytesDecoder {
@@ -378,8 +381,8 @@ impl<S> Default for Utf8Encoder<S> {
 ///
 /// let mut decoder = Utf8Decoder::new();
 ///
-/// let (_, item) = decoder.decode(b"foo", Eos::new(true)).unwrap();
-/// assert_eq!(item, Some("foo".to_owned()));
+/// decoder.decode(b"foo", Eos::new(true)).unwrap();
+/// assert_eq!(decoder.finish_decoding().unwrap(), "foo");
 /// ```
 #[derive(Debug, Default)]
 pub struct Utf8Decoder<D = RemainingBytesDecoder>(D);

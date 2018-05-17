@@ -105,6 +105,8 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
 
 /// This trait allows for encoding items in length delimited formats.
 pub trait SizedEncode: Encode {
+    // TODO: exact_requiring_bytes
+
     /// Calculates the exact number of bytes required for encoding the given item.
     fn encoded_size_of(&self, item: &Self::Item) -> u64;
 }
@@ -169,7 +171,7 @@ pub trait EncodeExt: Encode + Sized {
     ///                buf.len()=0, size=0, self.offset=0, b.as_ref().len()=1)
     /// HISTORY:
     ///   [0] at src/bytes.rs:54
-    ///   [1] at src/fixnum.rs:109
+    ///   [1] at src/fixnum.rs:113
     ///   [2] at src/encode.rs:11 -- oops!
     ///   [3] at src/encode.rs:12\n");
     /// # }
@@ -322,11 +324,11 @@ pub trait EncodeExt: Encode + Sized {
     }
 
     /// TODO: doc
+    /// TODO: add decoder.chain
     fn chain<T: Encode>(self, other: T) -> TupleEncoder<(Self, T)> {
         TupleEncoder::new((self, other))
     }
 
-    // TODO: add iter(?)
     /// Creates an encoder that repeats encoding of `Self::Item`.
     ///
     /// # Examples
@@ -349,6 +351,7 @@ pub trait EncodeExt: Encode + Sized {
         Repeat::new(self)
     }
 
+    // TODO
     /// Creates an encoder that pre-encodes items when `start_encoding` method is called.
     ///
     /// Although the number of memory copies increases,
@@ -356,7 +359,7 @@ pub trait EncodeExt: Encode + Sized {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use bytecodec::{Encode, EncodeExt, ExactBytesEncode};
     /// use bytecodec::fixnum::U8Encoder;
     /// use bytecodec::io::IoEncodeExt;

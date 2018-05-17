@@ -3,7 +3,6 @@
 //! These are mainly created via the methods provided by `EncodeExt` or `DecodeExt` traits.
 use std;
 use std::cmp;
-use std::fmt;
 use std::iter;
 use std::marker::PhantomData;
 use std::mem;
@@ -572,6 +571,10 @@ where
     type Item = T;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
+        if self.eos {
+            return Ok(0);
+        }
+
         let mut offset = 0;
         while offset < buf.len() {
             bytecodec_try_decode!(self.inner, offset, buf, eos);
@@ -580,7 +583,6 @@ where
             self.items.extend(iter::once(item));
         }
         if eos.is_reached() {
-            track_assert!(self.inner.is_idle(), ErrorKind::UnexpectedEos);
             self.eos = true;
         }
         Ok(offset)
@@ -594,7 +596,11 @@ where
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        self.inner.requiring_bytes()
+        if self.eos {
+            ByteCount::Finite(0)
+        } else {
+            self.inner.requiring_bytes()
+        }
     }
 }
 
@@ -1403,12 +1409,10 @@ mod test {
 
         for _ in 0..3 {
             decoder0.set_consumable_bytes(1);
-            let size = track_try_unwrap!(decoder0.decode(&input[offset..], eos));
-            offset += size;
+            offset += track_try_unwrap!(decoder0.decode(&input[offset..], eos));
 
             decoder1.set_consumable_bytes(1);
-            let size = track_try_unwrap!(decoder1.decode(&input[offset..], eos));
-            offset += size;
+            offset += track_try_unwrap!(decoder1.decode(&input[offset..], eos));
         }
 
         assert_eq!(offset, input.len());
@@ -1467,94 +1471,94 @@ mod test {
     }
 }
 
-// TODO: delete or rename to `Peek`
-/// Combinator that gives a buffer to the decoder.
-///
-/// Thsi is created by calling `DecodeExt::buffer` method.
-pub struct Buffered<D: Decode> {
-    inner: D,
-    item: Option<D::Item>,
-}
-impl<D: Decode> Buffered<D> {
-    pub(crate) fn new(inner: D) -> Self {
-        Buffered { inner, item: None }
-    }
+// // TODO: delete or rename to `Peek`
+// /// Combinator that gives a buffer to the decoder.
+// ///
+// /// Thsi is created by calling `DecodeExt::buffer` method.
+// pub struct Buffered<D: Decode> {
+//     inner: D,
+//     item: Option<D::Item>,
+// }
+// impl<D: Decode> Buffered<D> {
+//     pub(crate) fn new(inner: D) -> Self {
+//         Buffered { inner, item: None }
+//     }
 
-    /// Returns `true` if the decoder has a decoded item, other `false`.
-    ///
-    /// Note that the decoder cannot decode new items if this method returns `true`.
-    pub fn has_item(&self) -> bool {
-        self.item.is_some()
-    }
+//     /// Returns `true` if the decoder has a decoded item, other `false`.
+//     ///
+//     /// Note that the decoder cannot decode new items if this method returns `true`.
+//     pub fn has_item(&self) -> bool {
+//         self.item.is_some()
+//     }
 
-    /// Returns a reference to the item decoded by the decoder in the last `decode` call.
-    pub fn get_item(&self) -> Option<&D::Item> {
-        self.item.as_ref()
-    }
+//     /// Returns a reference to the item decoded by the decoder in the last `decode` call.
+//     pub fn get_item(&self) -> Option<&D::Item> {
+//         self.item.as_ref()
+//     }
 
-    /// Takes the item decoded by the decoder in the last `decode` call.
-    pub fn take_item(&mut self) -> Option<D::Item> {
-        self.item.take()
-    }
+//     /// Takes the item decoded by the decoder in the last `decode` call.
+//     pub fn take_item(&mut self) -> Option<D::Item> {
+//         self.item.take()
+//     }
 
-    /// Returns a reference to the inner decoder.
-    pub fn inner_ref(&self) -> &D {
-        &self.inner
-    }
+//     /// Returns a reference to the inner decoder.
+//     pub fn inner_ref(&self) -> &D {
+//         &self.inner
+//     }
 
-    /// Returns a mutable reference to the inner decoder.
-    pub fn inner_mut(&mut self) -> &mut D {
-        &mut self.inner
-    }
+//     /// Returns a mutable reference to the inner decoder.
+//     pub fn inner_mut(&mut self) -> &mut D {
+//         &mut self.inner
+//     }
 
-    /// Takes ownership of this instance and returns the inner decoder.
-    pub fn into_inner(self) -> D {
-        self.inner
-    }
-}
-impl<D: Decode + fmt::Debug> fmt::Debug for Buffered<D> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Buffered {{ inner: {:?}, item.is_some(): {:?} }}",
-            self.inner,
-            self.item.is_some()
-        )
-    }
-}
-impl<D: Decode + Default> Default for Buffered<D> {
-    fn default() -> Self {
-        Buffered {
-            inner: D::default(),
-            item: None,
-        }
-    }
-}
-impl<D: Decode> Decode for Buffered<D> {
-    type Item = D::Item;
+//     /// Takes ownership of this instance and returns the inner decoder.
+//     pub fn into_inner(self) -> D {
+//         self.inner
+//     }
+// }
+// impl<D: Decode + fmt::Debug> fmt::Debug for Buffered<D> {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "Buffered {{ inner: {:?}, item.is_some(): {:?} }}",
+//             self.inner,
+//             self.item.is_some()
+//         )
+//     }
+// }
+// impl<D: Decode + Default> Default for Buffered<D> {
+//     fn default() -> Self {
+//         Buffered {
+//             inner: D::default(),
+//             item: None,
+//         }
+//     }
+// }
+// impl<D: Decode> Decode for Buffered<D> {
+//     type Item = D::Item;
 
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
-        if self.item.is_none() {
-            let size = track!(self.inner.decode(buf, eos))?;
-            if self.inner.is_idle() {
-                self.item = Some(track!(self.finish_decoding())?);
-            }
-            Ok(size)
-        } else {
-            Ok(0)
-        }
-    }
+//     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
+//         if self.item.is_none() {
+//             let size = track!(self.inner.decode(buf, eos))?;
+//             if self.inner.is_idle() {
+//                 self.item = Some(track!(self.finish_decoding())?);
+//             }
+//             Ok(size)
+//         } else {
+//             Ok(0)
+//         }
+//     }
 
-    fn finish_decoding(&mut self) -> Result<Self::Item> {
-        let item = track_assert_some!(self.item.take(), ErrorKind::IncompleteItem);
-        Ok(item)
-    }
+//     fn finish_decoding(&mut self) -> Result<Self::Item> {
+//         let item = track_assert_some!(self.item.take(), ErrorKind::IncompleteItem);
+//         Ok(item)
+//     }
 
-    fn requiring_bytes(&self) -> ByteCount {
-        if self.item.is_some() {
-            ByteCount::Finite(0)
-        } else {
-            self.inner.requiring_bytes()
-        }
-    }
-}
+//     fn requiring_bytes(&self) -> ByteCount {
+//         if self.item.is_some() {
+//             ByteCount::Finite(0)
+//         } else {
+//             self.inner.requiring_bytes()
+//         }
+//     }
+// }

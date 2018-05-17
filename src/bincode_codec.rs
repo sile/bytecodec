@@ -15,7 +15,9 @@ use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 /// Note that this decodes items monolithically
 /// so very large items may impair real-time property of the system.
 #[derive(Debug)]
-pub struct BincodeDecoder<T>(MonolithicDecoder<MonolithicBincodeDecoder<T>>);
+pub struct BincodeDecoder<T>(MonolithicDecoder<MonolithicBincodeDecoder<T>>)
+where
+    T: for<'de> Deserialize<'de>;
 impl<T> BincodeDecoder<T>
 where
     T: for<'de> Deserialize<'de>,
@@ -31,8 +33,12 @@ where
 {
     type Item = T;
 
-    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<(usize, Option<Self::Item>)> {
+    fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
         track!(self.0.decode(buf, eos))
+    }
+
+    fn finish_decoding(&mut self) -> Result<Self::Item> {
+        track!(self.0.finish_decoding())
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -49,8 +55,13 @@ where
 }
 
 #[derive(Debug)]
-struct MonolithicBincodeDecoder<T>(PhantomData<T>);
-impl<T> MonolithicBincodeDecoder<T> {
+struct MonolithicBincodeDecoder<T>(PhantomData<T>)
+where
+    T: for<'de> Deserialize<'de>;
+impl<T> MonolithicBincodeDecoder<T>
+where
+    T: for<'de> Deserialize<'de>,
+{
     fn new() -> Self {
         MonolithicBincodeDecoder(PhantomData)
     }

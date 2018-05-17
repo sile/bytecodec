@@ -1,7 +1,7 @@
 use std;
 
-use combinator::{AndThen, Buffered, Collect, CollectN, Length, Map, MapErr, MaxBytes, MaybeEos,
-                 Omittable, Slice, TryMap};
+use combinator::{AndThen, Collect, CollectN, Length, Map, MapErr, MaxBytes, MaybeEos, Omittable,
+                 Slice, TryMap};
 use {ByteCount, Eos, Error, ErrorKind, Result};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
@@ -183,10 +183,10 @@ pub trait DecodeExt: Decode + Sized {
     /// UnexpectedEos (cause; assertion failed: `!eos.is_reached()`; \
     ///                self.offset=1, self.bytes.as_ref().len()=2)
     /// HISTORY:
-    ///   [0] at src/bytes.rs:155
-    ///   [1] at src/fixnum.rs:192
+    ///   [0] at src/bytes.rs:154
+    ///   [1] at src/fixnum.rs:196
     ///   [2] at src/decode.rs:12 -- oops!
-    ///   [3] at src/io.rs:44
+    ///   [3] at src/io.rs:48
     ///   [4] at src/decode.rs:16\n");
     /// # }
     /// ```
@@ -351,51 +351,45 @@ pub trait DecodeExt: Decode + Sized {
     /// let input = b"fboaor";
     /// let mut offset = 0;
     ///
-    /// let mut last_item0 = None;
-    /// let mut last_item1 = None;
     /// for _ in 0..3 {
     ///     decoder0.set_consumable_bytes(1);
-    ///     let (size, item) = decoder0.decode(&input[offset..], eos).unwrap();
-    ///     offset += size;
-    ///     last_item0 = item;
+    ///     offset += decoder0.decode(&input[offset..], eos).unwrap();
     ///
     ///     decoder1.set_consumable_bytes(1);
-    ///     let (size, item) = decoder1.decode(&input[offset..], eos).unwrap();
-    ///     offset += size;
-    ///     last_item1 = item;
+    ///     offset += decoder1.decode(&input[offset..], eos).unwrap();
     /// }
     ///
     /// assert_eq!(offset, input.len());
-    /// assert_eq!(last_item0, Some("foo".to_owned()));
-    /// assert_eq!(last_item1, Some("bar".to_owned()));
+    /// assert_eq!(decoder0.finish_decoding().unwrap(), "foo");
+    /// assert_eq!(decoder1.finish_decoding().unwrap(), "bar");
     /// ```
     fn slice(self) -> Slice<Self> {
         Slice::new(self)
     }
 
-    // TODO: peekable
-    /// Creates a decoder that buffers the last decoded item.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use bytecodec::{Decode, DecodeExt, Eos, StartDecoderChain};
-    /// use bytecodec::fixnum::U8Decoder;
-    ///
-    /// let mut decoder = StartDecoderChain
-    ///     .chain(U8Decoder::new())
-    ///     .chain(U8Decoder::new())
-    ///     .chain(U8Decoder::new())
-    ///     .buffered();
-    /// let (size, item) = decoder.decode(b"foo", Eos::new(false)).unwrap();
-    /// assert_eq!(size, 3);
-    /// assert_eq!(item, None);
-    /// assert_eq!(decoder.take_item(), Some((b'f', b'o', b'o')));
-    /// assert_eq!(decoder.has_item(), false);
-    /// ```
-    fn buffered(self) -> Buffered<Self> {
-        Buffered::new(self)
-    }
+    // // TODO: peekable
+    // /// Creates a decoder that buffers the last decoded item.
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```
+    // /// use bytecodec::{Decode, DecodeExt, Eos, StartDecoderChain};
+    // /// use bytecodec::fixnum::U8Decoder;
+    // ///
+    // /// let mut decoder = StartDecoderChain
+    // ///     .chain(U8Decoder::new())
+    // ///     .chain(U8Decoder::new())
+    // ///     .chain(U8Decoder::new())
+    // ///     .buffered();
+    // /// let (size, item) = decoder.decode(b"foo", Eos::new(false)).unwrap();
+    // /// assert_eq!(size, 3);
+    // /// assert_eq!(item, None);
+    // /// assert_eq!(decoder.take_item(), Some((b'f', b'o', b'o')));
+    // /// assert_eq!(decoder.has_item(), false);
+    // /// ```
+    // fn buffered(self) -> Buffered<Self> {
+    //     Buffered::new(self)
+    // }
 
     /// Creates a decoder that ignores EOS if there is no item being decoded.
     ///
