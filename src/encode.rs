@@ -1,7 +1,7 @@
 use std;
 
-use combinator::{Last, Length, MapErr, MapFrom, MaxBytes, Optional, PreCalculate, PreEncode,
-                 Repeat, Slice, TryMapFrom};
+use combinator::{Last, Length, MapErr, MapFrom, MaxBytes, Optional, PreEncode, Repeat, Slice,
+                 TryMapFrom};
 use io::IoEncodeExt;
 use tuple::TupleEncoder;
 use {ByteCount, Eos, Error, ErrorKind, Result};
@@ -103,21 +103,17 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
     }
 }
 
-/// This trait allows for encoding items in length delimited formats.
 pub trait SizedEncode: Encode {
-    // TODO: exact_requiring_bytes
-
-    /// Calculates the exact number of bytes required for encoding the given item.
-    fn encoded_size_of(&self, item: &Self::Item) -> u64;
+    fn exact_requiring_bytes(&self) -> u64;
 }
 impl<'a, E: ?Sized + SizedEncode> SizedEncode for &'a mut E {
-    fn encoded_size_of(&self, item: &Self::Item) -> u64 {
-        (**self).encoded_size_of(item)
+    fn exact_requiring_bytes(&self) -> u64 {
+        (**self).exact_requiring_bytes()
     }
 }
 impl<E: ?Sized + SizedEncode> SizedEncode for Box<E> {
-    fn encoded_size_of(&self, item: &Self::Item) -> u64 {
-        (**self).encoded_size_of(item)
+    fn exact_requiring_bytes(&self) -> u64 {
+        (**self).exact_requiring_bytes()
     }
 }
 
@@ -377,15 +373,6 @@ pub trait EncodeExt: Encode + Sized {
     /// ```
     fn pre_encode(self) -> PreEncode<Self> {
         PreEncode::new(self)
-    }
-
-    /// Creates an encoder that gives `ExactBytesEncode` trait to `self`
-    /// by calculating the exact number of bytes required for encoding items in advance.
-    fn pre_calculate(self) -> PreCalculate<Self>
-    where
-        Self: SizedEncode,
-    {
-        PreCalculate::new(self)
     }
 
     /// Creates an encoder that makes it possible to slice the encoded byte sequence in arbitrary units.

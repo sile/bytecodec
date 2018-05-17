@@ -120,8 +120,8 @@ macro_rules! impl_encode {
         where
             $($t: SizedEncode),*
         {
-            fn encoded_size_of(&self, t: &Self::Item) -> u64 {
-                0 $(+ self.inner.$i.encoded_size_of(&t.$i))*
+            fn exact_requiring_bytes(&self) -> u64 {
+                0 $(+ self.inner.$i.exact_requiring_bytes())*
             }
         }
     };

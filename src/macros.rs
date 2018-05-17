@@ -38,6 +38,7 @@ macro_rules! bytecodec_try_encode {
     };
 }
 
+// TODO: update doc
 /// Tries to decode an item from the given buffer.
 ///
 /// Note that this macro assumes `$decoder` is an instance of `Buffered<_>`.

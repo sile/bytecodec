@@ -1,6 +1,5 @@
 //! Encoders and decoders for numbers which have fixed length binary representation.
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-use std::mem;
 
 use bytes::{BytesEncoder, CopyableBytesDecoder};
 use {ByteCount, Decode, Encode, Eos, ErrorKind, Result, SizedEncode};
@@ -49,8 +48,8 @@ macro_rules! impl_encode {
             }
         }
         impl SizedEncode for $ty {
-            fn encoded_size_of(&self, item: &Self::Item) -> u64 {
-                mem::size_of_val(item) as u64
+            fn exact_requiring_bytes(&self) -> u64 {
+                self.0.exact_requiring_bytes()
             }
         }
     };

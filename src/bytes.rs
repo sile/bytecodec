@@ -72,10 +72,7 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     }
 
     fn requiring_bytes(&self) -> ByteCount {
-        let n = self.bytes
-            .as_ref()
-            .map_or(0, |b| b.as_ref().len() - self.offset) as u64;
-        ByteCount::Finite(n)
+        ByteCount::Finite(self.exact_requiring_bytes())
     }
 
     fn is_idle(&self) -> bool {
@@ -83,8 +80,10 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
     }
 }
 impl<B: AsRef<[u8]>> SizedEncode for BytesEncoder<B> {
-    fn encoded_size_of(&self, item: &Self::Item) -> u64 {
-        item.as_ref().len() as u64
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.bytes
+            .as_ref()
+            .map_or(0, |b| b.as_ref().len() - self.offset) as u64
     }
 }
 
@@ -341,6 +340,11 @@ impl<S> Utf8Encoder<S> {
         Utf8Encoder(BytesEncoder::new())
     }
 }
+impl<S> Default for Utf8Encoder<S> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
     type Item = S;
 
@@ -361,13 +365,8 @@ impl<S: AsRef<str>> Encode for Utf8Encoder<S> {
     }
 }
 impl<S: AsRef<str>> SizedEncode for Utf8Encoder<S> {
-    fn encoded_size_of(&self, item: &Self::Item) -> u64 {
-        item.as_ref().len() as u64
-    }
-}
-impl<S> Default for Utf8Encoder<S> {
-    fn default() -> Self {
-        Self::new()
+    fn exact_requiring_bytes(&self) -> u64 {
+        self.0.exact_requiring_bytes()
     }
 }
 

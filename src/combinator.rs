@@ -1259,55 +1259,6 @@ impl<D: Decode> Decode for MaybeEos<D> {
     }
 }
 
-/// Combinator that gives `ExactBytesEncode` trait to `E` by calculating
-/// the exact number of bytes required for encoding items in advance.
-///
-/// This is created by calling `EncodeExt::pre_calculate`.
-#[derive(Debug, Default)]
-pub struct PreCalculate<E>(Length<E>);
-impl<E> PreCalculate<E> {
-    /// Returns a reference to the inner encoder.
-    pub fn inner_ref(&self) -> &E {
-        &self.0.inner
-    }
-
-    /// Returns a mutable reference to the inner encoder.
-    pub fn inner_mut(&mut self) -> &mut E {
-        &mut self.0.inner
-    }
-
-    /// Takes ownership of this instance and returns the inner encoder.
-    pub fn into_inner(self) -> E {
-        self.0.inner
-    }
-
-    pub(crate) fn new(inner: E) -> Self {
-        PreCalculate(Length::new(inner, 0))
-    }
-}
-impl<E: SizedEncode> Encode for PreCalculate<E> {
-    type Item = E::Item;
-
-    fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        track!(self.0.encode(buf, eos))
-    }
-
-    fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        let size = self.0.inner_ref().encoded_size_of(&item);
-        track!(self.0.start_encoding(item))?;
-        track!(self.0.set_expected_bytes(size))?;
-        Ok(())
-    }
-
-    fn is_idle(&self) -> bool {
-        self.0.is_idle()
-    }
-
-    fn requiring_bytes(&self) -> ByteCount {
-        self.0.requiring_bytes()
-    }
-}
-
 #[cfg(test)]
 mod test {
     use bytes::{Utf8Decoder, Utf8Encoder};
