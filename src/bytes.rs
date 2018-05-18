@@ -150,7 +150,8 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
         (&mut self.bytes.as_mut()[self.offset..][..size]).copy_from_slice(&buf[..size]);
         self.offset += size;
         if self.offset != self.bytes.as_mut().len() {
-            track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos; self.offset, self.bytes.as_ref().len());
+            track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos;
+                          self.offset, self.bytes.as_ref().len());
         }
         Ok(size)
     }

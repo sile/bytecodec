@@ -35,6 +35,9 @@ pub trait Encode {
     ///   - An item that the encoder could not encode was passed
     /// - `ErrorKind::UnexpectedEos`:
     ///   - The output byte stream has reached the end in the middle of an encoding process
+    /// - `ErrorKind::InconsistentState`:
+    ///   - The state of the encoder bocame inconsistent
+    ///   - This means the implementation contains a bug
     /// - `ErrorKind::Other`:
     ///   - Other errors has occurred
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize>;
@@ -49,6 +52,9 @@ pub trait Encode {
     ///   - The encoder currently cannot accept any more items
     /// - `ErrorKind::InvalidInput`:
     ///   - An invalid item was passed
+    /// - `ErrorKind::InconsistentState`:
+    ///   - The state of the encoder bocame inconsistent
+    ///   - This means the implementation contains a bug
     /// - `ErrorKind::Other`:
     ///   - Other errors has occurred
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;

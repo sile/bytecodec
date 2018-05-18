@@ -10,18 +10,14 @@ pub trait Decode {
     /// The type of items to be decoded.
     type Item;
 
-    // TODO: update doc
-    /// Consumes the given buffer (a part of a byte sequence), and decodes an item from it.
+    /// Consumes the given buffer (a part of a byte sequence), and proceeds the decoding process.
     ///
-    /// The first element of a succeeded result is the number of bytes consumed
-    /// from `buf` by the decoding process.
+    /// It returns the number of bytes consumed from the input buffer.
     ///
-    /// If an item is successfully decoded, the decoder will return `Ok((_, Some(..)))`.
+    /// If an item is completely decoded, the next invocation of `is_idle` method will return `true`.
+    /// And if `is_idle` method returns `true`, `decode` method should consume no bytes.
     ///
-    /// If the buffer does not contain enough bytes to decode the next item,
-    /// the decoder will return `Ok((_, None))`.
-    /// In this case, the decoder must consume as many bytes in the buffer as possible.
-    ///
+    /// The decoder must consume as many bytes in the buffer as possible.
     /// If an item is not yet decoded but the number of consumed bytes in the last `decode` invocation
     /// is smaller than the length of `buf`, it means the decoder has been suspended its work in any reasons.
     /// In that case the decoder may require some instructions from clients to resume the work,
@@ -29,7 +25,7 @@ pub trait Decode {
     ///
     /// # Errors
     ///
-    /// Decoders return the following kinds of errors as necessary:
+    /// The following errors may be returned by the decoder:
     /// - `ErrorKind::DecoderTerminated`:
     ///   - If all decodable items have been decoded,
     ///     the decoder must return this kind of error when `decode` method is called.
@@ -39,11 +35,27 @@ pub trait Decode {
     /// - `ErrorKind::InvalidInput`:
     ///   - Decoded items have invalid values
     ///   - Invalid parameters were given to decoders
-    /// - `ErrorKind::Error`:
+    /// - `ErrorKind::InconsistentState`:
+    ///   - The state of the decoder bocame inconsistent
+    ///   - This means the implementation contains a bug
+    /// - `ErrorKind::Other`:
     ///   - Other errors
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize>;
 
-    /// TODO:
+    /// Finishes the current decoding process and returns the decoded item.
+    ///
+    /// # Errors
+    ///
+    /// The following errors may be returned by the decoder:
+    /// - `ErrorKind::IncompleteDecoding`:
+    ///   - The decoding process has not been completed
+    /// - `ErrorKind::DecoderTerminated`:
+    ///   - The decoder has terminated (i.e., cannot decode any more items)
+    /// - `ErrorKind::InconsistentState`:
+    ///   - The state of the decoder bocame inconsistent
+    ///   - This means the implementation contains a bug
+    /// - `ErrorKind::Other`:
+    ///   - Other errors
     fn finish_decoding(&mut self) -> Result<Self::Item>;
 
     /// Returns the lower bound of the number of bytes needed to decode the next item.
@@ -59,8 +71,8 @@ pub trait Decode {
     ///   - In this case, the next invocation of `decode` method will fail.
     fn requiring_bytes(&self) -> ByteCount;
 
-    /// Returns `true` if there are no items to be decoded by the decoder at the next invocation of `decode` method,
-    /// otherwise `false`.
+    /// Returns `true` if there are no items to be decoded by the decoder
+    /// at the next invocation of `decode` method, otherwise `false`.
     ///
     /// Typically, `true` means the decoder already has a decoded item and
     /// it is waiting for `finish_decoding` to be called.

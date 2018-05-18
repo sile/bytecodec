@@ -686,7 +686,7 @@ impl<C> Length<C> {
     ///
     /// # Errors
     ///
-    /// If it is in the middle of decoding an item, it willl return an `ErrorKind::Other` error.
+    /// If it is in the middle of decoding an item, it willl return an `ErrorKind::IncompleteDecoding` error.
     pub fn set_expected_bytes(&mut self, bytes: u64) -> Result<()> {
         track_assert_eq!(
             self.remaining_bytes,
