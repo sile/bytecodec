@@ -53,16 +53,17 @@ pub trait Encode {
     ///   - Other errors has occurred
     fn start_encoding(&mut self, item: Self::Item) -> Result<()>;
 
-    // TODO: make optional
-    /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
-    fn is_idle(&self) -> bool; // {
-                               //     self.requiring_bytes() == ByteCount::Finite(0)
-                               // }
-
     /// Returns the number of bytes required to encode all the items in the encoder.
     ///
     /// If there are no items to be encoded, the encoder must return `ByteCount::Finite(0)`.
     fn requiring_bytes(&self) -> ByteCount;
+
+    /// Returns `true` if there are no items to be encoded in the encoder, otherwise `false`.
+    ///
+    /// The default implementation returns the result of `self.requiring_bytes() == ByteCount::Finite(0)`.
+    fn is_idle(&self) -> bool {
+        self.requiring_bytes() == ByteCount::Finite(0)
+    }
 }
 impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
     type Item = E::Item;
@@ -103,7 +104,9 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
     }
 }
 
+/// This trait indicates that the encoder always known the exact bytes required to encode remaining items.
 pub trait SizedEncode: Encode {
+    /// Returns the exact number of bytes required to encode all the items remaining in the encoder.
     fn exact_requiring_bytes(&self) -> u64;
 }
 impl<'a, E: ?Sized + SizedEncode> SizedEncode for &'a mut E {
@@ -167,7 +170,7 @@ pub trait EncodeExt: Encode + Sized {
     ///                buf.len()=0, size=0, self.offset=0, b.as_ref().len()=1)
     /// HISTORY:
     ///   [0] at src/bytes.rs:54
-    ///   [1] at src/fixnum.rs:113
+    ///   [1] at src/fixnum.rs:116
     ///   [2] at src/encode.rs:11 -- oops!
     ///   [3] at src/encode.rs:12\n");
     /// # }
@@ -319,8 +322,9 @@ pub trait EncodeExt: Encode + Sized {
         Length::new(self, n)
     }
 
-    /// TODO: doc
-    /// TODO: add decoder.chain
+    /// Takes two encoders and creates a new encoder that encodes both items in sequence.
+    ///
+    /// This is equivalent to call `TupleEncoder::new((self, other))`.
     fn chain<T: Encode>(self, other: T) -> TupleEncoder<(Self, T)> {
         TupleEncoder::new((self, other))
     }
@@ -347,7 +351,6 @@ pub trait EncodeExt: Encode + Sized {
         Repeat::new(self)
     }
 
-    // TODO
     /// Creates an encoder that pre-encodes items when `start_encoding` method is called.
     ///
     /// Although the number of memory copies increases,
@@ -436,7 +439,7 @@ pub trait EncodeExt: Encode + Sized {
 
                 let mut buf = vec![0; size as usize];
                 track!(self.encode(&mut buf, Eos::new(true)))?;
-                track_assert!(self.is_idle(), ErrorKind::Other);
+                track_assert!(self.is_idle(), ErrorKind::InconsistentState);
                 Ok(buf)
             }
             ByteCount::Unknown => {

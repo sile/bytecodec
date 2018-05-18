@@ -49,7 +49,7 @@ impl Decode for PaddingDecoder {
     }
 
     fn finish_decoding(&mut self) -> Result<Self::Item> {
-        track_assert!(self.eos, ErrorKind::IncompleteItem);
+        track_assert!(self.eos, ErrorKind::IncompleteDecoding);
         self.eos = false;
         Ok(())
     }

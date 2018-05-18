@@ -67,7 +67,7 @@ impl<D: MonolithicDecode> Decode for MonolithicDecoder<D> {
     }
 
     fn finish_decoding(&mut self) -> Result<Self::Item> {
-        let item = track_assert_some!(self.item.take(), ErrorKind::IncompleteItem);
+        let item = track_assert_some!(self.item.take(), ErrorKind::IncompleteDecoding);
         Ok(item)
     }
 
@@ -77,6 +77,10 @@ impl<D: MonolithicDecode> Decode for MonolithicDecoder<D> {
         } else {
             ByteCount::Unknown
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.item.is_some()
     }
 }
 

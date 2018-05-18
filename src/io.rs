@@ -46,7 +46,7 @@ pub trait IoDecodeExt: Decode {
             };
 
             let consumed = track!(self.decode(&buf[..size], eos))?;
-            track_assert_eq!(consumed, size, ErrorKind::Other; self.is_idle(), eos);
+            track_assert_eq!(consumed, size, ErrorKind::InconsistentState; self.is_idle(), eos);
             if self.is_idle() {
                 let item = track!(self.finish_decoding())?;
                 return Ok(item);

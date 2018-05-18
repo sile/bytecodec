@@ -159,7 +159,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
         track_assert_eq!(
             self.offset,
             self.bytes.as_ref().len(),
-            ErrorKind::IncompleteItem
+            ErrorKind::IncompleteDecoding
         );
         self.offset = 0;
         Ok(self.bytes)
@@ -167,6 +167,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
 
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Finite((self.bytes.as_ref().len() - self.offset) as u64)
+    }
+
+    fn is_idle(&self) -> bool {
+        self.offset == self.bytes.as_ref().len()
     }
 }
 
@@ -236,13 +240,21 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
     }
 
     fn finish_decoding(&mut self) -> Result<Self::Item> {
-        track_assert_eq!(self.exact_requiring_bytes(), 0, ErrorKind::IncompleteItem);
+        track_assert_eq!(
+            self.exact_requiring_bytes(),
+            0,
+            ErrorKind::IncompleteDecoding
+        );
         let bytes = track_assert_some!(self.bytes.take(), ErrorKind::DecoderTerminated);
         Ok(bytes)
     }
 
     fn requiring_bytes(&self) -> ByteCount {
         ByteCount::Finite(self.exact_requiring_bytes())
+    }
+
+    fn is_idle(&self) -> bool {
+        self.exact_requiring_bytes() == 0
     }
 }
 
@@ -294,7 +306,7 @@ impl Decode for RemainingBytesDecoder {
     }
 
     fn finish_decoding(&mut self) -> Result<Self::Item> {
-        track_assert!(self.eos, ErrorKind::IncompleteItem);
+        track_assert!(self.eos, ErrorKind::IncompleteDecoding);
         self.eos = false;
         let bytes = mem::replace(&mut self.buf, Vec::new());
         Ok(bytes)
@@ -306,6 +318,10 @@ impl Decode for RemainingBytesDecoder {
         } else {
             ByteCount::Infinite
         }
+    }
+
+    fn is_idle(&self) -> bool {
+        self.eos
     }
 }
 
@@ -433,6 +449,10 @@ where
 
     fn requiring_bytes(&self) -> ByteCount {
         self.0.requiring_bytes()
+    }
+
+    fn is_idle(&self) -> bool {
+        self.0.is_idle()
     }
 }
 

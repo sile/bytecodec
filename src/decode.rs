@@ -1,7 +1,8 @@
 use std;
 
 use combinator::{AndThen, Collect, CollectN, Length, Map, MapErr, MaxBytes, MaybeEos, Omittable,
-                 Slice, TryMap};
+                 Peekable, Slice, TryMap};
+use tuple::TupleDecoder;
 use {ByteCount, Eos, Error, ErrorKind, Result};
 
 /// This trait allows for decoding items from a byte sequence incrementally.
@@ -9,6 +10,7 @@ pub trait Decode {
     /// The type of items to be decoded.
     type Item;
 
+    // TODO: update doc
     /// Consumes the given buffer (a part of a byte sequence), and decodes an item from it.
     ///
     /// The first element of a succeeded result is the number of bytes consumed
@@ -44,11 +46,6 @@ pub trait Decode {
     /// TODO:
     fn finish_decoding(&mut self) -> Result<Self::Item>;
 
-    /// TODO: doc
-    fn is_idle(&self) -> bool {
-        self.requiring_bytes() == ByteCount::Finite(0)
-    }
-
     /// Returns the lower bound of the number of bytes needed to decode the next item.
     ///
     /// If the decoder does not know the value, it will return `ByteCount::Unknown`
@@ -59,7 +56,19 @@ pub trait Decode {
     ///   - The next invocation of `decode()` will return it without consuming any bytes
     /// - (b) There are no decodable items
     ///   - All decodable items have been decoded, and the decoder cannot do any further works
+    ///   - In this case, the next invocation of `decode` method will fail.
     fn requiring_bytes(&self) -> ByteCount;
+
+    /// Returns `true` if there are no items to be decoded by the decoder at the next invocation of `decode` method,
+    /// otherwise `false`.
+    ///
+    /// Typically, `true` means the decoder already has a decoded item and
+    /// it is waiting for `finish_decoding` to be called.
+    ///
+    /// The default implementation returns the result of `self.requiring_bytes() == ByteCount::Finite(0)`.
+    fn is_idle(&self) -> bool {
+        self.requiring_bytes() == ByteCount::Finite(0)
+    }
 }
 impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
     type Item = D::Item;
@@ -183,8 +192,8 @@ pub trait DecodeExt: Decode + Sized {
     /// UnexpectedEos (cause; assertion failed: `!eos.is_reached()`; \
     ///                self.offset=1, self.bytes.as_ref().len()=2)
     /// HISTORY:
-    ///   [0] at src/bytes.rs:154
-    ///   [1] at src/fixnum.rs:196
+    ///   [0] at src/bytes.rs:153
+    ///   [1] at src/fixnum.rs:199
     ///   [2] at src/decode.rs:12 -- oops!
     ///   [3] at src/io.rs:48
     ///   [4] at src/decode.rs:16\n");
@@ -334,6 +343,13 @@ pub trait DecodeExt: Decode + Sized {
         MaxBytes::new(self, bytes)
     }
 
+    /// Takes two decoders and creates a new decoder that decodes both items in sequence.
+    ///
+    /// This is equivalent to call `TupleDecoder::new((self, other))`.
+    fn chain<T: Decode>(self, other: T) -> TupleDecoder<(Self, T)> {
+        TupleDecoder::new((self, other))
+    }
+
     /// Creates a decoder that makes it possible to slice the input byte sequence in arbitrary units.
     ///
     /// Slicing an input byte sequence makes it easier to demultiplex multiple sequences from it.
@@ -367,29 +383,29 @@ pub trait DecodeExt: Decode + Sized {
         Slice::new(self)
     }
 
-    // // TODO: peekable
-    // /// Creates a decoder that buffers the last decoded item.
-    // ///
-    // /// # Examples
-    // ///
-    // /// ```
-    // /// use bytecodec::{Decode, DecodeExt, Eos, StartDecoderChain};
-    // /// use bytecodec::fixnum::U8Decoder;
-    // ///
-    // /// let mut decoder = StartDecoderChain
-    // ///     .chain(U8Decoder::new())
-    // ///     .chain(U8Decoder::new())
-    // ///     .chain(U8Decoder::new())
-    // ///     .buffered();
-    // /// let (size, item) = decoder.decode(b"foo", Eos::new(false)).unwrap();
-    // /// assert_eq!(size, 3);
-    // /// assert_eq!(item, None);
-    // /// assert_eq!(decoder.take_item(), Some((b'f', b'o', b'o')));
-    // /// assert_eq!(decoder.has_item(), false);
-    // /// ```
-    // fn buffered(self) -> Buffered<Self> {
-    //     Buffered::new(self)
-    // }
+    /// Creates a decoder that enables to peek decoded items before calling `finish_decoding` method.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bytecodec::{Decode, DecodeExt, Eos};
+    /// use bytecodec::fixnum::U8Decoder;
+    /// use bytecodec::tuple::TupleDecoder;
+    ///
+    /// let mut decoder = TupleDecoder::new((
+    ///     U8Decoder::new(),
+    ///     U8Decoder::new(),
+    ///     U8Decoder::new(),
+    /// )).peekable();
+    /// let size = decoder.decode(b"foo", Eos::new(false)).unwrap();
+    /// assert_eq!(size, 3);
+    /// assert_eq!(decoder.peek(), Some(&(b'f', b'o', b'o')));
+    /// assert_eq!(decoder.finish_decoding().unwrap(), (b'f', b'o', b'o'));
+    /// assert_eq!(decoder.peek(), None);
+    /// ```
+    fn peekable(self) -> Peekable<Self> {
+        Peekable::new(self)
+    }
 
     /// Creates a decoder that ignores EOS if there is no item being decoded.
     ///

@@ -51,6 +51,10 @@ macro_rules! impl_decode {
             fn requiring_bytes(&self) -> ByteCount {
                 ByteCount::Finite(0)$(.add_for_decoding(self.inner.$i.requiring_bytes()))*
             }
+
+            fn is_idle(&self) -> bool {
+                $(self.inner.$i.is_idle())&&*
+            }
         }
     }
 }

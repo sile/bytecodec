@@ -24,13 +24,36 @@ impl From<std::io::Error> for Error {
 
 /// Possible error kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(missing_docs)]
 pub enum ErrorKind {
+    /// Input is invalid.
+    ///
+    /// Usually it indicates there is a problem outside of the encoder/decoder.
     InvalidInput,
+
+    /// Inconsistent state of the encoder/decoder.
+    ///
+    /// Usually it indicates there is a bug in the encoder/decoder.
+    InconsistentState,
+
+    /// Unexpected EOS.
+    ///
+    /// A target stream has reached EOS despite there are some items to be encoded/decoded.
     UnexpectedEos,
+
+    /// Encoder is full.
+    ///
+    /// The encoder cannot accept more items because it has some items to be encoded currently.
     EncoderFull,
+
+    /// Decoder has terminated.
+    ///
+    /// The decoder cannot decode any more items.
     DecoderTerminated,
-    IncompleteItem,
+
+    /// A decoding process terminated incompletely.
+    IncompleteDecoding,
+
+    /// Other errors.
     Other,
 }
 impl TrackableErrorKind for ErrorKind {}
