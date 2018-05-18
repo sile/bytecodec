@@ -6,8 +6,8 @@ use {ByteCount, Decode, Encode, Eos, Error, ErrorKind, Result};
 
 /// An extension of `Decode` trait to aid decodings involving I/O.
 pub trait IoDecodeExt: Decode {
-    /// Decodes an item from the given read buffer.
-    fn decode_from_read_buf<B>(&mut self, buf: &mut ReadBuf<B>) -> Result<Option<Self::Item>>
+    /// Consumes bytes from the given read buffer and proceeds the decoding process.
+    fn decode_from_read_buf<B>(&mut self, buf: &mut ReadBuf<B>) -> Result<()>
     where
         B: AsRef<[u8]>,
     {
@@ -18,11 +18,7 @@ pub trait IoDecodeExt: Decode {
             buf.head = 0;
             buf.tail = 0;
         }
-        if self.is_idle() {
-            track!(self.finish_decoding()).map(Some)
-        } else {
-            Ok(None)
-        }
+        Ok(())
     }
 
     /// Decodes an item from the given reader.
@@ -444,8 +440,8 @@ mod test {
         assert_eq!(buf.stream_state(), StreamState::Eos);
 
         let mut decoder = Utf8Decoder::new();
-        let item = track_try_unwrap!(decoder.decode_from_read_buf(&mut buf));
-        assert_eq!(item, Some("foo".to_owned()));
+        track_try_unwrap!(decoder.decode_from_read_buf(&mut buf));
+        assert_eq!(track_try_unwrap!(decoder.finish_decoding()), "foo");
     }
 
     #[test]
