@@ -98,6 +98,12 @@ impl PartialOrd for ByteCount {
         }
     }
 }
+impl Default for ByteCount {
+    /// Returns `ByteCount::Unknown` as the default value.
+    fn default() -> Self {
+        ByteCount::Unknown
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -105,6 +111,8 @@ mod test {
 
     #[test]
     fn it_works() {
+        assert_eq!(ByteCount::default(), ByteCount::Unknown);
+
         assert!(ByteCount::Finite(0).is_finite());
         assert!(ByteCount::Infinite.is_infinite());
         assert!(ByteCount::Unknown.is_unknow());
