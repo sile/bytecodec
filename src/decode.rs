@@ -456,7 +456,7 @@ pub trait DecodeExt: Decode + Sized {
     /// ```
     fn decode_from_bytes(&mut self, buf: &[u8]) -> Result<Self::Item> {
         let size = track!(self.decode(buf, Eos::new(true)))?;
-        track_assert_eq!(size, buf.len(), ErrorKind::InvalidInput);
+        track_assert_eq!(size, buf.len(), ErrorKind::InvalidInput; self.is_idle());
         track!(self.finish_decoding())
     }
 }

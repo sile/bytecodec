@@ -56,11 +56,11 @@ where
     type Item = T;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
-        track!(self.inner.decode(buf, eos))
+        self.inner.decode(buf, eos)
     }
 
     fn finish_decoding(&mut self) -> Result<Self::Item> {
-        let item = track!(self.inner.finish_decoding())?;
+        let item = self.inner.finish_decoding()?;
         Ok((self.map)(item))
     }
 
@@ -282,11 +282,11 @@ where
     type Item = T;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        track!(self.inner.encode(buf, eos))
+        self.inner.encode(buf, eos)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
-        track!(self.inner.start_encoding((self.from)(item)))
+        self.inner.start_encoding((self.from)(item))
     }
 
     fn requiring_bytes(&self) -> ByteCount {
@@ -350,12 +350,12 @@ where
     type Item = T;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
-        track!(self.inner.encode(buf, eos))
+        self.inner.encode(buf, eos)
     }
 
     fn start_encoding(&mut self, item: Self::Item) -> Result<()> {
         let item = track!((self.try_from)(item).map_err(Error::from))?;
-        track!(self.inner.start_encoding(item))
+        self.inner.start_encoding(item)
     }
 
     fn requiring_bytes(&self) -> ByteCount {
