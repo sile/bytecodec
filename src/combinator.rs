@@ -1034,6 +1034,7 @@ impl<D: Decode> Decode for MaxBytes<D> {
     }
 
     fn finish_decoding(&mut self) -> Result<Self::Item> {
+        self.consumed_bytes = 0;
         track!(self.inner.finish_decoding())
     }
 
@@ -1526,6 +1527,14 @@ mod test {
         encoder.start_encoding(0..4).unwrap();
         track_try_unwrap!(encoder.encode_all(&mut output));
         assert_eq!(output, [0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn decoder_max_bytes_works() {
+        let mut decoder = Utf8Decoder::new().max_bytes(3);
+        assert!(decoder.decode_from_bytes(b"12").is_ok());
+        assert!(decoder.decode_from_bytes(b"123").is_ok());
+        assert!(decoder.decode_from_bytes(b"1234").is_err());
     }
 
     #[test]
