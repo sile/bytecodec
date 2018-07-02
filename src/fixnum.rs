@@ -1564,8 +1564,8 @@ impl_encode!(F64leEncoder, f64);
 #[cfg(test)]
 mod test {
     use super::*;
-    use Encode;
     use io::{IoDecodeExt, IoEncodeExt};
+    use Encode;
 
     macro_rules! assert_encode_decode {
         ($encoder:ident, $decoder:ident, $item:expr, $bytes:expr) => {

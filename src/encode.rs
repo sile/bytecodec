@@ -1,7 +1,8 @@
 use std;
 
-use combinator::{Last, Length, MapErr, MapFrom, MaxBytes, Optional, PreEncode, Repeat, Slice,
-                 TryMapFrom};
+use combinator::{
+    Last, Length, MapErr, MapFrom, MaxBytes, Optional, PreEncode, Repeat, Slice, TryMapFrom,
+};
 use io::IoEncodeExt;
 use tuple::TupleEncoder;
 use {ByteCount, Eos, Error, ErrorKind, Result};

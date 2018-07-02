@@ -1,7 +1,9 @@
 use std;
 
-use combinator::{AndThen, Collect, CollectN, Length, Map, MapErr, MaxBytes, MaybeEos, Omittable,
-                 Peekable, Slice, TryMap};
+use combinator::{
+    AndThen, Collect, CollectN, Length, Map, MapErr, MaxBytes, MaybeEos, Omittable, Peekable,
+    Slice, TryMap,
+};
 use tuple::TupleDecoder;
 use {ByteCount, Eos, Error, ErrorKind, Result};
 

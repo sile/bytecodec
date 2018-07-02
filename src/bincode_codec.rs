@@ -153,8 +153,8 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use EncodeExt;
     use io::{IoDecodeExt, IoEncodeExt};
+    use EncodeExt;
 
     #[test]
     fn bincode_works() {
