@@ -21,7 +21,7 @@ use {ByteCount, Decode, Encode, Eos, ErrorKind, Result, SizedEncode};
 /// assert_eq!(output, b"foo");
 /// ```
 #[derive(Debug)]
-pub struct BytesEncoder<B> {
+pub struct BytesEncoder<B = Vec<u8>> {
     bytes: Option<B>,
     offset: usize,
 }
@@ -194,7 +194,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
 /// assert_eq!(decoder.requiring_bytes().to_u64(), Some(0)); // no more items are decoded
 /// ```
 #[derive(Debug, Default)]
-pub struct BytesDecoder<B> {
+pub struct BytesDecoder<B = Vec<u8>> {
     bytes: Option<B>,
     offset: usize,
 }
