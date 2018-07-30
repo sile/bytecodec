@@ -748,7 +748,7 @@ impl<D: Decode> Decode for Length<D> {
     }
 
     fn is_idle(&self) -> bool {
-        self.remaining_bytes == 0
+        self.inner.is_idle()
     }
 }
 impl<E: Encode> Encode for Length<E> {
@@ -1486,6 +1486,7 @@ mod test {
 
     #[test]
     fn decoder_length_works() {
+        // length=3
         let mut decoder = Utf8Decoder::new().length(3);
         let mut input = b"foobarba".as_ref();
 
@@ -1497,6 +1498,16 @@ mod test {
 
         let error = decoder.decode_exact(&mut input).err().unwrap();
         assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
+
+        // length=0
+        let mut decoder = Utf8Decoder::new().length(0);
+        assert!(!decoder.is_idle());
+        assert!(decoder.finish_decoding().is_err());
+
+        let input = b"foobarba";
+        assert_eq!(decoder.decode(input, Eos::new(false)).ok(), Some(0));
+        assert!(decoder.is_idle());
+        assert!(decoder.finish_decoding().is_ok());
     }
 
     #[test]
