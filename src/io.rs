@@ -95,23 +95,23 @@ pub enum StreamState {
 }
 impl StreamState {
     /// Returns `true` if the state is `Normal`, otherwise `false`.
-    pub fn is_normal(&self) -> bool {
-        *self == StreamState::Normal
+    pub fn is_normal(self) -> bool {
+        self == StreamState::Normal
     }
 
     /// Returns `true` if the state is `Error`, otherwise `false`.
-    pub fn is_error(&self) -> bool {
-        *self == StreamState::Error
+    pub fn is_error(self) -> bool {
+        self == StreamState::Error
     }
 
     /// Returns `true` if the state is `Eos`, otherwise `false`.
-    pub fn is_eos(&self) -> bool {
-        *self == StreamState::Eos
+    pub fn is_eos(self) -> bool {
+        self == StreamState::Eos
     }
 
     /// Returns `true` if the state is `WouldBlock`, otherwise `false`.
-    pub fn would_block(&self) -> bool {
-        *self == StreamState::WouldBlock
+    pub fn would_block(self) -> bool {
+        self == StreamState::WouldBlock
     }
 }
 
