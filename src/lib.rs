@@ -63,6 +63,7 @@ pub mod marker;
 pub mod monolithic;
 pub mod null;
 pub mod padding;
+pub mod slice;
 pub mod tuple;
 
 mod byte_count;
