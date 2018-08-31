@@ -43,7 +43,7 @@ extern crate serde_json;
 extern crate trackable;
 
 pub use byte_count::ByteCount;
-pub use decode::{Decode, DecodeExt};
+pub use decode::{Decode, DecodeExt, TaggedDecode};
 pub use encode::{Encode, EncodeExt, SizedEncode};
 pub use eos::Eos;
 pub use error::{Error, ErrorKind};

@@ -464,6 +464,41 @@ pub trait DecodeExt: Decode + Sized {
 }
 impl<T: Decode> DecodeExt for T {}
 
+/// This trait allows for decoding tagged items from a byte sequence incrementally.
+pub trait TaggedDecode: Decode {
+    /// The type of tags prefixed to the items to be decoded.
+    type Tag;
+
+    /// Prepares to start decoding an item tagged by `tag`.
+    ///
+    /// # Errors
+    ///
+    /// The following errors may be returned by the decoder:
+    /// - `ErrorKind::InvalidInput`:
+    ///   - Unexpected tag was passed
+    /// - `ErrorKind::IncompleteDecoding`:
+    ///   - The previous decoding process has not been completed
+    /// - `ErrorKind::DecoderTerminated`:
+    ///   - The decoder has terminated (i.e., cannot decode any more items)
+    /// - `ErrorKind::Other`:
+    ///   - Other errors has occurred
+    fn start_decoding(&mut self, tag: Self::Tag) -> Result<()>;
+}
+impl<'a, D: ?Sized + TaggedDecode> TaggedDecode for &'a mut D {
+    type Tag = D::Tag;
+
+    fn start_decoding(&mut self, tag: Self::Tag) -> Result<()> {
+        (**self).start_decoding(tag)
+    }
+}
+impl<D: ?Sized + TaggedDecode> TaggedDecode for Box<D> {
+    type Tag = D::Tag;
+
+    fn start_decoding(&mut self, tag: Self::Tag) -> Result<()> {
+        (**self).start_decoding(tag)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
