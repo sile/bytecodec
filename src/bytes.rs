@@ -193,7 +193,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
 /// assert_eq!(item.as_ref(), b"foo");
 /// assert_eq!(decoder.requiring_bytes().to_u64(), Some(0)); // no more items are decoded
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BytesDecoder<B = Vec<u8>> {
     bytes: Option<B>,
     offset: usize,
@@ -221,6 +221,14 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> BytesDecoder<B> {
 
     fn buf_len(&self) -> usize {
         self.bytes.as_ref().map_or(0, |b| b.as_ref().len())
+    }
+}
+impl<B> Default for BytesDecoder<B> {
+    fn default() -> Self {
+        BytesDecoder {
+            bytes: None,
+            offset: 0,
+        }
     }
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
