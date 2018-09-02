@@ -499,6 +499,41 @@ impl<D: ?Sized + TaggedDecode> TaggedDecode for Box<D> {
     }
 }
 
+/// This trait allows for decoding known-tagged or unknown-tagged items from a byte sequence incrementally.
+pub trait TryTaggedDecode: Decode {
+    /// The type of tags prefixed to the items to be decoded.
+    type Tag;
+
+    /// Tries to prepare to start decoding an item tagged by `tag`.
+    ///
+    /// If the given tag is unknown, it will return `Ok(false)`.
+    ///
+    /// # Errors
+    ///
+    /// The following errors may be returned by the decoder:
+    /// - `ErrorKind::IncompleteDecoding`:
+    ///   - The previous decoding process has not been completed
+    /// - `ErrorKind::DecoderTerminated`:
+    ///   - The decoder has terminated (i.e., cannot decode any more items)
+    /// - `ErrorKind::Other`:
+    ///   - Other errors has occurred
+    fn try_start_decoding(&mut self, tag: Self::Tag) -> Result<bool>;
+}
+impl<'a, D: ?Sized + TryTaggedDecode> TryTaggedDecode for &'a mut D {
+    type Tag = D::Tag;
+
+    fn try_start_decoding(&mut self, tag: Self::Tag) -> Result<bool> {
+        (**self).try_start_decoding(tag)
+    }
+}
+impl<D: ?Sized + TryTaggedDecode> TryTaggedDecode for Box<D> {
+    type Tag = D::Tag;
+
+    fn try_start_decoding(&mut self, tag: Self::Tag) -> Result<bool> {
+        (**self).try_start_decoding(tag)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
