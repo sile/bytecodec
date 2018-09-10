@@ -1,7 +1,7 @@
 bytecodec
 =========
 
-[![bytecodec](http://meritbadge.herokuapp.com/bytecodec)](https://crates.io/crates/bytecodec)
+[![bytecodec](https://img.shields.io/crates/v/bytecodec.svg)](https://crates.io/crates/bytecodec)
 [![Documentation](https://docs.rs/bytecodec/badge.svg)](https://docs.rs/bytecodec)
 [![Build Status](https://travis-ci.org/sile/bytecodec.svg?branch=master)](https://travis-ci.org/sile/bytecodec)
 [![Code Coverage](https://codecov.io/gh/sile/bytecodec/branch/master/graph/badge.svg)](https://codecov.io/gh/sile/bytecodec/branch/master)
