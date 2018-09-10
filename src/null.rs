@@ -1,5 +1,5 @@
 //! Null decoder and encoder.
-use {ByteCount, Decode, Encode, Eos, Result};
+use {ByteCount, Decode, Encode, Eos, Result, SizedEncode};
 
 /// Null decoder.
 ///
@@ -48,6 +48,11 @@ impl Encode for NullEncoder {
 
     fn is_idle(&self) -> bool {
         true
+    }
+}
+impl SizedEncode for NullEncoder {
+    fn exact_requiring_bytes(&self) -> u64 {
+        0
     }
 }
 
