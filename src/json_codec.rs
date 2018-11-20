@@ -169,6 +169,7 @@ mod test {
 
     use super::*;
     use json_codec::JsonDecoder;
+    use serde::ser::{Serialize, SerializeStruct, Serializer};
     use {Decode, Encode, EncodeExt, Eos};
 
     #[test]
@@ -191,5 +192,36 @@ mod test {
         assert_eq!(encoder.encode(&mut buf[..2], Eos::new(false)).unwrap(), 2);
         assert_eq!(encoder.encode(&mut buf[2..], Eos::new(true)).unwrap(), 5);
         assert_eq!(&buf, b"[1,2,3]");
+    }
+
+    #[test]
+    fn encode_to_json_string_using_serde_works() {
+        #[derive(Debug)]
+        struct Item {
+            id: u64,
+            name: String,
+        }
+        impl Serialize for Item {
+            fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                let mut state = serializer.serialize_struct("Item", 2)?;
+                state.serialize_field("id", &self.id)?;
+                state.serialize_field("name", &self.name)?;
+                state.end()
+            }
+        }
+
+        let item = Item {
+            id: 4,
+            name: "item4".to_owned(),
+        };
+
+        let bytes = JsonEncoder::new().encode_into_bytes(item).unwrap();
+        assert_eq!(
+            String::from_utf8(bytes).unwrap(),
+            r#"{"id":4,"name":"item4"}"#
+        );
     }
 }
