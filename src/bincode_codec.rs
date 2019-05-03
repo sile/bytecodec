@@ -143,10 +143,8 @@ where
     type Item = T;
 
     fn monolithic_encode<W: Write>(&self, item: &Self::Item, writer: W) -> Result<()> {
-        track!(
-            bincode::serialize_into(writer, item)
-                .map_err(|e| ErrorKind::InvalidInput.cause(e).into())
-        )
+        track!(bincode::serialize_into(writer, item)
+            .map_err(|e| ErrorKind::InvalidInput.cause(e).into()))
     }
 }
 
