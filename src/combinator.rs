@@ -236,7 +236,7 @@ where
     }
 
     fn is_idle(&self) -> bool {
-        self.inner1.as_ref().map_or(false, |d| d.is_idle())
+        self.inner1.as_ref().map_or(false, Decode::is_idle)
     }
 }
 
@@ -416,7 +416,7 @@ where
         let mut offset = 0;
         loop {
             while self.inner.is_idle() {
-                if let Some(item) = self.items.as_mut().and_then(|iter| iter.next()) {
+                if let Some(item) = self.items.as_mut().and_then(Iterator::next) {
                     track!(self.inner.start_encoding(item))?;
                 } else {
                     self.items = None;
