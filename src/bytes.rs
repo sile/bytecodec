@@ -236,7 +236,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
         let size = {
-            let mut bytes = track_assert_some!(self.bytes.as_mut(), ErrorKind::DecoderTerminated);
+            let bytes = track_assert_some!(self.bytes.as_mut(), ErrorKind::DecoderTerminated);
             let size = cmp::min(buf.len(), bytes.as_ref().len() - self.offset);
             (&mut bytes.as_mut()[self.offset..][..size]).copy_from_slice(&buf[..size]);
             self.offset += size;
