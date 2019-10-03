@@ -1,4 +1,4 @@
-//! `#[cfg(feature = "bincode_codec")]` JSON encoder and decoder that use [bincode] internally.
+//! `#[cfg(feature = "bincode_codec")]` Bincode encoder and decoder that use [bincode] internally.
 //!
 //! [bincode]: https://crates.io/crates/bincode
 use bincode;
@@ -83,7 +83,7 @@ where
     }
 }
 
-/// JSON encoder.
+/// Bincode encoder.
 ///
 /// Note that this encodes items monolithically
 /// so very large items may impair real-time property of the system.
