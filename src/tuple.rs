@@ -1,5 +1,5 @@
 //! Encoders and decoders for tuples.
-use {ByteCount, Decode, Encode, Eos, Result, SizedEncode};
+use crate::{ByteCount, Decode, Encode, Eos, Result, SizedEncode};
 
 /// Decoder for tuples.
 #[derive(Debug, Default)]
@@ -141,9 +141,9 @@ impl_encode!([E0, E1, E2, E3, E4, E5, E6, E7], [0, 1, 2, 3, 4, 5, 6, 7]);
 #[cfg(test)]
 mod test {
     use super::*;
-    use fixnum::{U8Decoder, U8Encoder};
-    use io::{IoDecodeExt, IoEncodeExt};
-    use EncodeExt;
+    use crate::fixnum::{U8Decoder, U8Encoder};
+    use crate::io::{IoDecodeExt, IoEncodeExt};
+    use crate::EncodeExt;
 
     #[test]
     fn tuple_decoder_works() {

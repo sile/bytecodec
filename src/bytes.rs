@@ -1,9 +1,8 @@
 //! Encoders and decoders for reading/writing byte sequences.
+use crate::{ByteCount, Decode, Encode, Eos, ErrorKind, Result, SizedEncode};
 use std::cmp;
 use std::mem;
 use trackable::error::ErrorKindExt;
-
-use {ByteCount, Decode, Encode, Eos, ErrorKind, Result, SizedEncode};
 
 /// `BytesEncoder` writes the given bytes into an output byte sequence.
 ///
@@ -468,8 +467,8 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use io::{IoDecodeExt, IoEncodeExt};
-    use {Encode, EncodeExt, ErrorKind};
+    use crate::io::{IoDecodeExt, IoEncodeExt};
+    use crate::{Encode, EncodeExt, ErrorKind};
 
     #[test]
     fn bytes_decoder_works() {

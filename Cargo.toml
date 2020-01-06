@@ -8,6 +8,7 @@ repository = "https://github.com/sile/bytecodec"
 readme = "README.md"
 license = "MIT"
 categories = ["encoding"]
+edition = "2018"
 
 [badges]
 travis-ci = {repository = "sile/bytecodec"}

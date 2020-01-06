@@ -1,11 +1,10 @@
-use std;
-
-use combinator::{
+use crate::combinator::{
     Last, Length, MapErr, MapFrom, MaxBytes, Optional, PreEncode, Repeat, Slice, TryMapFrom,
 };
-use io::IoEncodeExt;
-use tuple::TupleEncoder;
-use {ByteCount, Eos, Error, ErrorKind, Result};
+use crate::io::IoEncodeExt;
+use crate::tuple::TupleEncoder;
+use crate::{ByteCount, Eos, Error, ErrorKind, Result};
+use std;
 
 /// This trait allows for encoding items into a byte sequence incrementally.
 pub trait Encode {
@@ -160,14 +159,10 @@ pub trait EncodeExt: Encode + Sized {
     /// The following code shows the idiomatic way to track encoding errors:
     ///
     /// ```
-    /// extern crate bytecodec;
-    /// #[macro_use]
-    /// extern crate trackable;
-    ///
     /// use bytecodec::{Encode, EncodeExt, Eos};
     /// use bytecodec::fixnum::U8Encoder;
+    /// use trackable::track;
     ///
-    /// # fn main() {
     /// let encoder = U8Encoder::with_item(7).unwrap();
     /// let mut encoder = encoder.map_err(|e| track!(e, "oops!")); // or track_err!(encoder, "oops!")
     /// let error = track!(encoder.encode(&mut [][..], Eos::new(true))).err().unwrap();
@@ -176,11 +171,10 @@ pub trait EncodeExt: Encode + Sized {
     /// UnexpectedEos (cause; assertion failed: `!eos.is_reached()`; \
     ///                buf.len()=0, size=0, self.offset=0, b.as_ref().len()=1)
     /// HISTORY:
-    ///   [0] at src/bytes.rs:54
-    ///   [1] at src/fixnum.rs:116
-    ///   [2] at src/encode.rs:11 -- oops!
-    ///   [3] at src/encode.rs:12\n");
-    /// # }
+    ///   [0] at src/bytes.rs:53
+    ///   [1] at src/fixnum.rs:115
+    ///   [2] at src/encode.rs:9 -- oops!
+    ///   [3] at src/encode.rs:10\n");
     /// ```
     fn map_err<E, F>(self, f: F) -> MapErr<Self, E, F>
     where
@@ -220,15 +214,11 @@ pub trait EncodeExt: Encode + Sized {
     /// # Examples
     ///
     /// ```
-    /// extern crate bytecodec;
-    /// #[macro_use]
-    /// extern crate trackable;
-    ///
     /// use bytecodec::{Encode, EncodeExt, ErrorKind, Result};
     /// use bytecodec::fixnum::U8Encoder;
     /// use bytecodec::io::IoEncodeExt;
+    /// use trackable::{track, track_assert, track_panic};
     ///
-    /// # fn main() {
     /// let mut output = Vec::new();
     /// let mut encoder = U8Encoder::new().try_map_from(|s: String| -> Result<_> {
     ///     track_assert!(s.len() <= 0xFF, ErrorKind::InvalidInput);
@@ -238,7 +228,6 @@ pub trait EncodeExt: Encode + Sized {
     /// encoder.start_encoding(item).unwrap();
     /// encoder.encode_all(&mut output).unwrap();
     /// assert_eq!(output, [12]);
-    /// # }
     /// ```
     fn try_map_from<T, E, F>(self, f: F) -> TryMapFrom<Self, T, E, F>
     where
@@ -463,7 +452,7 @@ impl<T: Encode> EncodeExt for T {}
 #[cfg(test)]
 mod test {
     use super::*;
-    use fixnum::U16beEncoder;
+    use crate::fixnum::U16beEncoder;
 
     #[test]
     fn encode_into_bytes_works() {

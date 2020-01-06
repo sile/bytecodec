@@ -1,8 +1,7 @@
 //! Encoders and decoders for numbers which have fixed length binary representation.
+use crate::bytes::{BytesEncoder, CopyableBytesDecoder};
+use crate::{ByteCount, Decode, Encode, Eos, ErrorKind, Result, SizedEncode};
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
-
-use bytes::{BytesEncoder, CopyableBytesDecoder};
-use {ByteCount, Decode, Encode, Eos, ErrorKind, Result, SizedEncode};
 
 macro_rules! impl_decode {
     ($ty:ty, $item:ty) => {
@@ -1564,8 +1563,8 @@ impl_encode!(F64leEncoder, f64);
 #[cfg(test)]
 mod test {
     use super::*;
-    use io::{IoDecodeExt, IoEncodeExt};
-    use Encode;
+    use crate::io::{IoDecodeExt, IoEncodeExt};
+    use crate::Encode;
 
     macro_rules! assert_encode_decode {
         ($encoder:ident, $decoder:ident, $item:expr, $bytes:expr) => {

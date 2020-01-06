@@ -1,8 +1,7 @@
 //! Monolithic encoder and decoder.
+use crate::bytes::BytesEncoder;
+use crate::{ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 use std::io::{self, Read, Write};
-
-use bytes::BytesEncoder;
-use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 
 /// This trait allows for decoding items monolithically from a source byte stream.
 ///

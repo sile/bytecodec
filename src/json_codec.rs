@@ -1,14 +1,13 @@
 //! `#[cfg(feature = "json_codec")]` JSON encoder and decoder that use [serde_json] internally.
 //!
 //! [serde_json]: https://crates.io/crates/serde_json
+use crate::monolithic::{MonolithicDecode, MonolithicDecoder, MonolithicEncode, MonolithicEncoder};
+use crate::{ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
 use trackable::error::ErrorKindExt;
-
-use monolithic::{MonolithicDecode, MonolithicDecoder, MonolithicEncode, MonolithicEncoder};
-use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 
 /// JSON decoder.
 ///
@@ -18,13 +17,10 @@ use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 /// # Examples
 ///
 /// ```
-/// # extern crate bytecodec;
-/// # extern crate serde_json;
 /// use bytecodec::{Decode, Eos};
 /// use bytecodec::json_codec::JsonDecoder;
 /// use serde_json::Value;
 ///
-/// # fn main() {
 /// let mut decoder = JsonDecoder::<Value>::new();
 ///
 /// decoder.decode(b"[1, 2", Eos::new(false)).unwrap();
@@ -32,7 +28,6 @@ use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 /// let json = decoder.finish_decoding().unwrap();
 ///
 /// assert_eq!(json.to_string(), "[1,2,3]");
-/// # }
 /// ```
 #[derive(Debug)]
 pub struct JsonDecoder<T>(MonolithicDecoder<MonolithicJsonDecoder<T>>)
@@ -163,12 +158,11 @@ where
 
 #[cfg(test)]
 mod test {
-    use serde_json::Value;
-
     use super::*;
-    use json_codec::JsonDecoder;
+    use crate::json_codec::JsonDecoder;
+    use crate::{Decode, Encode, EncodeExt, Eos};
     use serde::ser::{Serialize, SerializeStruct, Serializer};
-    use {Decode, Encode, EncodeExt, Eos};
+    use serde_json::Value;
 
     #[test]
     fn json_decoder_works() {

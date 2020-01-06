@@ -1,8 +1,7 @@
 //! I/O (i.e., `Read` and `Write` traits) related module.
+use crate::{ByteCount, Decode, Encode, Eos, Error, ErrorKind, Result};
 use std::cmp;
 use std::io::{self, Read, Write};
-
-use {ByteCount, Decode, Encode, Eos, Error, ErrorKind, Result};
 
 /// An extension of `Decode` trait to aid decodings involving I/O.
 pub trait IoDecodeExt: Decode {
@@ -426,11 +425,10 @@ impl<T: Read + Write> BufferedIo<T> {
 
 #[cfg(test)]
 mod test {
-    use std::io::{Read, Write};
-
     use super::*;
-    use bytes::{Utf8Decoder, Utf8Encoder};
-    use EncodeExt;
+    use crate::bytes::{Utf8Decoder, Utf8Encoder};
+    use crate::EncodeExt;
+    use std::io::{Read, Write};
 
     #[test]
     fn decode_from_read_buf_works() {

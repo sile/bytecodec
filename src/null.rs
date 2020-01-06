@@ -1,5 +1,5 @@
 //! Null decoder and encoder.
-use {ByteCount, Decode, Encode, Eos, Result, SizedEncode};
+use crate::{ByteCount, Decode, Encode, Eos, Result, SizedEncode};
 
 /// Null decoder.
 ///

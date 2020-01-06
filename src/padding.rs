@@ -1,5 +1,5 @@
 //! Encoder and decoder for padding bytes.
-use {ByteCount, Decode, Encode, Eos, ErrorKind, Result};
+use crate::{ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 
 /// Decoder for reading padding bytes from input streams.
 ///
@@ -120,8 +120,8 @@ impl Encode for PaddingEncoder {
 #[cfg(test)]
 mod test {
     use super::*;
-    use io::IoDecodeExt;
-    use {Encode, EncodeExt, Eos};
+    use crate::io::IoDecodeExt;
+    use crate::{Encode, EncodeExt, Eos};
 
     #[test]
     fn padding_encoder_works() {

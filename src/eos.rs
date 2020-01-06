@@ -1,4 +1,4 @@
-use ByteCount;
+use crate::ByteCount;
 
 /// `Eos` contains information on the distance to the end of a stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd)]

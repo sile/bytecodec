@@ -1,16 +1,15 @@
 //! Encoders and decoders for combination.
 //!
 //! These are mainly created via the methods provided by `EncodeExt` or `DecodeExt` traits.
+use crate::bytes::BytesEncoder;
+use crate::marker::Never;
+use crate::{ByteCount, Decode, Encode, EncodeExt, Eos, Error, ErrorKind, Result, SizedEncode};
 use std;
 use std::cmp;
 use std::fmt;
 use std::iter;
 use std::marker::PhantomData;
 use std::mem;
-
-use bytes::BytesEncoder;
-use marker::Never;
-use {ByteCount, Decode, Encode, EncodeExt, Eos, Error, ErrorKind, Result, SizedEncode};
 
 /// Combinator for converting decoded items to other values.
 ///
@@ -1455,11 +1454,11 @@ impl<D: Decode> Decode for MaybeEos<D> {
 
 #[cfg(test)]
 mod test {
-    use bytes::{Utf8Decoder, Utf8Encoder};
-    use fixnum::{U16beDecoder, U8Decoder, U8Encoder};
-    use io::{IoDecodeExt, IoEncodeExt};
-    use tuple::TupleDecoder;
-    use {Decode, DecodeExt, Encode, EncodeExt, Eos, ErrorKind};
+    use crate::bytes::{Utf8Decoder, Utf8Encoder};
+    use crate::fixnum::{U16beDecoder, U8Decoder, U8Encoder};
+    use crate::io::{IoDecodeExt, IoEncodeExt};
+    use crate::tuple::TupleDecoder;
+    use crate::{Decode, DecodeExt, Encode, EncodeExt, Eos, ErrorKind};
 
     #[test]
     fn collect_works() {

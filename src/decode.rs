@@ -1,11 +1,10 @@
-use std;
-
-use combinator::{
+use crate::combinator::{
     AndThen, Collect, CollectN, Length, Map, MapErr, MaxBytes, MaybeEos, Omittable, Peekable,
     Slice, TryMap,
 };
-use tuple::TupleDecoder;
-use {ByteCount, Eos, Error, ErrorKind, Result};
+use crate::tuple::TupleDecoder;
+use crate::{ByteCount, Eos, Error, ErrorKind, Result};
+use std;
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {
@@ -150,15 +149,11 @@ pub trait DecodeExt: Decode + Sized {
     /// # Examples
     ///
     /// ```
-    /// extern crate bytecodec;
-    /// #[macro_use]
-    /// extern crate trackable;
-    ///
     /// use bytecodec::{Decode, DecodeExt, ErrorKind, Result};
     /// use bytecodec::fixnum::U8Decoder;
     /// use bytecodec::io::IoDecodeExt;
+    /// use trackable::{track, track_assert, track_assert_ne, track_panic};
     ///
-    /// # fn main() {
     /// let mut decoder = U8Decoder::new().try_map(|b| -> Result<_> {
     ///     track_assert_ne!(b, 0, ErrorKind::InvalidInput);
     ///     Ok(b * 2)
@@ -169,7 +164,6 @@ pub trait DecodeExt: Decode + Sized {
     ///
     /// let item = decoder.decode_exact([4].as_ref()).unwrap();
     /// assert_eq!(item, 8);
-    /// # }
     /// ```
     fn try_map<T, E, F>(self, f: F) -> TryMap<Self, T, E, F>
     where
@@ -186,15 +180,11 @@ pub trait DecodeExt: Decode + Sized {
     /// The following code shows the idiomatic way to track decoding errors:
     ///
     /// ```
-    /// extern crate bytecodec;
-    /// #[macro_use]
-    /// extern crate trackable;
-    ///
     /// use bytecodec::{Decode, DecodeExt};
     /// use bytecodec::fixnum::U16beDecoder;
     /// use bytecodec::io::IoDecodeExt;
+    /// use trackable::track;
     ///
-    /// # fn main() {
     /// let mut decoder =
     ///     U16beDecoder::new().map_err(|e| track!(e, "oops!"));
     ///     // or `track_err!(U16beDecoder::new(), "oops!")`
@@ -206,12 +196,11 @@ pub trait DecodeExt: Decode + Sized {
     /// UnexpectedEos (cause; assertion failed: `!eos.is_reached()`; \
     ///                self.offset=1, self.bytes.as_ref().len()=2)
     /// HISTORY:
-    ///   [0] at src/bytes.rs:153
-    ///   [1] at src/fixnum.rs:199
-    ///   [2] at src/decode.rs:12 -- oops!
-    ///   [3] at src/io.rs:44
-    ///   [4] at src/decode.rs:16\n");
-    /// # }
+    ///   [0] at src/bytes.rs:152
+    ///   [1] at src/fixnum.rs:198
+    ///   [2] at src/decode.rs:10 -- oops!
+    ///   [3] at src/io.rs:43
+    ///   [4] at src/decode.rs:14\n");
     /// ```
     fn map_err<E, F>(self, f: F) -> MapErr<Self, E, F>
     where
@@ -537,7 +526,7 @@ impl<D: ?Sized + TryTaggedDecode> TryTaggedDecode for Box<D> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use fixnum::U16beDecoder;
+    use crate::fixnum::U16beDecoder;
 
     #[test]
     fn decode_from_bytes_works() {
