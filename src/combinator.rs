@@ -1010,8 +1010,10 @@ impl<D: Decode> Decode for MaxBytes<D> {
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
         match eos.remaining_bytes() {
-            ByteCount::Infinite => track_panic!(ErrorKind::InvalidInput, "Max bytes limit exceeded";
-                             self.consumed_bytes, self.max_bytes),
+            ByteCount::Infinite => {
+                track_panic!(ErrorKind::InvalidInput, "Max bytes limit exceeded";
+                             self.consumed_bytes, self.max_bytes)
+            }
             ByteCount::Unknown => {
                 let consumable_bytes = self.max_bytes - self.consumed_bytes;
                 track_assert!((buf.len() as u64) <= consumable_bytes,
