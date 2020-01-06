@@ -111,7 +111,7 @@ impl<E: ?Sized + Encode> Encode for Box<E> {
     }
 }
 
-/// This trait indicates that the encoder always known the exact bytes required to encode remaining items.
+/// This trait indicates that the encoder always knows the exact bytes required to encode remaining items.
 pub trait SizedEncode: Encode {
     /// Returns the exact number of bytes required to encode all the items remaining in the encoder.
     fn exact_requiring_bytes(&self) -> u64;
