@@ -57,6 +57,7 @@ pub mod bytes;
 pub mod combinator;
 pub mod fixnum;
 pub mod io;
+pub mod io_async;
 #[cfg(feature = "json_codec")]
 pub mod json_codec;
 pub mod marker;

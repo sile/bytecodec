@@ -117,10 +117,10 @@ impl StreamState {
 /// Read buffer.
 #[derive(Debug)]
 pub struct ReadBuf<B> {
-    inner: B,
-    head: usize,
-    tail: usize,
-    stream_state: StreamState,
+    pub(crate) inner: B,
+    pub(crate) head: usize,
+    pub(crate) tail: usize,
+    pub(crate) stream_state: StreamState,
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
     /// Makes a new `ReadBuf` instance.
@@ -232,10 +232,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Read for ReadBuf<B> {
 /// Write buffer.
 #[derive(Debug)]
 pub struct WriteBuf<B> {
-    inner: B,
-    head: usize,
-    tail: usize,
-    stream_state: StreamState,
+    pub(crate) inner: B,
+    pub(crate) head: usize,
+    pub(crate) tail: usize,
+    pub(crate) stream_state: StreamState,
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
     /// Makes a new `WriteBuf` instance.
