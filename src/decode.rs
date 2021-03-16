@@ -199,7 +199,7 @@ pub trait DecodeExt: Decode + Sized {
     ///   [0] at src/bytes.rs:152
     ///   [1] at src/fixnum.rs:198
     ///   [2] at src/decode.rs:10 -- oops!
-    ///   [3] at src/io.rs:43
+    ///   [3] at src/io.rs:45
     ///   [4] at src/decode.rs:14\n");
     /// ```
     fn map_err<E, F>(self, f: F) -> MapErr<Self, E, F>

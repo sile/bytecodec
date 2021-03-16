@@ -20,12 +20,13 @@ byteorder = "1"
 serde = { version = "1", optional = true }
 serde_json = { version = "1", optional = true }
 trackable = "0.2"
-tokio = {version = "1.0", features = ["io-util"]}
-pin-project = "1"
+tokio = { version = "1.0", features = ["io-util"], optional = true }
+pin-project = { version = "1", optional = true }
 
 [features]
 bincode_codec = ["serde", "bincode"]
 json_codec = ["serde", "serde_json"]
+tokio-async = ["tokio", "pin-project"]
 
 [package.metadata.docs.rs]
 all-features = true

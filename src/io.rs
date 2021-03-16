@@ -1,5 +1,7 @@
 //! I/O (i.e., `Read` and `Write` traits) related module.
 use crate::{ByteCount, Decode, Encode, Eos, Error, ErrorKind, Result};
+#[cfg(feature = "tokio-async")]
+use pin_project::pin_project;
 use std::cmp;
 use std::io::{self, Read, Write};
 
@@ -351,11 +353,13 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Write for WriteBuf<B> {
 }
 
 /// Buffered I/O stream.
+#[cfg_attr(feature = "tokio-async", pin_project)]
 #[derive(Debug)]
 pub struct BufferedIo<T> {
-    stream: T,
-    rbuf: ReadBuf<Vec<u8>>,
-    wbuf: WriteBuf<Vec<u8>>,
+    #[cfg_attr(feature = "tokio-async", pin)]
+    pub(crate) stream: T,
+    pub(crate) rbuf: ReadBuf<Vec<u8>>,
+    pub(crate) wbuf: WriteBuf<Vec<u8>>,
 }
 impl<T: Read + Write> BufferedIo<T> {
     /// Makes a new `BufferedIo` instance.
@@ -375,7 +379,9 @@ impl<T: Read + Write> BufferedIo<T> {
         track!(self.wbuf.flush(&mut self.stream))?;
         Ok(())
     }
+}
 
+impl<T> BufferedIo<T> {
     /// Returns `true` if the inner stream reaches EOS, otherwise `false`.
     pub fn is_eos(&self) -> bool {
         self.rbuf.stream_state().is_eos() || self.wbuf.stream_state().is_eos()
