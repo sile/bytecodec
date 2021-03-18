@@ -362,15 +362,6 @@ pub struct BufferedIo<T> {
     pub(crate) wbuf: WriteBuf<Vec<u8>>,
 }
 impl<T: Read + Write> BufferedIo<T> {
-    /// Makes a new `BufferedIo` instance.
-    pub fn new(stream: T, read_buf_size: usize, write_buf_size: usize) -> Self {
-        BufferedIo {
-            stream,
-            rbuf: ReadBuf::new(vec![0; read_buf_size]),
-            wbuf: WriteBuf::new(vec![0; write_buf_size]),
-        }
-    }
-
     /// Executes an I/O operation on the inner stream.
     ///
     /// "I/O operation" means "filling the read buffer" and "flushing the write buffer".
@@ -382,6 +373,15 @@ impl<T: Read + Write> BufferedIo<T> {
 }
 
 impl<T> BufferedIo<T> {
+    /// Makes a new `BufferedIo` instance.
+    pub fn new(stream: T, read_buf_size: usize, write_buf_size: usize) -> Self {
+        BufferedIo {
+            stream,
+            rbuf: ReadBuf::new(vec![0; read_buf_size]),
+            wbuf: WriteBuf::new(vec![0; write_buf_size]),
+        }
+    }
+
     /// Returns `true` if the inner stream reaches EOS, otherwise `false`.
     pub fn is_eos(&self) -> bool {
         self.rbuf.stream_state().is_eos() || self.wbuf.stream_state().is_eos()
