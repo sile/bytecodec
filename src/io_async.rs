@@ -13,7 +13,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
     /// - A read operation returned a `WouldBlock` error
     /// - The input stream has reached EOS
     pub fn poll_fill<R: AsyncRead>(
-        self: &mut Self,
+        &mut self,
         mut reader: Pin<&mut R>,
         cx: &mut Context<'_>,
     ) -> Result<()> {
