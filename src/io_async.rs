@@ -16,30 +16,30 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
         &mut self,
         mut reader: Pin<&mut R>,
         cx: &mut Context<'_>,
-    ) -> Result<()> {
+    ) -> Poll03<Result<()>> {
         while !self.is_full() {
             let mut buffer = tokio::io::ReadBuf::new(&mut self.inner.as_mut()[self.tail..]);
             match reader.as_mut().poll_read(cx, &mut buffer) {
                 Poll03::Pending => {
                     self.stream_state = StreamState::WouldBlock;
-                    break;
+                    return Poll03::Pending;
                 }
                 Poll03::Ready(Ok(())) => {
                     let size = buffer.filled().len();
                     if size == 0 {
                         self.stream_state = StreamState::Eos;
-                        break;
+                        return Poll03::Ready(Ok(()));
                     }
                     self.stream_state = StreamState::Normal;
                     self.tail += size;
                 }
                 Poll03::Ready(Err(e)) => {
                     self.stream_state = StreamState::Error;
-                    return Err(track!(Error::from(e)));
+                    return Poll03::Ready(Err(track!(Error::from(e))));
                 }
             }
         }
-        Ok(())
+        Poll03::Ready(Ok(()))
     }
 }
 
@@ -56,7 +56,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
         &mut self,
         mut writer: Pin<&mut W>,
         cx: &mut Context<'_>,
-    ) -> Result<()> {
+    ) -> Poll03<Result<()>> {
         while !self.is_empty() {
             match writer
                 .as_mut()
@@ -64,11 +64,12 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
             {
                 Poll03::Ready(Err(e)) => {
                     self.stream_state = StreamState::Error;
-                    return Err(track!(Error::from(e)));
+                    return Poll03::Ready(Err(track!(Error::from(e))));
                 }
                 Poll03::Ready(Ok(0)) => {
                     self.stream_state = StreamState::Eos;
-                    break;
+                    // stream is closed. No need to wake up this future :)
+                    return Poll03::Ready(Ok(()));
                 }
                 Poll03::Ready(Ok(size)) => {
                     self.stream_state = StreamState::Normal;
@@ -80,11 +81,13 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
                 }
                 Poll03::Pending => {
                     self.stream_state = StreamState::WouldBlock;
-                    break;
+                    return Poll03::Pending;
                 }
             }
         }
-        Ok(())
+        // Now the buffer is empty. Because the returned value is not Poll::Pending,
+        // it is *the caller*'s responsibility to ensure this future is woken up.
+        Poll03::Ready(Ok(()))
     }
 }
 
@@ -92,10 +95,22 @@ impl<T: AsyncRead + AsyncWrite> BufferedIo<T> {
     /// Executes an I/O operation on the inner stream.
     ///
     /// "I/O operation" means "filling the read buffer" and "flushing the write buffer".
-    pub fn execute_io_poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<()> {
+    pub fn execute_io_poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll03<Result<()>> {
         let mut this = self.project();
-        track!(this.rbuf.poll_fill(this.stream.as_mut(), cx))?;
-        track!(this.wbuf.poll_flush(this.stream.as_mut(), cx))?;
-        Ok(())
+        let rresult = this.rbuf.poll_fill(this.stream.as_mut(), cx);
+        let wresult = this.wbuf.poll_flush(this.stream.as_mut(), cx);
+        if let (&Poll03::Pending, &Poll03::Pending) = (&rresult, &wresult) {
+            // rbuf 側と wbuf 側のどちらの準備ができても、この future は呼び起こされる。
+            return Poll03::Pending;
+        }
+        if let Poll03::Ready(rresult) = rresult {
+            track!(rresult)?;
+        }
+        if let Poll03::Ready(wresult) = wresult {
+            track!(wresult)?;
+        }
+        // rbuf 側と wbuf 側のどちらも Poll::Pending を返す状態でないと、この future が呼び起こされる保証がない。
+        // Ready を返して、これの呼び出し側にループなり呼び起こしの確約なりをしてもらう必要がある。
+        Poll03::Ready(Ok(()))
     }
 }
