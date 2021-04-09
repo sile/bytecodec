@@ -3,8 +3,8 @@ bytecodec
 
 [![bytecodec](https://img.shields.io/crates/v/bytecodec.svg)](https://crates.io/crates/bytecodec)
 [![Documentation](https://docs.rs/bytecodec/badge.svg)](https://docs.rs/bytecodec)
-[![Build Status](https://travis-ci.org/sile/bytecodec.svg?branch=master)](https://travis-ci.org/sile/bytecodec)
-[![Code Coverage](https://codecov.io/gh/sile/bytecodec/branch/master/graph/badge.svg)](https://codecov.io/gh/sile/bytecodec/branch/master)
+[![Actions Status](https://github.com/sile/bytecodec/workflows/CI/badge.svg)](https://github.com/sile/bytecodec/actions)
+[![Coverage Status](https://coveralls.io/repos/github/sile/bytecodec/badge.svg?branch=main)](https://coveralls.io/github/sile/bytecodec?branch=main)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A tiny Rust framework for implementing encoders/decoders of byte-oriented protocols.

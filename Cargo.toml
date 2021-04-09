@@ -11,8 +11,7 @@ categories = ["encoding"]
 edition = "2018"
 
 [badges]
-travis-ci = {repository = "sile/bytecodec"}
-codecov = {repository = "sile/bytecodec"}
+coveralls = {repository = "sile/mlmd"}
 
 [dependencies]
 bincode = { version = "1", optional = true }
