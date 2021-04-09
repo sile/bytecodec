@@ -57,6 +57,8 @@ pub mod bytes;
 pub mod combinator;
 pub mod fixnum;
 pub mod io;
+#[cfg(feature = "tokio-async")]
+pub mod io_async;
 #[cfg(feature = "json_codec")]
 pub mod json_codec;
 pub mod marker;

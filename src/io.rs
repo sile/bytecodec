@@ -1,5 +1,7 @@
 //! I/O (i.e., `Read` and `Write` traits) related module.
 use crate::{ByteCount, Decode, Encode, Eos, Error, ErrorKind, Result};
+#[cfg(feature = "tokio-async")]
+use pin_project::pin_project;
 use std::cmp;
 use std::io::{self, Read, Write};
 
@@ -117,10 +119,10 @@ impl StreamState {
 /// Read buffer.
 #[derive(Debug)]
 pub struct ReadBuf<B> {
-    inner: B,
-    head: usize,
-    tail: usize,
-    stream_state: StreamState,
+    pub(crate) inner: B,
+    pub(crate) head: usize,
+    pub(crate) tail: usize,
+    pub(crate) stream_state: StreamState,
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
     /// Makes a new `ReadBuf` instance.
@@ -232,10 +234,10 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Read for ReadBuf<B> {
 /// Write buffer.
 #[derive(Debug)]
 pub struct WriteBuf<B> {
-    inner: B,
-    head: usize,
-    tail: usize,
-    stream_state: StreamState,
+    pub(crate) inner: B,
+    pub(crate) head: usize,
+    pub(crate) tail: usize,
+    pub(crate) stream_state: StreamState,
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
     /// Makes a new `WriteBuf` instance.
@@ -351,22 +353,15 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Write for WriteBuf<B> {
 }
 
 /// Buffered I/O stream.
+#[cfg_attr(feature = "tokio-async", pin_project)]
 #[derive(Debug)]
 pub struct BufferedIo<T> {
-    stream: T,
-    rbuf: ReadBuf<Vec<u8>>,
-    wbuf: WriteBuf<Vec<u8>>,
+    #[cfg_attr(feature = "tokio-async", pin)]
+    pub(crate) stream: T,
+    pub(crate) rbuf: ReadBuf<Vec<u8>>,
+    pub(crate) wbuf: WriteBuf<Vec<u8>>,
 }
 impl<T: Read + Write> BufferedIo<T> {
-    /// Makes a new `BufferedIo` instance.
-    pub fn new(stream: T, read_buf_size: usize, write_buf_size: usize) -> Self {
-        BufferedIo {
-            stream,
-            rbuf: ReadBuf::new(vec![0; read_buf_size]),
-            wbuf: WriteBuf::new(vec![0; write_buf_size]),
-        }
-    }
-
     /// Executes an I/O operation on the inner stream.
     ///
     /// "I/O operation" means "filling the read buffer" and "flushing the write buffer".
@@ -374,6 +369,17 @@ impl<T: Read + Write> BufferedIo<T> {
         track!(self.rbuf.fill(&mut self.stream))?;
         track!(self.wbuf.flush(&mut self.stream))?;
         Ok(())
+    }
+}
+
+impl<T> BufferedIo<T> {
+    /// Makes a new `BufferedIo` instance.
+    pub fn new(stream: T, read_buf_size: usize, write_buf_size: usize) -> Self {
+        BufferedIo {
+            stream,
+            rbuf: ReadBuf::new(vec![0; read_buf_size]),
+            wbuf: WriteBuf::new(vec![0; write_buf_size]),
+        }
     }
 
     /// Returns `true` if the inner stream reaches EOS, otherwise `false`.
