@@ -171,7 +171,7 @@ pub trait EncodeExt: Encode + Sized {
     ///                buf.len()=0, size=0, self.offset=0, b.as_ref().len()=1)
     /// HISTORY:
     ///   [0] at src/bytes.rs:53
-    ///   [1] at src/fixnum.rs:115
+    ///   [1] at src/fixnum.rs:116
     ///   [2] at src/encode.rs:9 -- oops!
     ///   [3] at src/encode.rs:10\n");
     /// ```

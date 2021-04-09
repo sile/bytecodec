@@ -196,7 +196,7 @@ pub trait DecodeExt: Decode + Sized {
     ///                self.offset=1, self.bytes.as_ref().len()=2)
     /// HISTORY:
     ///   [0] at src/bytes.rs:152
-    ///   [1] at src/fixnum.rs:198
+    ///   [1] at src/fixnum.rs:200
     ///   [2] at src/decode.rs:10 -- oops!
     ///   [3] at src/io.rs:45
     ///   [4] at src/decode.rs:14\n");
