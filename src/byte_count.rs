@@ -11,11 +11,7 @@ pub enum ByteCount {
 impl ByteCount {
     /// Returns `true` if this is `ByteCount::Finite(_)`, otherwise `false`.
     pub fn is_finite(&self) -> bool {
-        if let ByteCount::Finite(_) = *self {
-            true
-        } else {
-            false
-        }
+        matches!(self, ByteCount::Finite(_))
     }
 
     /// Returns `true` if this is `ByteCount::Infinite`, otherwise `false`.

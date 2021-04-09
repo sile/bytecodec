@@ -107,6 +107,7 @@ impl U8Encoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: u8, b: &mut [u8; 1]) -> Result<()> {
         b[0] = n;
         Ok(())
@@ -163,6 +164,7 @@ impl I8Encoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: i8, b: &mut [u8; 1]) -> Result<()> {
         b[0] = n as u8;
         Ok(())
@@ -246,6 +248,7 @@ impl U16beEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: u16, b: &mut [u8; 2]) -> Result<()> {
         BigEndian::write_u16(b, n);
         Ok(())
@@ -275,6 +278,7 @@ impl U16leEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: u16, b: &mut [u8; 2]) -> Result<()> {
         LittleEndian::write_u16(b, n);
         Ok(())
@@ -358,6 +362,7 @@ impl I16beEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: i16, b: &mut [u8; 2]) -> Result<()> {
         BigEndian::write_i16(b, n);
         Ok(())
@@ -387,6 +392,7 @@ impl I16leEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: i16, b: &mut [u8; 2]) -> Result<()> {
         LittleEndian::write_i16(b, n);
         Ok(())
@@ -592,6 +598,7 @@ impl U32beEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: u32, b: &mut [u8; 4]) -> Result<()> {
         BigEndian::write_u32(b, n);
         Ok(())
@@ -621,6 +628,7 @@ impl U32leEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: u32, b: &mut [u8; 4]) -> Result<()> {
         LittleEndian::write_u32(b, n);
         Ok(())
@@ -704,6 +712,7 @@ impl I32beEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: i32, b: &mut [u8; 4]) -> Result<()> {
         BigEndian::write_i32(b, n);
         Ok(())
@@ -733,6 +742,7 @@ impl I32leEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: i32, b: &mut [u8; 4]) -> Result<()> {
         LittleEndian::write_i32(b, n);
         Ok(())
@@ -1188,6 +1198,7 @@ impl U64beEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: u64, b: &mut [u8; 8]) -> Result<()> {
         BigEndian::write_u64(b, n);
         Ok(())
@@ -1217,6 +1228,7 @@ impl U64leEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: u64, b: &mut [u8; 8]) -> Result<()> {
         LittleEndian::write_u64(b, n);
         Ok(())
@@ -1300,6 +1312,7 @@ impl I64beEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: i64, b: &mut [u8; 8]) -> Result<()> {
         BigEndian::write_i64(b, n);
         Ok(())
@@ -1329,6 +1342,7 @@ impl I64leEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: i64, b: &mut [u8; 8]) -> Result<()> {
         LittleEndian::write_i64(b, n);
         Ok(())
@@ -1412,6 +1426,7 @@ impl F32beEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: f32, b: &mut [u8; 4]) -> Result<()> {
         BigEndian::write_f32(b, n);
         Ok(())
@@ -1441,6 +1456,7 @@ impl F32leEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: f32, b: &mut [u8; 4]) -> Result<()> {
         LittleEndian::write_f32(b, n);
         Ok(())
@@ -1524,6 +1540,7 @@ impl F64beEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: f64, b: &mut [u8; 8]) -> Result<()> {
         BigEndian::write_f64(b, n);
         Ok(())
@@ -1553,6 +1570,7 @@ impl F64leEncoder {
         Self::default()
     }
 
+    #[allow(clippy::unnecessary_wraps)]
     fn encode_item(n: f64, b: &mut [u8; 8]) -> Result<()> {
         LittleEndian::write_f64(b, n);
         Ok(())

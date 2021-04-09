@@ -4,7 +4,6 @@
 use crate::monolithic::{MonolithicDecode, MonolithicDecoder, MonolithicEncode, MonolithicEncoder};
 use crate::{ByteCount, Decode, Encode, Eos, ErrorKind, Result};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
 use trackable::error::ErrorKindExt;

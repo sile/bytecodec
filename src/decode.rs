@@ -4,7 +4,6 @@ use crate::combinator::{
 };
 use crate::tuple::TupleDecoder;
 use crate::{ByteCount, Eos, Error, ErrorKind, Result};
-use std;
 
 /// This trait allows for decoding items from a byte sequence incrementally.
 pub trait Decode {

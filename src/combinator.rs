@@ -4,7 +4,6 @@
 use crate::bytes::BytesEncoder;
 use crate::marker::Never;
 use crate::{ByteCount, Decode, Encode, EncodeExt, Eos, Error, ErrorKind, Result, SizedEncode};
-use std;
 use std::cmp;
 use std::fmt;
 use std::iter;
@@ -641,7 +640,7 @@ where
     fn finish_decoding(&mut self) -> Result<Self::Item> {
         track_assert!(self.eos, ErrorKind::IncompleteDecoding);
         self.eos = false;
-        let items = mem::replace(&mut self.items, T::default());
+        let items = mem::take(&mut self.items);
         Ok(items)
     }
 
@@ -867,7 +866,7 @@ where
 
     fn finish_decoding(&mut self) -> Result<Self::Item> {
         track_assert_eq!(self.remaining_items, 0, ErrorKind::IncompleteDecoding);
-        let items = mem::replace(&mut self.items, T::default());
+        let items = mem::take(&mut self.items);
         Ok(items)
     }
 

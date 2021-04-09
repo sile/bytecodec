@@ -3,7 +3,6 @@
 //! [bincode]: https://crates.io/crates/bincode
 use crate::monolithic::{MonolithicDecode, MonolithicDecoder, MonolithicEncode, MonolithicEncoder};
 use crate::{ByteCount, Decode, Encode, Eos, ErrorKind, Result};
-use bincode;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::marker::PhantomData;

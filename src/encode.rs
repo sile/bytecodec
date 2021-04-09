@@ -4,7 +4,6 @@ use crate::combinator::{
 use crate::io::IoEncodeExt;
 use crate::tuple::TupleEncoder;
 use crate::{ByteCount, Eos, Error, ErrorKind, Result};
-use std;
 
 /// This trait allows for encoding items into a byte sequence incrementally.
 pub trait Encode {

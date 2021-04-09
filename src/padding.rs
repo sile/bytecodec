@@ -86,13 +86,14 @@ impl Encode for PaddingEncoder {
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
         if let Some(padding_byte) = self.padding_byte {
-            for b in &mut buf[..] {
+            let n = buf.len();
+            for b in buf {
                 *b = padding_byte
             }
             if eos.is_reached() {
                 self.padding_byte = None;
             }
-            Ok(buf.len())
+            Ok(n)
         } else {
             Ok(0)
         }
