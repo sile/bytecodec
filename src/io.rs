@@ -67,6 +67,27 @@ pub trait IoEncodeExt: Encode {
         Ok(())
     }
 
+    /// Encodes the items remaining in the encoder and
+    /// writes the encoded bytes to the given write buffer.
+    /// If the write buffer is full and the writing cannot be performed,
+    /// the given WriteBuf will memorize cx's `Waker`.
+    /// This `Waker`'s `wake` will later be called when the `WriteBuf` regains its free space.
+    #[cfg(feature = "tokio-async")]
+    fn encode_to_write_buf_async<B>(
+        &mut self,
+        buf: &mut WriteBuf<B>,
+        cx: &mut std::task::Context,
+    ) -> Result<()>
+    where
+        B: AsMut<[u8]>,
+    {
+        let eos = Eos::new(buf.stream_state.is_eos());
+        let size = track!(self.encode(&mut buf.inner.as_mut()[buf.tail..], eos))?;
+        buf.tail += size;
+        buf.waker = Some(cx.waker().clone());
+        Ok(())
+    }
+
     /// Encodes all of the items remaining in the encoder and
     /// writes the encoded bytes to the given writer.
     ///
@@ -238,6 +259,8 @@ pub struct WriteBuf<B> {
     pub(crate) head: usize,
     pub(crate) tail: usize,
     pub(crate) stream_state: StreamState,
+    #[cfg(feature = "tokio-async")]
+    pub(crate) waker: Option<std::task::Waker>,
 }
 impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
     /// Makes a new `WriteBuf` instance.
@@ -247,6 +270,8 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
             head: 0,
             tail: 0,
             stream_state: StreamState::Normal,
+            #[cfg(feature = "tokio-async")]
+            waker: None,
         }
     }
 
@@ -319,6 +344,12 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
                         self.tail = 0;
                     }
                 }
+            }
+        }
+        #[cfg(feature = "tokio-async")]
+        if !self.is_full() {
+            if let Some(ref waker) = self.waker {
+                waker.wake_by_ref();
             }
         }
         Ok(())
