@@ -27,8 +27,8 @@ impl ByteCount {
     /// Tries to convert this `ByteCount` to an `u64` value.
     ///
     /// If it is not a `ByteCount::Finite(_)`,`None` will be returned.
-    pub fn to_u64(&self) -> Option<u64> {
-        if let ByteCount::Finite(n) = *self {
+    pub fn to_u64(self) -> Option<u64> {
+        if let ByteCount::Finite(n) = self {
             Some(n)
         } else {
             None

@@ -316,7 +316,7 @@ impl Decode for RemainingBytesDecoder {
     fn finish_decoding(&mut self) -> Result<Self::Item> {
         track_assert!(self.eos, ErrorKind::IncompleteDecoding);
         self.eos = false;
-        let bytes = mem::replace(&mut self.buf, Vec::new());
+        let bytes = mem::take(&mut self.buf);
         Ok(bytes)
     }
 
