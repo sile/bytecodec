@@ -172,8 +172,8 @@ pub trait EncodeExt: Encode + Sized {
     /// HISTORY:
     ///   [0] at src/bytes.rs:53
     ///   [1] at src/fixnum.rs:116
-    ///   [2] at src/encode.rs:9 -- oops!
-    ///   [3] at src/encode.rs:10\n");
+    ///   [2] at src/encode.rs:10 -- oops!
+    ///   [3] at src/encode.rs:11\n");
     /// ```
     fn map_err<E, F>(self, f: F) -> MapErr<Self, E, F>
     where
