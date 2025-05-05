@@ -72,10 +72,10 @@ mod test {
     fn null_encoder_works() {
         let mut encoder = NullEncoder;
         encoder.start_encoding(()).unwrap();
-        assert_eq!(encoder.is_idle(), true);
+        assert!(encoder.is_idle());
 
         let mut buf = [0; 10];
         assert_eq!(encoder.encode(&mut buf[..], Eos::new(true)).ok(), Some(0));
-        assert_eq!(encoder.is_idle(), true);
+        assert!(encoder.is_idle());
     }
 }

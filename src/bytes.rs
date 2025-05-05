@@ -45,7 +45,7 @@ impl<B: AsRef<[u8]>> Encode for BytesEncoder<B> {
         let mut size = 0;
         let drop_item = if let Some(ref b) = self.bytes {
             size = cmp::min(buf.len(), b.as_ref().len() - self.offset);
-            (&mut buf[..size]).copy_from_slice(&b.as_ref()[self.offset..][..size]);
+            buf[..size].copy_from_slice(&b.as_ref()[self.offset..][..size]);
             self.offset += size;
             if self.offset == b.as_ref().len() {
                 true
@@ -146,7 +146,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]> + Copy> Decode for CopyableBytesDecoder<B> {
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
         let size = cmp::min(buf.len(), self.bytes.as_ref().len() - self.offset);
-        (&mut self.bytes.as_mut()[self.offset..][..size]).copy_from_slice(&buf[..size]);
+        self.bytes.as_mut()[self.offset..][..size].copy_from_slice(&buf[..size]);
         self.offset += size;
         if self.offset != self.bytes.as_mut().len() {
             track_assert!(!eos.is_reached(), ErrorKind::UnexpectedEos;
@@ -237,7 +237,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> Decode for BytesDecoder<B> {
         let size = {
             let bytes = track_assert_some!(self.bytes.as_mut(), ErrorKind::DecoderTerminated);
             let size = cmp::min(buf.len(), bytes.as_ref().len() - self.offset);
-            (&mut bytes.as_mut()[self.offset..][..size]).copy_from_slice(&buf[..size]);
+            bytes.as_mut()[self.offset..][..size].copy_from_slice(&buf[..size]);
             self.offset += size;
             size
         };

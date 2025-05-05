@@ -70,7 +70,7 @@ pub trait Encode {
         self.requiring_bytes() == ByteCount::Finite(0)
     }
 }
-impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
+impl<E: ?Sized + Encode> Encode for &mut E {
     type Item = E::Item;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
@@ -114,7 +114,7 @@ pub trait SizedEncode: Encode {
     /// Returns the exact number of bytes required to encode all the items remaining in the encoder.
     fn exact_requiring_bytes(&self) -> u64;
 }
-impl<'a, E: ?Sized + SizedEncode> SizedEncode for &'a mut E {
+impl<E: ?Sized + SizedEncode> SizedEncode for &mut E {
     fn exact_requiring_bytes(&self) -> u64 {
         (**self).exact_requiring_bytes()
     }
