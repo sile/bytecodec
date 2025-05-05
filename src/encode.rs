@@ -70,7 +70,7 @@ pub trait Encode {
         self.requiring_bytes() == ByteCount::Finite(0)
     }
 }
-impl<'a, E: ?Sized + Encode> Encode for &'a mut E {
+impl<E: ?Sized + Encode> Encode for &mut E {
     type Item = E::Item;
 
     fn encode(&mut self, buf: &mut [u8], eos: Eos) -> Result<usize> {
@@ -114,7 +114,7 @@ pub trait SizedEncode: Encode {
     /// Returns the exact number of bytes required to encode all the items remaining in the encoder.
     fn exact_requiring_bytes(&self) -> u64;
 }
-impl<'a, E: ?Sized + SizedEncode> SizedEncode for &'a mut E {
+impl<E: ?Sized + SizedEncode> SizedEncode for &mut E {
     fn exact_requiring_bytes(&self) -> u64 {
         (**self).exact_requiring_bytes()
     }
@@ -172,8 +172,8 @@ pub trait EncodeExt: Encode + Sized {
     /// HISTORY:
     ///   [0] at src/bytes.rs:53
     ///   [1] at src/fixnum.rs:116
-    ///   [2] at src/encode.rs:9 -- oops!
-    ///   [3] at src/encode.rs:10\n");
+    ///   [2] at src/encode.rs:10 -- oops!
+    ///   [3] at src/encode.rs:11\n");
     /// ```
     fn map_err<E, F>(self, f: F) -> MapErr<Self, E, F>
     where
@@ -430,7 +430,7 @@ pub trait EncodeExt: Encode + Sized {
 
         match self.requiring_bytes() {
             ByteCount::Finite(size) => {
-                track_assert!(size <= std::usize::MAX as u64, ErrorKind::Other; size);
+                track_assert!(size <= usize::MAX as u64, ErrorKind::Other; size);
 
                 let mut buf = vec![0; size as usize];
                 track!(self.encode(&mut buf, Eos::new(true)))?;

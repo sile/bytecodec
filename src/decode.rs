@@ -82,7 +82,7 @@ pub trait Decode {
         self.requiring_bytes() == ByteCount::Finite(0)
     }
 }
-impl<'a, D: ?Sized + Decode> Decode for &'a mut D {
+impl<D: ?Sized + Decode> Decode for &mut D {
     type Item = D::Item;
 
     fn decode(&mut self, buf: &[u8], eos: Eos) -> Result<usize> {
@@ -197,9 +197,9 @@ pub trait DecodeExt: Decode + Sized {
     /// HISTORY:
     ///   [0] at src/bytes.rs:152
     ///   [1] at src/fixnum.rs:200
-    ///   [2] at src/decode.rs:10 -- oops!
+    ///   [2] at src/decode.rs:11 -- oops!
     ///   [3] at src/io.rs:45
-    ///   [4] at src/decode.rs:14\n");
+    ///   [4] at src/decode.rs:15\n");
     /// ```
     fn map_err<E, F>(self, f: F) -> MapErr<Self, E, F>
     where
@@ -472,7 +472,7 @@ pub trait TaggedDecode: Decode {
     ///   - Other errors has occurred
     fn start_decoding(&mut self, tag: Self::Tag) -> Result<()>;
 }
-impl<'a, D: ?Sized + TaggedDecode> TaggedDecode for &'a mut D {
+impl<D: ?Sized + TaggedDecode> TaggedDecode for &mut D {
     type Tag = D::Tag;
 
     fn start_decoding(&mut self, tag: Self::Tag) -> Result<()> {
@@ -507,7 +507,7 @@ pub trait TryTaggedDecode: Decode {
     ///   - Other errors has occurred
     fn try_start_decoding(&mut self, tag: Self::Tag) -> Result<bool>;
 }
-impl<'a, D: ?Sized + TryTaggedDecode> TryTaggedDecode for &'a mut D {
+impl<D: ?Sized + TryTaggedDecode> TryTaggedDecode for &mut D {
     type Tag = D::Tag;
 
     fn try_start_decoding(&mut self, tag: Self::Tag) -> Result<bool> {

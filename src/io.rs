@@ -242,7 +242,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> ReadBuf<B> {
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Read for ReadBuf<B> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let size = cmp::min(buf.len(), self.len());
-        (&mut buf[..size]).copy_from_slice(&self.inner.as_ref()[self.head..][..size]);
+        buf[..size].copy_from_slice(&self.inner.as_ref()[self.head..][..size]);
         self.head += size;
         if self.head == self.tail {
             self.head = 0;
@@ -373,7 +373,7 @@ impl<B: AsRef<[u8]> + AsMut<[u8]>> WriteBuf<B> {
 impl<B: AsRef<[u8]> + AsMut<[u8]>> Write for WriteBuf<B> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let size = cmp::min(buf.len(), self.room());
-        (&mut self.inner.as_mut()[self.tail..][..size]).copy_from_slice(&buf[..size]);
+        self.inner.as_mut()[self.tail..][..size].copy_from_slice(&buf[..size]);
         self.tail += size;
         Ok(size)
     }

@@ -234,7 +234,7 @@ where
     }
 
     fn is_idle(&self) -> bool {
-        self.inner1.as_ref().map_or(false, Decode::is_idle)
+        self.inner1.as_ref().is_some_and(Decode::is_idle)
     }
 }
 
@@ -1519,13 +1519,13 @@ mod test {
         let mut output = Vec::new();
         let mut encoder = Utf8Encoder::new().length(3);
         encoder.start_encoding("hello").unwrap(); // Error (too long)
-        let error = encoder.encode_all(&mut output).err().expect("too long");
+        let error = encoder.encode_all(&mut output).expect_err("too long");
         assert_eq!(*error.kind(), ErrorKind::UnexpectedEos);
 
         let mut output = Vec::new();
         let mut encoder = Utf8Encoder::new().length(3);
         encoder.start_encoding("hi").unwrap(); // Error (too short)
-        let error = encoder.encode_all(&mut output).err().expect("too short");
+        let error = encoder.encode_all(&mut output).expect_err("too short");
         assert_eq!(*error.kind(), ErrorKind::InvalidInput);
     }
 
@@ -1598,7 +1598,7 @@ mod test {
 
         offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
         assert_eq!(offset, 3);
-        assert_eq!(encoder.is_suspended(), true);
+        assert!(encoder.is_suspended());
 
         encoder.set_consumable_bytes(3);
         offset += track_try_unwrap!(encoder.encode(&mut output[offset..], eos));
