@@ -430,7 +430,7 @@ pub trait EncodeExt: Encode + Sized {
 
         match self.requiring_bytes() {
             ByteCount::Finite(size) => {
-                track_assert!(size <= std::usize::MAX as u64, ErrorKind::Other; size);
+                track_assert!(size <= usize::MAX as u64, ErrorKind::Other; size);
 
                 let mut buf = vec![0; size as usize];
                 track!(self.encode(&mut buf, Eos::new(true)))?;
