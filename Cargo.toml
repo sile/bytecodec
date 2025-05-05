@@ -10,9 +10,6 @@ license = "MIT"
 categories = ["encoding"]
 edition = "2018"
 
-[badges]
-coveralls = {repository = "sile/bytecodec"}
-
 [dependencies]
 bincode = { version = "1", optional = true }
 byteorder = "1"
